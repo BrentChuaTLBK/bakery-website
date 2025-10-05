@@ -1,50 +1,25 @@
-fetch(
-    "https://ap-southeast-1.aws.services.cloud.mongodb.com/api/client/v2.0/app/data-xpnawsg/auth/providers/anon-user/login",
-    {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    }
-)
+// Configuration - Update this with your Render API URL
+const API_BASE_URL = "https://tlbk-api.onrender.com/api"; // Render API URL (no trailing slash!)
+
+var urlParams = new URLSearchParams(window.location.search);
+var blogId = urlParams.get("blog");
+
+fetch(`${API_BASE_URL}/findOne`, {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+        collection: "blogs",
+        filter: {
+            "id": blogId
+        }
+    })
+})
     .then((response) => response.json())
-    .then((data) => {
-        const accessToken = data.access_token;
-        console.log("Access Token:", accessToken);
-
-        let myHeaders = new Headers();
-        myHeaders.append("Accept", "application/json");
-        myHeaders.append("Authorization", "Bearer " + accessToken);
-
-        var reflowAuth = localStorage.getItem("reflowAuth");
-        var parsedReflowAuth = JSON.parse(reflowAuth);
-        var urlParams = new URLSearchParams(window.location.search);
-        var blogId = urlParams.get("blog");
-        let raw = JSON.stringify({
-            dataSource: "TLB-Kitchen",
-            database: "tlb_kitchen_website",
-            collection: "blogs",
-            filter: {
-                "id": blogId
-            }
-        });
-
-        let requestOptions = {
-            method: "POST",
-            headers: myHeaders,
-            body: raw,
-            redirect: "follow",
-        };
-
-        fetch(
-            "https://ap-southeast-1.aws.data.mongodb-api.com/app/data-xpnawsg/endpoint/data/v1/action/findOne",
-            requestOptions
-        )
-            .then((response) => response.text())
-            .then((result) => {
-                const parsedResult = JSON.parse(result);
-                console.log(parsedResult);
-                const blogPost = parsedResult.document;
+    .then((result) => {
+        console.log(result);
+        const blogPost = result.document;
                 const title = blogPost.title;
                 const content = blogPost.content;
 
@@ -61,8 +36,3 @@ fetch(
                 console.log(e);
                 $(".loading").hide();
             });
-    })
-    .catch((error) => {
-        console.error("An error occurred:", error);
-        $(".loading").hide();
-    });

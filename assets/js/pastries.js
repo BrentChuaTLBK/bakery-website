@@ -1,53 +1,29 @@
-fetch(
-    "https://ap-southeast-1.aws.services.cloud.mongodb.com/api/client/v2.0/app/data-xpnawsg/auth/providers/anon-user/login",
-    {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    }
-)
-    .then((response) => response.json())
-    .then((data) => {
-        const accessToken = data.access_token;
-        console.log("Access Token:", accessToken);
+// Configuration - Update this with your Render API URL
+const API_BASE_URL = "https://tlbk-api.onrender.com/api"; // For local testing. Change to: https://tlbk-api.onrender.com/api for production
 
-        let myHeaders = new Headers();
-        myHeaders.append("Accept", "application/json");
-        myHeaders.append("Authorization", "Bearer " + accessToken);
+var urlParams = new URLSearchParams(window.location.search);
+var categoryNum = urlParams.get("category");
+if (categoryNum == null) {
+    categoryNum = -1;
+} else {
+    categoryNum = parseInt(categoryNum);
+}
 
-        let raw = JSON.stringify({
-            dataSource: "TLB-Kitchen",
-            database: "tlb_kitchen_website",
-            collection: "pastries",
-            filter: {
-                "spec_id": "categories"
-            }
-        });
-
-        let requestOptions = {
-            method: "POST",
-            headers: myHeaders,
-            body: raw,
-            redirect: "follow",
-        };
-
-        var urlParams = new URLSearchParams(window.location.search);
-        var categoryNum = urlParams.get("category");
-        if (categoryNum == null) {
-            categoryNum = parseInt(categoryNum);
-            categoryNum = -1;
+fetch(`${API_BASE_URL}/findOne`, {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+        collection: "pastries",
+        filter: {
+            "spec_id": "categories"
         }
-        categoryNum = parseInt(categoryNum);
-
-        fetch(
-            "https://ap-southeast-1.aws.data.mongodb-api.com/app/data-xpnawsg/endpoint/data/v1/action/findOne",
-            requestOptions
-        )
-            .then((response) => response.text())
-            .then(async (result) => {
-                const parsedResult = JSON.parse(result);
-                const docs = parsedResult.document;
+    })
+})
+    .then((response) => response.json())
+    .then(async (result) => {
+        const docs = result.document;
                 let categories = docs.categories;
 
                 var pagenum = urlParams.get("page");
@@ -67,7 +43,7 @@ fetch(
                 for (let i = 0; i < categories.length; i++) {
                     let category = categories[i];
                     let id = i.toString();
-                    let htmlContent = `<a class="dropdown-item ${i === categoryNum ? 'active' : ''}" href="?category=` + id + `">` + category + `</a>`;
+                    let htmlContent = `<a class="dropdown-item ${i === categoryNum ? 'active' : ''}" href="../../pastries.html?category=` + id + `">` + category + `</a>`;
                     let dropdownMenu = document.querySelector(".categories-dropdown");
                     dropdownMenu.innerHTML += htmlContent; // Use += to append each category
                 }
@@ -94,30 +70,19 @@ fetch(
                     // INDIVIDUAL STUFF
                     let itemsToAddHTML = "";
 
-                    let raw2 = JSON.stringify({
-                        dataSource: "TLB-Kitchen",
-                        database: "tlb_kitchen_website",
-                        collection: "pastries",
-                        filter: categoryFilter
-
-                    });
-                    console.log(raw2);
-
-                    let requestOptions2 = {
+                    await fetch(`${API_BASE_URL}/find`, {
                         method: "POST",
-                        headers: myHeaders,
-                        body: raw2,
-                        redirect: "follow",
-                    };
-
-                    await fetch(
-                        "https://ap-southeast-1.aws.data.mongodb-api.com/app/data-xpnawsg/endpoint/data/v1/action/find",
-                        requestOptions2
-                    )
-                        .then((response) => response.text())
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            collection: "pastries",
+                            filter: categoryFilter
+                        })
+                    })
+                        .then((response) => response.json())
                         .then((result) => {
-                            const parsedResult = JSON.parse(result);
-                            const docs = parsedResult.documents;
+                            const docs = result.documents;
 
                             let placeTitle = false;
                             for (let z = 0; z < docs.length; z++) {
@@ -222,8 +187,3 @@ fetch(
                 console.log(e);
                 $(".loading").hide();
             });
-    })
-    .catch((error) => {
-        console.error("An error occurred:", error);
-        $(".loading").hide();
-    });
