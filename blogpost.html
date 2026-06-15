@@ -36,6 +36,37 @@
     </head>
 
 <body>
+<style>
+#initial-loader {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background-color: #ffffff;
+    z-index: 999999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.5s ease;
+}
+.initial-spinner {
+    width: 50px; height: 50px;
+    border: 5px solid #fde4e4;
+    border-top: 5px solid #D33B3D;
+    border-radius: 50%;
+    animation: init-spin 1s linear infinite;
+}
+@keyframes init-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+<div id="initial-loader"><div class="initial-spinner"></div></div>
+<script>
+window.addEventListener('load', function() {
+    var loader = document.getElementById('initial-loader');
+    if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function() { loader.style.display = 'none'; }, 500);
+    }
+});
+</script>
+
 <nav class="navbar navbar-expand-md sticky-top bg-primary navbar-shrink py-3 navbar-light" id="mainNav"
      data-bs-theme="dark">
     <div class="container"><a class="navbar-brand d-flex align-items-center" href="/"><span
