@@ -27,11 +27,11 @@
     <meta property="og:type" content="website">
     <link rel="canonical" href="https://thelittlebakerkitchen.com/faq.html">
     <link rel="icon" type="image/png" sizes="32x32" href="assets/img/brands/favicon-32.png">
-    <link rel="preload" href="assets/bootstrap/css/bootstrap.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css"></noscript>
     
     
     
-    <link rel="preload" href="assets/css/bs-theme-overrides.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="assets/css/bs-theme-overrides.css"></noscript>
+    
+    
     </head>
 
 <body>
@@ -440,6 +440,25 @@
 <script defer src="assets/js/Lightbox-Gallery-No-Gutters-baguetteBox.min.js"></script>
 <script defer src="assets/js/Lightbox-Gallery-No-Gutters-Lightbox-Gallery.js"></script>
 
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var loader = document.querySelector(".loading");
+        if (loader) {
+            loader.style.transition = "opacity 0.4s ease";
+            loader.style.opacity = "0";
+            setTimeout(function() { loader.style.display = "none"; }, 400);
+        }
+        
+        var loadCSS = function(href) {
+            var link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = href;
+            document.head.appendChild(link);
+        };
+        loadCSS("assets/bootstrap/css/bootstrap.min.css");
+        loadCSS("assets/css/bs-theme-overrides.css");
+    });
+</script>
 </body>
 
 </html>
