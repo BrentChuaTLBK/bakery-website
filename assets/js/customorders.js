@@ -112,7 +112,7 @@ fetch(`${API_BASE_URL}/findOne`, {
                                     let title = item.title;
                                     let picture = item.picture;
                                     itemsToAddHTML += `<div class="col-6 col-md-4 col-lg-3 col-xl-3">
-                                                            <div class="text-center"><a href="#" data-bs-target="#pictureModal${i}-${z}" data-bs-toggle="modal"><img class="rounded img-fluid fit-cover" style="height: 200px;width: 200px;" src="${picture}" referrerpolicy="no-referrer" width="330" height="400"></a>
+                                                            <div class="text-center"><a href="#" data-bs-target="#pictureModal${i}-${z}" data-bs-toggle="modal"><img alt="The Little Baker Kitchen Image" class="rounded img-fluid fit-cover" style="height: 200px;width: 200px;" src="${picture}" referrerpolicy="no-referrer" width="330" height="400"></a>
                                                                 <div class="py-2">
                                                                     <h6 class="text-center">${title}</h6>
                                                                 </div>
@@ -249,7 +249,7 @@ function search() {
                             let title = item.title;
                             let picture = item.picture;
                             itemsToAddHTML += `<div class="col-6 col-md-4 col-lg-3 col-xl-3">
-                                                    <div class="text-center"><a href="#" data-bs-target="#pictureModal${i}" data-bs-toggle="modal"><img class="rounded img-fluid fit-cover" style="height: 200px;width: 200px;" src="${picture}" referrerpolicy="no-referrer" width="330" height="400"></a>
+                                                    <div class="text-center"><a href="#" data-bs-target="#pictureModal${i}" data-bs-toggle="modal"><img alt="The Little Baker Kitchen Image" class="rounded img-fluid fit-cover" style="height: 200px;width: 200px;" src="${picture}" referrerpolicy="no-referrer" width="330" height="400"></a>
                                                         <div class="py-2">
                                                             <h6 class="text-center">${title}</h6>
                                                         </div>
