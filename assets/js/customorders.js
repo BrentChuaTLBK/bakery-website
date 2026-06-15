@@ -110,7 +110,7 @@ fetch(`${API_BASE_URL}/findOne`, {
                                     }
                                     let item = docs[z];
                                     let title = item.title;
-                                    let picture = item.picture;
+                                    let picture = "https://wsrv.nl/?url=" + encodeURIComponent(item.picture.replace("https://", "")) + "&output=webp&w=600";
                                     itemsToAddHTML += `<div class="col-6 col-md-4 col-lg-3 col-xl-3">
                                                             <div class="text-center"><a href="#" data-bs-target="#pictureModal${i}-${z}" data-bs-toggle="modal"><img alt="The Little Baker Kitchen Image" class="rounded img-fluid fit-cover" style="height: 200px;width: 200px;" src="${picture}" referrerpolicy="no-referrer" width="330" height="400"></a>
                                                                 <div class="py-2">
@@ -247,7 +247,7 @@ function search() {
                         for (let i = 0; i < end; i++) {
                             let item = documents[i];
                             let title = item.title;
-                            let picture = item.picture;
+                            let picture = "https://wsrv.nl/?url=" + encodeURIComponent(item.picture.replace("https://", "")) + "&output=webp&w=600";
                             itemsToAddHTML += `<div class="col-6 col-md-4 col-lg-3 col-xl-3">
                                                     <div class="text-center"><a href="#" data-bs-target="#pictureModal${i}" data-bs-toggle="modal"><img alt="The Little Baker Kitchen Image" class="rounded img-fluid fit-cover" style="height: 200px;width: 200px;" src="${picture}" referrerpolicy="no-referrer" width="330" height="400"></a>
                                                         <div class="py-2">
