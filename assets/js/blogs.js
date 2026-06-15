@@ -43,7 +43,7 @@ fetch(`${API_BASE_URL}/find`, {
                         `<div class="block-content" style="padding-top: 0;margin-top: 0;">
                 <div class="clean-blog-post" style="background-color: white;">
                     <div class="row" style="padding: 0 9px 9px;margin-top: 36px;border-radius: 10px;border-width: 0.4px;border-style: solid;">
-                        <div class="col-lg-5 col-xl-3 text-center align-self-center" style="border: var(--bs-primary-text-emphasis);"><img alt="The Little Baker Kitchen Image" referrerpolicy="no-referrer" class="rounded img-fluid" src="` +
+                        <div class="col-lg-5 col-xl-3 text-center align-self-center" style="border: var(--bs-primary-text-emphasis);"><img width="800" height="800" alt="The Little Baker Kitchen Image" referrerpolicy="no-referrer" class="rounded img-fluid" src="` +
                         image + `" style="height: 200px;margin-top: 19px;margin-bottom: 19px;"></div>
                                 <div class="col-lg-7 col-xl-9 text-center text-lg-start text-xl-start text-xxl-start align-self-center">
                                     <h3 style="margin-top: 15px;">` + title + `</h3>
@@ -135,7 +135,7 @@ function search() {
                                 `<div class="block-content" style="padding-top: 0;margin-top: 0;">
                     <div class="clean-blog-post" style="background-color: white;">
                         <div class="row" style="padding: 0 9px 9px;margin-top: 36px;border-radius: 10px;border-width: 0.4px;border-style: solid;">
-                            <div class="col-lg-5 col-xl-3 text-center align-self-center" style="border: var(--bs-primary-text-emphasis);"><img alt="The Little Baker Kitchen Image" referrerpolicy="no-referrer" class="rounded img-fluid" src="` +
+                            <div class="col-lg-5 col-xl-3 text-center align-self-center" style="border: var(--bs-primary-text-emphasis);"><img width="800" height="800" alt="The Little Baker Kitchen Image" referrerpolicy="no-referrer" class="rounded img-fluid" src="` +
                                 image + `" style="height: 200px;margin-top: 19px;margin-bottom: 19px;"></div>
                                     <div class="col-lg-7 col-xl-9 text-center text-lg-start text-xl-start text-xxl-start align-self-center">
                                         <h3 style="margin-top: 15px;">` + title + `</h3>

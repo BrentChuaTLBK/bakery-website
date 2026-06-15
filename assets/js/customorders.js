@@ -122,7 +122,7 @@ fetch(`${API_BASE_URL}/findOne`, {
                                                     <div class="modal-dialog modal-dialog-centered" role="document">
                                                         <div class="modal-content">
                                                             <div class="modal-header"><button class="btn-close" aria-label="Close" data-bs-dismiss="modal" type="button"></button></div>
-                                                            <div class="modal-body" style="align-self: center"><img class="img-fluid" alt="Picture" src="${picture}" referrerpolicy="no-referrer" /></div>
+                                                            <div class="modal-body" style="align-self: center"><img width="800" height="800" class="img-fluid" alt="Picture" src="${picture}" referrerpolicy="no-referrer" /></div>
                                                         </div>
                                                     </div>
                                                 </div>`;
@@ -259,7 +259,7 @@ function search() {
                                             <div class="modal-dialog modal-dialog-centered" role="document">
                                                 <div class="modal-content">
                                                     <div class="modal-header"><button class="btn-close" aria-label="Close" data-bs-dismiss="modal" type="button"></button></div>
-                                                    <div class="modal-body" style="align-self: center"><img class="img-fluid" alt="Picture" src="${picture}" referrerpolicy="no-referrer" /></div>
+                                                    <div class="modal-body" style="align-self: center"><img width="800" height="800" class="img-fluid" alt="Picture" src="${picture}" referrerpolicy="no-referrer" /></div>
                                                 </div>
                                             </div>
                                         </div>`;
