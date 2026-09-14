@@ -1,5 +1,7 @@
 # Beginner setup guide: TLB Kitchen ordering draft
 
+> **Current route for Brent:** DNS and HTTPS are restored, and testing will use the existing website. Follow [LIVE-TESTING.md](LIVE-TESTING.md) for the remaining steps and exact live URLs. The original private preview could not be republished. The database, three backend functions and five-minute automatic processing are already installed in **TLB Kitchen System**; do not reinstall them. Return to Steps 8 and 10 below for the test product and order checks, using the live shop address.
+
 This guide is for Brent, starting with no website setup experience. You do not need to write the website code. You will create service accounts, enter settings, and copy a few prepared commands.
 
 **Start with Step 1 only.** Finish its checkpoint before moving on. You can pause between steps and ask for help with a screenshot of your screen. Keep passwords, secret keys and private order links out of screenshots.
