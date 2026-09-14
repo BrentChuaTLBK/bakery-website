@@ -10,7 +10,7 @@ Use this guide instead of the private-preview addresses in SETUP.md.
 - Cloudflare has four DNS-only GitHub A records at the root and a DNS-only www CNAME to `brentchuatlbk.github.io`.
 - The ordering draft is connected to the TLB Kitchen System Supabase project.
 - All three backend functions are deployed. Email signup and email confirmation are enabled.
-- Automatic processing is active every five minutes. An empty-queue worker request succeeded with HTTP 200: no errors and no emails sent.
+- Automatic processing is active every five minutes. The first two scheduled runs succeeded, and their worker requests returned HTTP 200. The empty-queue worker check also completed with no errors and no emails sent.
 - Ordering is paused. No bakery accounts, owners, products or orders exist yet.
 - The ordering pages have not been published: `/shop.html` and `/account.html` currently return 404.
 
@@ -26,14 +26,14 @@ In **Supabase → TLB Kitchen System → Authentication → URL Configuration**,
 | Redirect URL, first entry | `https://thelittlebakerkitchen.com/auth-callback.html` |
 | Redirect URL, second entry | `https://thelittlebakerkitchen.com/reset-password.html` |
 
-Add the redirects separately, without wildcards. Existing preview redirects may remain.
+Add the redirects separately, without wildcards. This live-only testing route does not need preview redirects.
 Keep email signup and Confirm email enabled. Keep the default confirmation and recovery
 templates, including `{{ .ConfirmationURL }}`, intact.
 
 Next, open **Edge Functions → Secrets** and edit `ALLOWED_ORIGINS` to this single value:
 
 ```text
-https://tlb-website-ordering-preview.brentchua1223.chatgpt.site,https://thelittlebakerkitchen.com
+https://thelittlebakerkitchen.com
 ```
 
 Save it with no spaces or trailing slashes. The live origin was rejected during the
