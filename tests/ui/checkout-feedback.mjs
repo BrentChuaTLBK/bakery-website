@@ -52,7 +52,7 @@ export async function api(action, payload = {}) {
     const now = new Date();
     const order = { ...structuredClone(payload), ...quote(payload),
       id: 'local-order', access_token: 'local-token', reference: 'LOCAL-CHECKOUT-TEST',
-      created_at: now.toISOString(), payment_deadline: new Date(now.getTime() + 3600000).toISOString(),
+      created_at: now.toISOString(), payment_deadline: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
       payment_status: 'awaiting_payment', fulfillment_status: 'pending', history: [],
       ...${JSON.stringify(pickup)} };
     localStorage.setItem(fixtureKey, JSON.stringify(order));
