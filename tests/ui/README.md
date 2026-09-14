@@ -21,3 +21,7 @@ by docs/ACCEPTANCE.md after the owner completes docs/SETUP.md.
 Run `npm run test:labels` to check optional labels, saved text and color, and their manager/storefront behavior. Set `PLAYWRIGHT_PACKAGE_ROOT` to the directory containing the `playwright` package if it is not locally installed, and `BROWSER_EXECUTABLE_PATH` if using a separately installed Chromium browser.
 
 `product-labels.mjs` uses the real manager and shop UI with a local mock of the client module. It blocks external requests and does not connect to Supabase, send emails, or change real products. The checks include saving and reopening labels, disabling them without losing their settings, options remaining independent, unsafe saved values, and mobile layout.
+
+## Checkout feedback regression
+
+Run `npm run test:checkout` for phone-format checks and the isolated checkout browser test. The browser test uses local fixtures and blocks external requests. It covers buyer/recipient phone validation, enabling social usernames only after platform selection, and preserving pickup line breaks on checkout and saved orders. The same Playwright and browser environment overrides above apply.
