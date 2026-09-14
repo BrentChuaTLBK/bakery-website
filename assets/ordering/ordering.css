@@ -10,3 +10,8 @@
 .account-layout{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:start;max-width:1000px;margin:35px auto}.account-card{max-width:520px}.account-tabs{display:flex;gap:8px;margin-bottom:22px}.account-tabs button{flex:1}.account-header{display:flex;justify-content:space-between;gap:18px;align-items:center;margin:25px 0}.account-orders{margin-top:25px}.account-intro h1{font-family:Lobster;font-weight:400;font-size:45px}.account-intro p{color:var(--muted);max-width:380px}.account-orders .order-card{margin-bottom:16px}@media(max-width:720px){.account-layout{grid-template-columns:1fr;gap:22px;margin:5px auto}.account-card{max-width:none}.account-header{align-items:flex-start;flex-wrap:wrap}.account-intro h1{font-size:34px}}
 
 [data-product="demo-cookie"] .product-image img{object-position:50% 100%}
+
+
+/* Optional per-product labels share the same styling in the shop and preview. */
+.product-label{display:inline-block;padding:4px 9px;border-radius:6px;font-size:10px;font-weight:700;line-height:1.6;white-space:normal;overflow-wrap:anywhere;text-align:left}
+.product-image .product-label{max-width:calc(100% - 24px);box-sizing:border-box}
