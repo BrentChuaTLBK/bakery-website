@@ -65,6 +65,22 @@ test('all order messages contain secure fragment link and escaped content', () =
   assert.ok(!renderEmail(payload('order_edited')).text.includes('Payment instructions:'));
 });
 
+test('payment emails use each saved deadline and avoid outdated duration claims for legacy orders', () => {
+  const fresh = payload('order_submitted');
+  fresh.order.created_at = '2026-09-12T09:00:00Z';
+  fresh.order.payment_deadline = '2026-09-12T09:15:00Z';
+  const legacy = payload('order_submitted');
+  legacy.order.created_at = fresh.order.created_at;
+  legacy.order.payment_deadline = '2026-09-12T10:00:00Z';
+  for (const output of ['html', 'text']) {
+    assert.match(renderEmail(fresh)[output], /5:15\s*PM/);
+    assert.match(renderEmail(legacy)[output], /6:00\s*PM/);
+    const expired = renderEmail({ ...legacy, event_type: 'order_expired' })[output];
+    assert.match(expired, /before your payment-proof deadline/);
+    assert.doesNotMatch(expired, /60-minute|15-minute/);
+  }
+});
+
 test('unlisted origins and unauthenticated product uploads never reach database or storage', async () => {
   globalThis.fetch = async () => { throw new Error('Unexpected network request'); };
   const untrusted = new Request('https://project.supabase.co/functions/v1/proof-upload', { method: 'POST', headers: { Origin: 'https://untrusted.test' }, body: form() });

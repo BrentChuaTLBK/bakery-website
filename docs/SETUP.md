@@ -74,8 +74,9 @@ The URL and publishable key are the two public values the website needs. Secret/
 2. Click **Raw** to see only the file's text. Press **Ctrl+A**, then **Ctrl+C** to copy the entire file.
 3. In Supabase, check that the selected project is **TLB Kitchen Test**.
 4. Open **SQL Editor**, create a new query, and paste the copied text.
-5. Click **Run** once. This file is for a fresh test project. If you already ran it successfully, continue to the checkpoint instead of running it again.
-6. Open **Storage** and check the two folders, called *buckets*:
+5. Click **Run** once. This file is for a fresh test project. If you already ran it successfully, skip this file instead of running it again.
+6. For a fresh project, open the [database migrations folder](https://github.com/BrentChuaTLBK/bakery-website/tree/main/supabase/migrations). Run each later `.sql` file once, in filename order, using a new SQL Editor query for each. These updates include contact-number validation and the 15-minute payment deadline. On an existing project, check which updates have already been applied before running anything.
+7. Open **Storage** and check the two folders, called *buckets*:
 
 | Bucket | Required access | Why |
 | --- | --- | --- |
@@ -417,7 +418,9 @@ where jobname = 'tlb-order-maintenance-and-email';
 
 Allow several minutes for order email. Each run processes up to three messages; larger queues take more runs. Provider limits apply to account and order mail. Keep this five-minute interval for initial setup.
 
-An order without successful proof expires after its 60-minute deadline when maintenance runs. A proof received on time stays **Under review** until staff acts, even after an hour. Reminders apply to active paid orders due that day in **Asia/Manila**.
+New orders have a 15-minute payment-proof deadline. Orders placed before this change keep their original deadline. Expired unpaid reservations are released before the next successful shop or checkout API response; scheduled maintenance also cleans them up every five minutes. A proof received on time stays **Under review** until staff acts, even after the deadline. Reminders apply to active paid orders due that day in **Asia/Manila**.
+
+For an already-open shop, publish the matching website payment instructions before activating the shorter backend deadline. A shorter deadline reduces unpaid stock holds, but guest repeat orders and unverified receipt uploads still need separate abuse controls. The system does not automatically verify that an uploaded receipt represents a real payment.
 
 ## Step 10: Place your first test order
 
@@ -446,8 +449,8 @@ This first pass is not full acceptance. Continue with [ACCEPTANCE.md](ACCEPTANCE
 | Cart continuity | Sign-in and verification preserve cart, date and entered details. |
 | Privacy | Customers see only their own orders and cannot access staff functions or another order's proof. |
 | Rejection | Rejected proof cancels the order, releases stock and sends the reason. It cannot be resubmitted. |
-| No-proof expiry | After 60 minutes and maintenance, the order expires and stock/unredeemed promo holds return once. |
-| Timely proof | Proof submitted on time stays Under review beyond 60 minutes until staff decides. |
+| No-proof expiry | After 15 minutes and maintenance, the order expires and stock/unredeemed promo holds return once. |
+| Timely proof | Proof submitted on time stays Under review beyond 15 minutes until staff decides. |
 | Promos | Minimum, percentage cap, expiry and account/global limits work. Delivery is excluded from discounts. |
 | Last available box | Two customers try to submit for one remaining box together; only one succeeds. |
 | Paid-order edits | Revised items/date/total save while payment remains Paid. Differences are settled manually; Refund is a label. |

@@ -58,7 +58,7 @@ export function renderEmail(payload: any): { html: string; text: string } {
       break;
     case "order_expired":
       heading = "Your payment-proof deadline has expired";
-      message = "No payment proof was submitted before the 60-minute deadline. This order has expired and its unpaid reservations have been released. The order can no longer accept payment proof.";
+      message = "No payment proof was submitted before your payment-proof deadline. This order has expired and its unpaid reservations have been released. The order can no longer accept payment proof.";
       instructions = "Place a new order or contact us directly. If you already transferred funds, contact us about that payment before making any further payment.";
       break;
     case "fulfillment_reminder":

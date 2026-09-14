@@ -111,7 +111,7 @@ Run the Monday example on an actual Monday in the preview or through an explicit
 | O04 | Add optional Facebook or Instagram platform and username; add delivery instructions. | Both display accurately in permitted order views. There is one social platform selector and username field. | __________________ |
 | O05 | Try unsupported locality or tamper with a request to submit an unrecognized locality and lower delivery fee. | Server rejects unsupported delivery and derives the zone fee from saved zone settings; no trusted client-supplied fee. | __________________ |
 | O06 | Inspect pickup and delivery date controls and wording. | Date only, no time slots. Delivery says arrival can be anytime 9 AM–6 PM (or configured window), with no guaranteed exact or morning arrival. | __________________ |
-| O07 | Review checkout, then submit once. Save reference and secure link. | Items/options, subtotal, promo/discount, delivery fee, and final total are visible before submission. Server creates one reference; Awaiting payment + Pending confirmation; proof deadline is creation + exactly 60 minutes. | __________________ |
+| O07 | Review checkout, then submit once. Save reference and secure link. | Items/options, subtotal, promo/discount, delivery fee, and final total are visible before submission. Server creates one reference; Awaiting payment + Pending confirmation; proof deadline is creation + exactly 15 minutes. | __________________ |
 | O08 | Open saved guest secure link in a signed-out browser. | Guest can view only that order and valid payment actions without creating an account; link remains usable for status after the proof deadline. | __________________ |
 | O09 | Try editing/cancelling a submitted order as its customer. | Customer cannot directly amend or cancel it; contact details explain how to request help. | __________________ |
 
@@ -133,15 +133,15 @@ Use your controlled inboxes. Inspect spam/junk as well as inbox. A queue record 
 
 ## 7. Manual payment, expiry, and release
 
-The normal expiry test really takes 60 minutes. For a precise deadline race, use a controlled staging test harness with server timestamps; browser observation alone may be insufficient to prove an exact millisecond boundary. Do not change the production clock or edit live payment rows to accelerate a test.
+The normal expiry test really takes 15 minutes. For a precise deadline race, use a controlled staging test harness with server timestamps; browser observation alone may be insufficient to prove an exact millisecond boundary. Do not change the production clock or edit live payment rows to accelerate a test.
 
 | ID | Steps | Expected result | Actual / result / issue |
 | --- | --- | --- | --- |
 | P01 | Open a newly submitted order. Compare payment methods/account details/instructions with admin settings. | Full initial payment instructions appear; no gateway, deposit, installment, courier charge lookup, or live payment occurs. | __________________ |
 | P02 | Before deadline upload a valid demo JPEG/PNG/WebP and enter payment reference `DEMO-REF-001`. | Payment changes only to Under review; fulfillment remains Pending confirmation; stock and promo holds remain. Further proof upload is disabled. | __________________ |
 | P03 | Try missing reference, disguised text `.jpg`, SVG, PDF, oversized image, and missing file. | Server rejects with clear format/size/reference errors. No successful proof state is recorded; deadline continues. Allowed types are JPEG/PNG/WebP, maximum 5 MB. | __________________ |
-| P04 | Leave an order without successful proof for more than 60 minutes; run normal scheduler and refresh. | Fulfillment becomes Expired; payment remains Awaiting payment; stock and unused promo release once; upload disabled. Original reference/history retained. | __________________ |
-| P05 | Upload valid proof before deadline, wait beyond 60 minutes (and ideally review next day). | Under review persists indefinitely until staff action; no expiry due to slow review; holds remain counted once. | __________________ |
+| P04 | Leave an order without successful proof for more than 15 minutes; run normal scheduler and refresh. | Fulfillment becomes Expired; payment remains Awaiting payment; stock and unused promo release once; upload disabled. Original reference/history retained. | __________________ |
+| P05 | Upload valid proof before deadline, wait beyond 15 minutes (and ideally review next day). | Under review persists indefinitely until staff action; no expiry due to slow review; holds remain counted once. | __________________ |
 | P06 | Complete proof just before deadline; separately begin upload before deadline but let validated submission complete at/after it. Record server times. | Only proof successfully committed before deadline is accepted. At/after deadline fails; an upload start alone does not preserve the hold. | __________________ |
 | P07 | Have the expiry worker and proof submission compete near deadline in staging. | One consistent outcome: timely committed proof remains Under review with holds, or expired order rejects proof and releases holds once. No accepted late proof or orphaned state. | __________________ |
 | P08 | Owner/staff approves valid under-review full payment. Inspect available quantity and history. | Paid + Confirmed; same quantity hold becomes committed without a second deduction; reserved promo becomes redeemed once; approved amount/staff/time are retained. | __________________ |

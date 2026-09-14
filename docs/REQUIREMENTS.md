@@ -47,7 +47,7 @@ The first column below identifies actual requirements. The defaults are disclose
 | Capacity | Per product per date; pickup/delivery share; no flavor or order-count stock | Explicit capacity row required; missing row means unavailable; reduction below held+committed is rejected |
 | Delivery | Fixed admin zones, supported-address validation, separate recipient details | Exact structured locality selection plus full address; no automated arbitrary-address geocoding |
 | Delivery timing | Date only; window initially 9 AM–6 PM | Configurable text window; no time-slot controls or guaranteed morning arrival |
-| Proof | Secure, validated upload plus payment reference; 60-minute deadline | JPEG/PNG/WebP, maximum 5 MB; successful validated commit must occur strictly before deadline; PDF not allowed in this draft |
+| Proof | Secure, validated upload plus payment reference; 15-minute deadline | JPEG/PNG/WebP, maximum 5 MB; successful validated commit must occur strictly before deadline; PDF not allowed in this draft |
 | Guest access | Unguessable secure access link | Link grants access to its holder; token is not the human-readable order reference and does not expire with the payment deadline |
 | Proof viewing | Private | Staff receives a temporary signed URL, draft lifetime five minutes |
 | Account tokens | Secure, expiring verification and single-use password reset | Supabase-authenticated flow; configured lifetimes and redirect URLs documented during owner setup |
@@ -90,7 +90,7 @@ The first column below identifies actual requirements. The defaults are disclose
 | Q23 | Pickup information and delivery-window wording | Settings; shop/order summaries | A04, O01, O06 | Real pickup hours/instructions await owner data |
 | Q24 | Manual full initial payment, no gateway/deposit/installments | Settings instructions; order creation/status screens | P01, O07 | No actual payment transfer required in test |
 | Q25 | Unique reference, Awaiting payment/Pending confirmation, reserve immediately | Atomic `create_order`; saved deadline | O07, D08–D09, R07 | Persistent database required |
-| Q26 | Proof within 60 minutes → Under review, never auto-Paid | `proof-upload` Edge Function; atomic proof commit | P02–P03, P06–P07 | Private storage and upload function configured |
+| Q26 | Proof within 15 minutes → Under review, never auto-Paid | `proof-upload` Edge Function; atomic proof commit | P02–P03, P06–P07 | Private storage and upload function configured |
 | Q27 | Under-review holds survive staff delay indefinitely | Status-aware expiration/worker | P05, P12 | Test beyond deadline; scheduler active |
 | Q28 | No proof → Expired and release once, disable upload | Expiration transaction; worker and lazy checks | P04, P06–P07, X09 | Worker schedule required; exact boundary evidence separate |
 | Q29 | Manual approval staff/time/immutable initial amount; commit once | `approve_payment`; payment record; history | P08, P12, X06 | Authorized owner/staff only |
@@ -139,7 +139,7 @@ Payment and fulfillment are separate fields. Refund is a manually applied/remova
 | --- | --- | --- | --- | --- |
 | Successful new submission | Awaiting payment | Pending confirmation | Hold product/date units and eligible promo once | Allowed before deadline |
 | Successful timely proof | Under review | Pending confirmation | Keep holds regardless of review delay | Disabled |
-| No successful proof within 60 minutes | Awaiting payment | Expired | Release held units and unused promo once | Disabled |
+| No successful proof within 15 minutes | Awaiting payment | Expired | Release held units and unused promo once | Disabled |
 | Admin approves full initial payment | Paid | Confirmed | Convert held units to committed and promo to redeemed; no second deduction | Disabled |
 | Admin rejects initial proof | Rejected | Cancelled | Release held units and unused promo once; preserve reason/history | Permanently disabled |
 | Admin cancels unpaid order | Existing unpaid status | Cancelled | Release applicable holds once | Disabled |
