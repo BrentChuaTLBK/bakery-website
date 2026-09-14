@@ -15,3 +15,9 @@
 /* Optional per-product labels share the same styling in the shop and preview. */
 .product-label{display:inline-block;padding:4px 9px;border-radius:6px;font-size:10px;font-weight:700;line-height:1.6;white-space:normal;overflow-wrap:anywhere;text-align:left}
 .product-image .product-label{max-width:calc(100% - 24px);box-sizing:border-box}
+
+/* Keep the owner's pickup formatting readable at checkout and on saved orders. */
+.pickup-text{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.pickup-details .pickup-text + .pickup-text{margin-top:8px}
+.info-grid > div{min-width:0}
+#checkout-form input[name="social_username"]:disabled{background:#f3eee7;color:var(--muted);cursor:not-allowed}
