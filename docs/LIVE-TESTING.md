@@ -132,11 +132,17 @@ Continue through ACCEPTANCE.md before approving the system for ordinary customer
 The shop's date button opens a calendar styled like the manager calendars. Customers
 can browse the current month and the next two calendar months only. For example,
 during September the final bookable date is November 30, not a rolling 60-day limit.
-The dates follow Philippine time and bookings start tomorrow.
+The dates follow Philippine time. Same-day ordering is available only for products with
+**Allow same-day orders** enabled and **0 full production days**, before the configured
+Production schedule cutoff. With no cutoff, it remains available throughout the day.
+After the cutoff, these products can be booked from tomorrow, subject to the normal
+fulfillment schedule and stock. Other products retain their production lead-time rules.
 
 Before submitting an order, check these controls in the customer shop:
 
-- Open the date picker. Previous months, past dates, and today are unavailable.
+- Open the date picker. Previous months and past dates are unavailable. Today is
+  available only when the current basket is eligible for same-day ordering; with an
+  empty basket, an eligible product must be available for the selected method.
 - Move forward twice from the current month. The next-month button is then disabled.
 - Select an allowed date and reopen the calendar; the selected date stays highlighted.
 - Check a date closed to new bookings. It cannot be selected. A delivery-only closure
@@ -145,9 +151,42 @@ Before submitting an order, check these controls in the customer shop:
   close button should work without allowing a date outside the booking window.
 - On mobile, the popup and trigger should fit without sideways scrolling.
 
-The server also rejects new customer quotes and orders outside this window. Existing
+The server also rejects new customer quotes and orders outside this window, including
+same-day attempts after the cutoff or with an ineligible product. Existing
 bookings remain accessible; the manager calendars and staff amendments retain their
 existing date controls.
+
+## Same-day products
+
+In **Products**, edit your ready-stock product, set **Full production days** to **0**,
+and enable **Allow same-day orders**, then save. This option is off by default; setting
+production days to 0 alone does not enable same-day orders. For your shop, enable it
+only on Nori chips. If you need to increase its production days later, turn the option
+off before saving. The form rejects conflicting settings without changing the product.
+
+Same-day orders use the existing cutoff in **Shop settings → Production schedule**
+in Philippine time. Before the cutoff, today can be selected if the date is open and
+stock is available. At or after the cutoff, these products become available from
+tomorrow; an additional full production day is not added. With no cutoff set, same-day
+ordering is allowed throughout the day. A non-production date alone does not close
+ready-stock fulfillment; use the booking-closure calendars when you need to close it.
+
+Check these conditions in the customer shop without placing unnecessary real orders:
+
+- Before the cutoff, a basket containing only eligible Nori chips can select today when
+  stock and the selected pickup/delivery method are available.
+- At or after the cutoff, today is disabled and tomorrow can be selected if otherwise
+  available. All dates use Philippine time, including the midnight transition.
+- Adding a product without the option blocks same-day checkout for the whole basket.
+  The customer must choose a later date or remove that product; items are not removed
+  and orders are not split automatically.
+- A booking closure, delivery-only closure, pickup-only product, or insufficient stock
+  still prevents the corresponding booking. Same-day does not override these rules.
+- Saving and reopening the product editor preserves the option. Setting positive
+  production days while it is checked shows an error; no product changes are saved.
+
+Use staging for cutoff-time changes and direct API rejection checks, as described in
+ACCEPTANCE.md. Existing orders retain their saved dates and payment deadlines.
 
 ## 5. Check calendars and delivery options
 

@@ -28,10 +28,11 @@ The dependency directory must contain `node_modules/@electric-sql/pglite`.
 Every run begins with an empty database. Fixtures are local, clearly named test
 products and accounts; the deployed migration remains empty and paused.
 
-The suite has 29 checks. They exercise the public RPC with anonymous, customer, staff and owner roles;
+The suite has 71 checks. They exercise the public RPC with anonymous, customer, staff and owner roles;
 service actions run with the separate service role. Direct SQL is used only to
 seed verified users, inspect persisted invariants, and move deadlines without
-waiting an hour. Fixed timestamp lead-time checks use the production helper.
+waiting for real deadlines. Fixed timestamp lead-time and same-day checks use
+the production helper and quote function.
 
 Coverage includes Manila production dates and cutoff, shared pickup/delivery
 capacity, no-reservation quotes, idempotent submissions and approvals, guest
@@ -41,6 +42,13 @@ restoration, promo limits/requalification/redemption, optimistic revisions and
 role isolation. Outbox checks cover exclusive leases, sent-record guards, retry
 backoff, stopping before the provider idempotency window, reminder deduplication,
 and cancellation checks immediately before delivery preparation.
+
+Same-day cases cover explicit product opt-in with zero production days, the
+exact inclusive Manila cutoff, tomorrow after cutoff, no-cutoff operation,
+mixed baskets, forged client flags/clocks, closed dates, stock exhaustion and
+unchanged production rules for other products. Upgrade checks preserve existing
+bookings and private function grants, support CRLF definitions and idempotent
+replay, and reject drifted source atomically.
 
 PGlite uses one database connection. These checks establish persisted invariants
 and sequential retry behavior, but cannot prove concurrent transaction races.
