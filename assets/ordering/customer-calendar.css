@@ -1,0 +1,40 @@
+/* The customer's single-date picker shares the admin calendars' cream and caramel palette. */
+.customer-calendar-trigger{display:inline-flex;align-items:center;justify-content:space-between;gap:16px;min-height:43px;min-width:190px;max-width:100%;padding:9px 12px;border:1px solid #ddd3c6;border-radius:8px;background:#fffefb;color:#2f2624;font-size:12px;font-weight:400;text-align:left}
+.customer-calendar-trigger:hover{border-color:#b89064;background:#fffaf0}
+.customer-calendar-trigger[aria-invalid="true"]{border-color:#a33a32}
+.customer-calendar-trigger svg{flex-shrink:0;width:19px;height:19px;fill:none;stroke:#764b25;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+dialog.customer-calendar-popup{box-sizing:border-box;width:min(374px,calc(100vw - 28px));max-width:calc(100vw - 28px);max-height:calc(100dvh - 32px);padding:21px;border:1px solid #e9e2d5;border-radius:14px;background:#fffdfa;color:#2f2624;overflow:auto;box-shadow:0 20px 80px #2f262436}
+.customer-calendar-popup::backdrop{background:#2f26245c;backdrop-filter:blur(2px)}
+.customer-calendar-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px}
+.customer-calendar-heading h2{margin:0;font-size:17px;line-height:1.5;font-weight:700}
+.customer-calendar-close{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border:0;border-radius:50%;background:#f2ebe0;color:#764b25;font-size:23px;line-height:1;padding:0}
+.customer-calendar-guidance{font-size:11px;font-weight:400;color:#796d64;line-height:1.6;margin:0 0 17px}
+.customer-calendar-toolbar{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;align-items:center;gap:8px;text-align:center;margin-bottom:9px}
+.customer-calendar-toolbar strong{font-size:13px;font-weight:700}
+.customer-calendar-nav{border:1px solid #e9e2d5;border-radius:7px;background:#f8f1e6;color:#764b25;min-height:40px;font-size:24px;line-height:1;padding:0}
+.customer-calendar-nav:not(:disabled):hover{background:#eee1cd}
+.customer-calendar-popup button:disabled{opacity:1;cursor:not-allowed}
+.customer-calendar-nav:disabled{color:#bcb3a8;background:#f9f7f3;border-color:#eeeae3}
+.customer-calendar-month{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;margin:0}
+.customer-calendar-month th{font-size:10px;font-weight:400;color:#796d64;padding:5px 0 7px;text-align:center;border:0;background:transparent}
+.customer-calendar-month td{padding:0;text-align:center;height:39px;border:0}
+.customer-calendar-day{position:relative;display:block;border:1px solid transparent;border-radius:7px;background:transparent;color:#2f2624;width:100%;min-height:39px;padding:6px 1px;font-size:12px;line-height:1.5}
+.customer-calendar-day:not(:disabled):hover{background:#f1e8db}
+.customer-calendar-day[aria-current="date"]{border-color:#c7b59e}
+.customer-calendar-day:disabled{color:#b3aba1;background:#faf8f4;text-decoration:line-through;text-decoration-color:#cbc3b9}
+.customer-calendar-day[aria-pressed="true"]:not(:disabled){background:#764b25;color:#fff;font-weight:700}
+.customer-calendar-day[aria-pressed="true"]:not(:disabled):after{content:'•';position:absolute;bottom:-1px;left:0;right:0;font-size:12px;line-height:12px}
+.customer-calendar-popup button:focus-visible,.customer-calendar-trigger:focus-visible{outline:2px solid #764b25;outline-offset:2px}
+.customer-calendar-legend{display:flex;align-items:center;gap:19px;margin:13px 0 10px;font-size:10px;color:#796d64}
+.customer-calendar-legend>span{display:inline-flex;align-items:center;gap:6px}
+.customer-calendar-selected-key,.customer-calendar-unavailable-key{display:inline-block;width:12px;height:12px;border-radius:3px;background:#764b25}
+.customer-calendar-unavailable-key{background:linear-gradient(-45deg,transparent 45%,#b3aba1 45%,#b3aba1 55%,transparent 55%),#faf8f4;border:1px solid #e9e2d5}
+.customer-calendar-help,.customer-calendar-empty{font-size:10px;line-height:1.6;color:#796d64;margin:0 0 12px}
+.customer-calendar-empty{font-size:11px;text-align:center;margin-top:8px}
+.customer-calendar-error{font-size:11px;color:#953b2d;background:#fff0ec;border-radius:6px;padding:10px;line-height:1.5;margin:0 0 12px}
+.customer-calendar-footer{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #e9e2d5;padding-top:10px}
+.customer-calendar-footer button{border:0;background:transparent;color:#764b25;text-decoration:underline;text-underline-offset:3px;font-size:11px;min-height:35px;padding:4px 0}
+.customer-calendar-footer button:disabled{color:#b3aba1;text-decoration:none}
+@media(max-width:720px){.fulfillment-bar .date-field{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:center;min-width:0;flex-basis:100%}#customer-date-picker{grid-column:1/-1;min-width:0}.customer-calendar-trigger{width:100%;min-width:0;min-height:44px}}
+@media(max-width:380px){dialog.customer-calendar-popup{padding:16px;width:calc(100vw - 24px);max-width:calc(100vw - 24px)}.customer-calendar-month{border-spacing:2px}.customer-calendar-day,.customer-calendar-month td{min-height:37px;height:37px}.customer-calendar-trigger{gap:10px}}
+@media print{dialog.customer-calendar-popup{display:none!important}}

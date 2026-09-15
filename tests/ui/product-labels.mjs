@@ -81,6 +81,14 @@ try {
     if (/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href)) forbidden.push(url.href);
     return route.abort();
   });
+  await context.addInitScript(() => {
+    const instant = '2026-09-15T02:00:00Z';
+    const NativeDate = Date;
+    window.Date = class extends NativeDate {
+      constructor(...args) { super(...(args.length ? args : [instant])); }
+      static now() { return new NativeDate(instant).getTime(); }
+    };
+  });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));

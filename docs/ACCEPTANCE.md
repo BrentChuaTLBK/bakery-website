@@ -278,3 +278,13 @@ Use only your own demo accounts/orders/files. These are checks within the previe
 | Approval to deploy live, if granted | __________________ |
 
 Review the merge and deployment walkthrough in [SETUP.md](SETUP.md). A completed checklist is evidence for your decision; it is not automatic permission to merge, publish, activate billing, or replace the live website. Record approval separately after the preview is satisfactory.
+
+
+### Customer calendar booking window
+
+- [ ] The customer date picker uses the cream and caramel calendar style, with a visible selected date and unavailable dates disabled.
+- [ ] Calendar navigation stays between the current Manila month and the second following month; previous months and later months cannot be reached using buttons or keyboard.
+- [ ] Tomorrow is the earliest selectable date. The last date of the second following month is allowed when schedule, lead time and stock permit it; the next day is rejected.
+- [ ] Manila midnight, month/year rollover and leap years update these bounds correctly. Stale saved dates cannot bypass them.
+- [ ] Customer quote/create reject out-of-window dates without reserving stock or queueing an email. Existing bookings and authorized staff amendments remain available.
+- [ ] The popup works by keyboard and on mobile, returns focus after closing, and does not reset the basket.

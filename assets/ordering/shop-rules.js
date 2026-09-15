@@ -5,6 +5,23 @@ export function dateInManila(value = new Date()) {
 }
 export function addDays(date,n) {const d=new Date(`${date}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 export function dayOfWeek(date){return new Date(`${date}T00:00:00Z`).getUTCDay()}
+// Customers can book tomorrow through the end of the second following month.
+// Manila's calendar date controls both boundaries, regardless of device timezone.
+export function customerBookingWindow(now=new Date()){
+  const today=dateInManila(now),end=new Date(`${today.slice(0,7)}-01T12:00:00Z`);
+  end.setUTCMonth(end.getUTCMonth()+3,0);
+  const maxDate=end.toISOString().slice(0,10);
+  return {today,minDate:addDays(today,1),maxDate,minMonth:today.slice(0,7),maxMonth:maxDate.slice(0,7)};
+}
+export function customerDateIssue(date,settings={},method='pickup',now=new Date()){
+  if(!date)return '';
+  const parsed=new Date(`${date}T12:00:00Z`);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==date)return 'Choose a valid fulfillment date.';
+  const window=customerBookingWindow(now);
+  if(date<window.minDate)return 'Choose tomorrow or a later date. Same-day and past-date bookings are unavailable.';
+  if(date>window.maxDate)return `Bookings are open through ${window.maxDate}. Choose a date in the current month or the next two months.`;
+  return fulfillmentIssue(method,date,settings);
+}
 export function earliestLeadDate(product,settings,now = new Date()){
   const today=dateInManila(now),week=settings.production_weekdays??[0,1,2,3,4,5,6];
   const time=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now);
@@ -35,9 +52,9 @@ export function availability(product,date,settings,inventory,now=new Date(),meth
   if(!product.active)return {available:false,reason:'Currently unavailable',earliest};
   if(method==='delivery'&&product.pickup_only===true)return {available:false,reason:'Pickup only. Choose pickup to order this product.',earliest};
   if(!date)return {available:true,reason:`${product.lead_days} full production day${product.lead_days===1?'':'s'} notice`,earliest};
+  const dateIssue=customerDateIssue(date,settings,method,now);
+  if(dateIssue)return {available:false,reason:dateIssue,earliest};
   if(!earliest||date<earliest)return {available:false,reason:earliest?`Needs more preparation time. Earliest ${earliest}.`:'No production dates configured.',earliest};
-  const closure=fulfillmentIssue(method,date,settings);
-  if(closure)return {available:false,reason:closure,earliest};
   const row=inventory.find(r=>r.product_id===product.id&&r.date===date);
   const remaining=row?Number(row.remaining??(row.capacity-Number(row.reserved||0))):0;
   if(!row||!row.available)return {available:false,reason:'Not available on this date',earliest};

@@ -6,12 +6,12 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { join, extname, resolve } from 'node:path';
 import { once } from 'node:events';
 import assert from 'node:assert/strict';
-import { dateInManila, addDays } from '../../assets/ordering/shop-rules.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_ROOT ? join(process.env.PLAYWRIGHT_PACKAGE_ROOT, 'playwright') : 'playwright');
 const root = resolve(import.meta.dirname, '../..');
-const date = addDays(dateInManila(), 7);
+const fixtureNow = '2026-09-15T02:00:00Z';
+const date = '2026-09-22';
 const pickup = {
   pickup_address: 'TLB Kitchen\n123 Sample Street\n  Quezon City',
   pickup_hours: 'Monday–Saturday\n9 AM–6 PM\n\nPlease arrive on your selected date.',
@@ -91,6 +91,13 @@ try {
     if (/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href)) forbidden.push(url.href);
     return route.abort();
   });
+  await context.addInitScript(instant => {
+    const NativeDate = Date;
+    window.Date = class extends NativeDate {
+      constructor(...args) { super(...(args.length ? args : [instant])); }
+      static now() { return new NativeDate(instant).getTime(); }
+    };
+  }, fixtureNow);
   // Reproduce stale username data from a checkout saved before this fix.
   await context.addInitScript(() => {
     if (!sessionStorage.getItem('checkout-fixture-seeded')) {
@@ -124,7 +131,8 @@ try {
   };
 
   await page.goto(origin + '/shop.html', { waitUntil: 'networkidle' });
-  await page.locator('#fulfillment-date').fill(date);
+  await page.locator('#fulfillment-date').click();
+  await page.locator(`[data-customer-date="${date}"]`).click();
   await page.locator('[data-product="nori"]').click();
   await page.locator('#add-to-cart').click();
   await page.locator('#checkout-button').click();

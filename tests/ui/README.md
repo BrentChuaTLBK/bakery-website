@@ -25,3 +25,12 @@ Run `npm run test:labels` to check optional labels, saved text and color, and th
 ## Checkout feedback regression
 
 Run `npm run test:checkout` for phone-format checks and the isolated checkout browser test. The browser test uses local fixtures and blocks external requests. It covers buyer/recipient phone validation, enabling social usernames only after platform selection, and preserving pickup line breaks on checkout and saved orders. The same Playwright and browser environment overrides above apply.
+
+
+## Customer booking calendar
+
+Run `npm run test:customer-calendar` for the date/model checks and isolated popup
+browser regression. The fixture blocks external requests and never writes live
+orders or sends email. It checks navigation limits, closed dates, keyboard control,
+selection/clearing and restoration. It uses the same Playwright and Chromium
+environment overrides described above.
