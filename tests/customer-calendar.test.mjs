@@ -105,3 +105,72 @@ test('a calendar left open across a Manila month boundary clamps its month and r
   assert.ok(day(refreshed, '2026-10-01').reason);
   assert.equal(refreshed.focusDate, '2026-10-02');
 });
+
+test('today is selectable only for an eligible basket before the existing Philippine cutoff', () => {
+  const settings = { cutoff_time: '12:00' };
+  const before = new Date('2026-09-15T03:59:59Z');
+  const at = new Date('2026-09-15T04:00:00Z');
+  const eligible = customerCalendarModel({ now: before, settings, allowSameDay: true, value: '2026-09-15' });
+  assert.equal(eligible.minDate, '2026-09-15');
+  assert.equal(eligible.maxDate, '2026-11-30');
+  assert.equal(eligible.previousDisabled, true);
+  assert.equal(eligible.focusDate, '2026-09-15');
+  assert.equal(eligible.selectionIssue, '');
+  assert.equal(day(eligible, '2026-09-15').reason, '');
+  assert.ok(day(eligible, '2026-09-14').reason);
+  assert.ok(day(customerCalendarModel({ now: before, settings }), '2026-09-15').reason);
+  const closed = customerCalendarModel({ now: at, settings, allowSameDay: true, value: '2026-09-15' });
+  assert.equal(closed.minDate, '2026-09-16');
+  assert.equal(closed.focusDate, '2026-09-16');
+  assert.ok(day(closed, '2026-09-15').reason);
+  assert.match(closed.selectionIssue, /cutoff/i);
+  assert.match(customerCalendarView(eligible), /before 12:00 PM Philippine time/);
+  assert.doesNotMatch(customerCalendarView(eligible), /same-day bookings and closed dates are unavailable/i);
+  assert.match(customerCalendarView(closed), /cutoff.*12:00 PM Philippine time.*has passed/i);
+  const secondsSettings = { cutoff_time: '12:00:30' };
+  const secondsBefore = customerCalendarModel({ now: new Date('2026-09-15T04:00:29.999Z'), settings: secondsSettings, allowSameDay: true });
+  const secondsAt = customerCalendarModel({ now: new Date('2026-09-15T04:00:30Z'), settings: secondsSettings, allowSameDay: true });
+  assert.equal(day(secondsBefore, '2026-09-15').reason, '');
+  assert.ok(day(secondsAt, '2026-09-15').reason);
+  assert.match(customerCalendarView(secondsBefore), /before 12:00:30 PM Philippine time/);
+});
+
+test('same-day eligibility never overrides fulfillment closures and supports no-cutoff shops', () => {
+  const before = new Date('2026-09-15T02:00:00Z');
+  for (const settings of [{ blocked_dates: ['2026-09-15'] }, { pickup_blocked_dates: ['2026-09-15'] }, { fulfillment_weekdays: [1, 3] }]) {
+    assert.ok(day(customerCalendarModel({ now: before, settings, allowSameDay: true }), '2026-09-15').reason);
+  }
+  const delivery = customerCalendarModel({ now: before, settings: { delivery_blocked_dates: ['2026-09-15'] }, method: 'delivery', allowSameDay: true });
+  assert.ok(day(delivery, '2026-09-15').reason);
+  const late = customerCalendarModel({ now: new Date('2026-09-15T15:59:59Z'), settings: { cutoff_time: '' }, allowSameDay: true });
+  assert.equal(day(late, '2026-09-15').reason, '');
+  assert.doesNotMatch(customerCalendarView(late), /has passed|before .*Philippine time/);
+});
+
+test('keyboard access to today follows same-day eligibility and the precise cutoff boundary', () => {
+  const settings = { cutoff_time: '12:00' };
+  const before = new Date('2026-09-15T03:59:59Z');
+  const at = new Date('2026-09-15T04:00:00Z');
+  assert.equal(customerCalendarKeyTarget('2026-09-16', 'ArrowLeft', settings, 'pickup', before, false, true), '2026-09-15');
+  assert.equal(customerCalendarKeyTarget('2026-09-15', 'ArrowLeft', settings, 'pickup', before, false, true), '2026-09-15');
+  assert.equal(customerCalendarKeyTarget('2026-09-16', 'PageUp', settings, 'pickup', before, true, true), '2026-09-15');
+  assert.equal(customerCalendarKeyTarget('2026-09-16', 'ArrowLeft', settings, 'pickup', at, false, true), '2026-09-16');
+  assert.equal(customerCalendarKeyTarget('2026-09-16', 'ArrowLeft', settings, 'pickup', before, false, false), '2026-09-16');
+  assert.equal(customerCalendarKeyTarget('2026-11-30', 'ArrowRight', settings, 'pickup', before, false, true), '2026-11-30');
+});
+
+test('same-day calendar rechecks eligibility and the Philippine day when mounted state changes', () => {
+  const before = new Date('2026-09-30T15:59:59Z');
+  const after = new Date('2026-09-30T16:00:00Z');
+  const original = customerCalendarModel({ now: before, allowSameDay: true, value: '2026-09-30' });
+  assert.equal(original.selectionIssue, '');
+  const changedBasket = customerCalendarModel({ now: before, allowSameDay: false, value: original.selected });
+  assert.ok(changedBasket.selectionIssue);
+  assert.ok(day(changedBasket, '2026-09-30').reason);
+  const rollover = customerCalendarModel({ now: after, allowSameDay: true, value: original.selected, month: original.month });
+  assert.equal(rollover.month, '2026-10');
+  assert.equal(rollover.focusDate, '2026-10-01');
+  assert.ok(rollover.selectionIssue);
+  assert.equal(rollover.minDate, '2026-10-01');
+  assert.equal(rollover.maxDate, '2026-12-31');
+});

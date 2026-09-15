@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {dateInManila,earliestLeadDate,availability,selectionPrice,fulfillmentIssue,deliveryRestriction,deliveryZone} from '../assets/ordering/shop-rules.js';
+import {dateInManila,earliestLeadDate,availability,selectionPrice,fulfillmentIssue,deliveryRestriction,deliveryZone,allowsSameDay,sameDayOpen,sameDayBasketEligible} from '../assets/ordering/shop-rules.js';
 const settings={production_weekdays:[0,1,2,3,4,5,6],nonproduction_dates:[],fulfillment_weekdays:[0,1,2,3,4,5,6],blocked_dates:[]};
 const monday=new Date('2026-09-14T02:00:00Z');
 const product={id:'cookie',price_cents:60000,min_quantity:1,lead_days:1,active:true,option_groups:[{id:'mix',label:'Six cookies',required_count:6,choices:[{id:'classic',label:'Classic',surcharge_cents:0},{id:'matcha',label:'Matcha',surcharge_cents:3000}]}]};
@@ -49,4 +49,40 @@ test('dated stock cannot make past or out-of-window customer selections availabl
     assert.equal(availability(product,'2026-11-30',settings,inventory,monday,method).available,true);
     for(const date of ['2026-09-13','2026-09-14','2026-12-01'])assert.equal(availability(product,date,settings,inventory,monday,method).available,false);
   }
+});
+test('same-day opt-in requires zero production days and uses the shared order cutoff',()=>{
+  const nori={...product,name:'Nori',lead_days:0,allow_same_day:true};
+  const cutoff={...settings,cutoff_time:'12:00'};
+  const before=new Date('2026-09-14T03:59:59.999Z'),at=new Date('2026-09-14T04:00:00Z');
+  assert.equal(allowsSameDay(nori),true);
+  assert.equal(allowsSameDay({...nori,lead_days:1}),false);
+  assert.equal(allowsSameDay({...nori,allow_same_day:'true'}),false);
+  assert.equal(sameDayOpen(cutoff,before),true);
+  assert.equal(sameDayOpen(cutoff,at),false);
+  assert.equal(earliestLeadDate(nori,cutoff,before),'2026-09-14');
+  assert.equal(earliestLeadDate(nori,cutoff,at),'2026-09-15');
+  assert.equal(earliestLeadDate({...nori,allow_same_day:false},cutoff,at),'2026-09-16');
+  assert.equal(earliestLeadDate(nori,{...cutoff,cutoff_time:''},at),'2026-09-14');
+  assert.equal(earliestLeadDate(nori,{...cutoff,nonproduction_dates:['2026-09-15']},at),'2026-09-15');
+});
+test('same-day eligibility does not bypass stock, closed dates, pickup-only or past-date limits',()=>{
+  const nori={...product,name:'Nori',lead_days:0,allow_same_day:true};
+  const rows=[{product_id:product.id,date:'2026-09-14',capacity:10,available:true}];
+  assert.equal(availability(nori,'2026-09-14',settings,rows,monday).available,true);
+  assert.equal(availability(nori,'2026-09-14',settings,[],monday).available,false);
+  assert.equal(availability(nori,'2026-09-14',{...settings,blocked_dates:['2026-09-14']},rows,monday).available,false);
+  assert.equal(availability(nori,'2026-09-14',{...settings,delivery_blocked_dates:['2026-09-14']},rows,monday,'delivery').available,false);
+  assert.equal(availability({...nori,pickup_only:true},'2026-09-14',settings,rows,monday,'delivery').available,false);
+  assert.equal(availability(nori,'2026-09-13',settings,rows,monday).available,false);
+});
+test('empty baskets need a stocked eligible product to show today, and mixed baskets never qualify',()=>{
+  const nori={...product,id:'nori',lead_days:0,allow_same_day:true};
+  const cake={...product,id:'cake',lead_days:0,allow_same_day:false};
+  const rows=[{product_id:'nori',date:'2026-09-14',capacity:10,available:true}];
+  assert.equal(sameDayBasketEligible([],[nori,cake],rows,'pickup',monday),true);
+  assert.equal(sameDayBasketEligible([],[nori,cake],[],'pickup',monday),false);
+  assert.equal(sameDayBasketEligible([],[{...nori,pickup_only:true}],rows,'delivery',monday),false);
+  assert.equal(sameDayBasketEligible([{product_id:'nori'}],[nori,cake],rows,'pickup',monday),true);
+  assert.equal(sameDayBasketEligible([{product_id:'nori'},{product_id:'cake'}],[nori,cake],rows,'pickup',monday),false);
+  assert.equal(sameDayBasketEligible([{product_id:'missing'}],[nori,cake],rows,'pickup',monday),false);
 });

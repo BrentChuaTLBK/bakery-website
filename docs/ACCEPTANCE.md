@@ -94,7 +94,7 @@ Run the Monday example on an actual Monday in the preview or through an explicit
 | D03 | Restore Tuesday production but block Tuesday only from further fulfillment bookings. Repeat D01. | Tuesday still counts as production; earliest remains Wednesday. Booking closures and non-production dates are separate. | __________________ |
 | D04 | Add A and B to one cart on a Monday with all dates open. | The entire order uses one date; B's three full production days require Friday earliest. No split date or method is silently introduced. | __________________ |
 | D05 | Configure a cutoff at a practical upcoming Manila time. Attempt just before, at, and after it. | Proposed default: at/after cutoff requires one extra eligible full production day. Monday one-day product changes from Wednesday to Thursday. Boundary is checked on server submission time. | __________________ |
-| D06 | Put Product C with zero lead time into a cart. Attempt same-day fulfillment. | Proposed default permits earliest following date subject to supported dates/capacity; same-day is unavailable. | __________________ |
+| D06 | Put Product C with zero lead time and **Allow same-day orders** disabled into a cart. Attempt same-day fulfillment. | Same-day remains unavailable. Zero production days alone does not enable it; existing cutoff and date/capacity rules still apply. | __________________ |
 | D07 | Submit before cutoff, upload proof, approve on a later day. | Lead-time eligibility remains anchored to order creation. Approval does not move the fulfillment date or restart production counting. | __________________ |
 | D08 | With A capacity 10 on D and E, order three A boxes for D. Inspect capacity. | D remaining=7; E remaining=10. Inner flavor counts do not affect inventory. | __________________ |
 | D09 | Add two pickup A boxes and two delivery A boxes for D. | Both methods draw from the same D capacity; no independent pickup/delivery pool or order-count limit exists. | __________________ |
@@ -284,7 +284,19 @@ Review the merge and deployment walkthrough in [SETUP.md](SETUP.md). A completed
 
 - [ ] The customer date picker uses the cream and caramel calendar style, with a visible selected date and unavailable dates disabled.
 - [ ] Calendar navigation stays between the current Manila month and the second following month; previous months and later months cannot be reached using buttons or keyboard.
-- [ ] Tomorrow is the earliest selectable date. The last date of the second following month is allowed when schedule, lead time and stock permit it; the next day is rejected.
+- [ ] Today is selectable only before the Production schedule cutoff (or throughout the day with no cutoff), with an eligible same-day basket and available stock/method. Every item requires **Allow same-day orders** and **0 full production days**. An empty basket requires an eligible available product. Past dates remain disabled.
+- [ ] At or after the cutoff, same-day products can be booked from tomorrow, subject to schedule and stock. Zero-day products without the option retain their existing lead-time/cutoff rules.
+- [ ] The last date of the second following month is allowed when schedule, lead time and stock permit it; the next day is rejected.
 - [ ] Manila midnight, month/year rollover and leap years update these bounds correctly. Stale saved dates cannot bypass them.
 - [ ] Customer quote/create reject out-of-window dates without reserving stock or queueing an email. Existing bookings and authorized staff amendments remain available.
 - [ ] The popup works by keyboard and on mobile, returns focus after closing, and does not reset the basket.
+
+### Same-day product eligibility
+
+- [ ] Existing products default to same-day disabled. Enabling the option with 0 full production days saves and survives editor reopening, option-group edits and photo edits.
+- [ ] Attempt to save a checked same-day option with positive production days. The form explains how to resolve the conflict and makes no save request; a direct API attempt is rejected too.
+- [ ] In staging, test before, exactly at, and after the Manila Production schedule cutoff. Eligible same-day orders are accepted only before it; exactly at the cutoff is too late. Unset cutoff permits today throughout the day.
+- [ ] An eligible zero-day product does not gain an extra full production day after cutoff; tomorrow is available if its fulfillment method/date and stock allow it.
+- [ ] Mixed carts containing any ineligible product cannot quote or submit for today. The customer sees the conflict; products are not silently removed or split into separate orders.
+- [ ] Same-day eligibility cannot bypass a global booking closure, method-specific closure, pickup-only restriction, stock limit, or paused shop. A non-production date alone does not block ready-stock fulfillment.
+- [ ] Stale open checkouts cannot submit today after the cutoff or after the product option is disabled; rejected requests reserve no stock and queue no email. Existing saved orders and paid states remain unchanged.

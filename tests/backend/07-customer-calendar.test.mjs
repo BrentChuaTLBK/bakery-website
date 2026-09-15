@@ -10,7 +10,12 @@ export default async function ({ db, check, state }) {
   const oldDefinition = value => {
     const previous = value.replace(/  -- TLB_CUSTOMER_BOOKING_CALENDAR_V1\r?\n  perform tlb\.require\([^\r\n]+\);\r?\n/, '');
     assert.notEqual(previous, value, 'The installed horizon guard must be present in the local upgrade fixture.');
-    return previous;
+    // Reconstruct this historical migration's no-same-day anchor, even when a
+    // later migration has introduced explicit product opt-in for same-day sales.
+    return previous.replace(
+      "ful>=(p_submitted at time zone 'Asia/Manila')::date,'Past fulfillment dates are not available. Choose today or a future date.'",
+      "ful>(p_submitted at time zone 'Asia/Manila')::date,'Same-day fulfillment is not available. Choose a future date.'",
+    );
   };
   const snapshot = async () => (await db.query(`select
     (select jsonb_agg(to_jsonb(o) order by o.id) from tlb.orders o) as orders,
@@ -64,15 +69,15 @@ export default async function ({ db, check, state }) {
       await assert.rejects(quoteAt(product, '2027-01-01', '2026-09-30T16:00:00Z'), /current month or the next two months/);
     })();
 
-    await check('past and same-day dates stay unavailable and tomorrow remains eligible subject to existing rules', async () => {
+    await check('past and same-day dates stay unavailable without product opt-in and tomorrow remains eligible subject to existing rules', async () => {
       const { product } = await fixture(3, { lead_days: 0 });
       for (const date of ['2026-08-31', '2026-09-14', '2026-09-15', '2026-09-16', '2026-10-01']) await inventory(product, date, 3);
       for (const date of ['2026-08-31', '2026-09-14', '2026-09-15']) {
-        await assert.rejects(quoteAt(product, date, '2026-09-15T08:00:00+08:00'), /Same-day fulfillment is not available/);
+        await assert.rejects(quoteAt(product, date, '2026-09-15T08:00:00+08:00'), /Past fulfillment dates|not available for same-day/);
       }
       assert.equal((await quoteAt(product, '2026-09-16', '2026-09-15T08:00:00+08:00')).total_cents, 10000);
       assert.equal((await quoteAt(product, '2026-10-01', '2026-09-30T15:59:59Z')).total_cents, 10000);
-      await assert.rejects(quoteAt(product, '2026-10-01', '2026-10-01T16:00:00Z'), /Same-day fulfillment is not available/);
+      await assert.rejects(quoteAt(product, '2026-10-01', '2026-10-01T16:00:00Z'), /Past fulfillment dates/);
     })();
 
     await check('public quote and submission ignore forged clocks, admin flags and limits without orders, allocations or emails', async () => {
@@ -87,7 +92,7 @@ export default async function ({ db, check, state }) {
             submitted_at: `${window.outside}T00:00:00+08:00`, server_time: `${window.outside}T00:00:00+08:00`,
             max_date: '2999-12-31', max_months: 1000,
           });
-          const expected = date === window.outside ? /current month or the next two months/ : /Same-day fulfillment is not available/;
+          const expected = date === window.outside ? /current month or the next two months/ : /Past fulfillment dates|not available for same-day/;
           await assert.rejects(api('quote', payload, user), expected);
           await assert.rejects(api('create_order', payload, user), expected);
         }
