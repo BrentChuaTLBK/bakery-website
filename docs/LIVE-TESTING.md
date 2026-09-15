@@ -127,6 +127,28 @@ Pause new orders again after testing.
 state, the private receipt opens correctly, and the actual emails arrive with working links.
 Continue through ACCEPTANCE.md before approving the system for ordinary customer orders.
 
+## Customer booking calendar
+
+The shop's date button opens a calendar styled like the manager calendars. Customers
+can browse the current month and the next two calendar months only. For example,
+during September the final bookable date is November 30, not a rolling 60-day limit.
+The dates follow Philippine time and bookings start tomorrow.
+
+Before submitting an order, check these controls in the customer shop:
+
+- Open the date picker. Previous months, past dates, and today are unavailable.
+- Move forward twice from the current month. The next-month button is then disabled.
+- Select an allowed date and reopen the calendar; the selected date stays highlighted.
+- Check a date closed to new bookings. It cannot be selected. A delivery-only closure
+  still permits pickup if the normal pickup schedule allows it.
+- Clear the date and select again. Keyboard arrows, Page Up/Down, Escape, and the
+  close button should work without allowing a date outside the booking window.
+- On mobile, the popup and trigger should fit without sideways scrolling.
+
+The server also rejects new customer quotes and orders outside this window. Existing
+bookings remain accessible; the manager calendars and staff amendments retain their
+existing date controls.
+
 ## 5. Check calendars and delivery options
 
 These checks cover the delivery controls added after the initial setup. Brent has chosen

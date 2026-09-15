@@ -4,17 +4,23 @@ import {readFile} from 'node:fs/promises';
 import {join,extname,resolve} from 'node:path';
 import {once} from 'node:events';
 import assert from 'node:assert/strict';
-import {dateInManila,addDays} from '../../assets/ordering/shop-rules.js';
+const fixtureNow='2026-09-15T02:00:00Z';
+const fixtureDate='2026-09-22';
 const screenshotDir=process.env.UI_SCREENSHOT_DIR;
 const shot=async(page,name,options={})=>{if(screenshotDir)await page.screenshot({path:join(screenshotDir,name),...options})};
 const require=createRequire(import.meta.url);const {chromium}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
 const root=resolve(import.meta.dirname,'../..');
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.jpeg':'image/jpeg','.woff2':'font/woff2','.md':'text/markdown'};
-const server=createServer(async(req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);const path=resolve(root,'.'+(name==='/'?'/index.html':name));try{if(!path.startsWith(root+'/'))throw Error();const data=await readFile(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'});res.end(data)}catch{res.writeHead(404);res.end('Not found')}}).listen(0,'127.0.0.1');await once(server,'listening');
+const server=createServer(async(req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);if(name==='/assets/ordering/config.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end('export const config = Object.freeze({supabaseUrl:"",supabasePublishableKey:""});');return;}const path=resolve(root,'.'+(name==='/'?'/index.html':name));try{if(!path.startsWith(root+'/'))throw Error();const data=await readFile(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'});res.end(data)}catch{res.writeHead(404);res.end('Not found')}}).listen(0,'127.0.0.1');await once(server,'listening');
 const origin=`http://127.0.0.1:${server.address().port}`;
-const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage'],headless:true});
-const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+let browser;
 try{
+ browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage'],headless:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1000},deviceScaleFactor:1,serviceWorkers:'block'});
+ const forbidden=[];
+ await context.route('**/*',route=>{const url=new URL(route.request().url());if(url.origin===origin)return route.continue();if(/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href))forbidden.push(url.href);return route.abort()});
+ await context.addInitScript(instant=>{const NativeDate=Date;window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[instant]))}static now(){return new NativeDate(instant).getTime()}}},fixtureNow);
+ const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(origin+'/shop.html?demo=1',{waitUntil:'networkidle'});
  assert.equal(await page.locator('.product-card').count(),4);
  await shot(page,'shop-desktop.png',{ fullPage:true });
@@ -22,7 +28,8 @@ try{
  await shot(page,'shop-mobile.png',{ fullPage:true });
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
  await page.setViewportSize({width:1440,height:1000});
- await page.locator('#fulfillment-date').fill(addDays(dateInManila(),7));
+ await page.locator('#fulfillment-date').click();
+ await page.locator(`[data-customer-date="${fixtureDate}"]`).click();
  await page.locator('[data-product="demo-cookie"]').click();
  await page.locator('[data-choice="classic"]').fill('4');await page.locator('[data-choice="matcha"]').fill('2');
  assert.match(await page.locator('#detail-price').innerText(),/660\.00/);
@@ -47,5 +54,6 @@ try{
  await page.goto(origin+'/account.html',{waitUntil:'networkidle'});await shot(page,'account-mobile.png',{ fullPage:true });assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
  await page.goto(origin+'/shop.html',{waitUntil:'networkidle'});assert.equal(await page.locator('.product-card').count(),0);assert.match(await page.locator('#app').innerText(),/backend setup pending/);
  assert.deepEqual(errors,[]);
+ assert.deepEqual(forbidden,[],'Production services must never be contacted');
  console.log('PASS: sample pickup and delivery checkout, 4+2 cookie pricing, surcharge visibility, paused submission, all staff sections, empty real catalogue, 390px layout, no page errors.');
-}finally{await browser.close();server.close()}
+}finally{await browser?.close();await new Promise(done=>server.close(done))}

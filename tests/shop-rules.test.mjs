@@ -42,3 +42,11 @@ test('delivery zone selection excludes inactive and unsupported areas, preserves
   assert.equal(deliveryZone(zones,'Outside','delivery'),undefined);
   assert.equal(deliveryZone(zones,'City','pickup'),undefined);
 });
+test('dated stock cannot make past or out-of-window customer selections available',()=>{
+  const dates=['2026-09-13','2026-09-14','2026-11-30','2026-12-01'];
+  const inventory=dates.map(date=>({product_id:product.id,date,capacity:10,available:true}));
+  for(const method of ['pickup','delivery']){
+    assert.equal(availability(product,'2026-11-30',settings,inventory,monday,method).available,true);
+    for(const date of ['2026-09-13','2026-09-14','2026-12-01'])assert.equal(availability(product,date,settings,inventory,monday,method).available,false);
+  }
+});
