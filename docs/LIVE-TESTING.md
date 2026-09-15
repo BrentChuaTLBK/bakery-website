@@ -127,6 +127,62 @@ Pause new orders again after testing.
 state, the private receipt opens correctly, and the actual emails arrive with working links.
 Continue through ACCEPTANCE.md before approving the system for ordinary customer orders.
 
+## 5. Check calendars and delivery options
+
+These checks cover the delivery controls added after the initial setup. Brent has chosen
+to test with his actual products on the live shop. Use your own customer account and inbox;
+choose operational dates and restrictions you actually intend to save. Broader stress,
+invalid-upload and competing-customer tests in ACCEPTANCE.md still belong in staging.
+
+In **Shop settings**, use the calendars to select or deselect individual dates. You can
+move between months and select more than one date. Click **Save shop settings**, then reload
+to confirm the selected dates were saved.
+
+| Calendar | What selecting a date does |
+| --- | --- |
+| Additional non-production dates | The day does not count toward a product's required production days. This does not itself close pickup or delivery bookings. |
+| Dates closed to new fulfillment bookings | Both pickup and delivery stop accepting new bookings for that date. It can still count as a production day. |
+| Dates closed to new delivery bookings | Delivery stops accepting new bookings for that date. Pickup still follows its normal schedule and stock limits. |
+
+Existing orders keep their saved date, fulfillment method and reservation when you close
+a date. Open the customer shop in a second browser window and switch between Pickup and
+Delivery to check the effect on new orders.
+
+To make a cake or fragile product pickup only:
+
+1. Open **Products**, edit the product, and enable **Pickup only**.
+2. Save and reload the customer shop.
+3. Add that product to your bag and select Delivery. The shop should explain which product
+   requires pickup and prevent delivery checkout. This applies even if the bag also
+   contains products that can be delivered.
+4. Select Pickup, or remove the pickup-only item yourself, to continue. The shop does not
+   split the order or remove products automatically.
+
+To explain your delivery-zone limits:
+
+1. In **Shop settings**, add or edit a delivery zone.
+2. Fill in its **Description**, for example:
+
+   > The delivery fee covers one Lalamove motorcycle. If your order needs a larger vehicle
+   > or more than one motorcycle, we will contact you to discuss the arrangements.
+
+3. Save the zone. In customer checkout, choose a locality belonging to that zone.
+4. Check that the description appears in checkout and Review, keeping any line breaks you
+   entered. The displayed delivery fee should still be the fixed fee you configured.
+5. For the next order you intentionally submit to your own inbox, check the saved order and
+   its email too. They should contain the same description. Editing the zone afterward
+   changes future checkouts; it does not rewrite instructions already saved with an order.
+
+The description is a message to the customer. It does not calculate vehicle capacity,
+book a courier, add an extra fee, or contact the customer automatically. Any alternative
+transport arrangement remains a conversation with your customer.
+
+**You are done when:** the calendar selections persist, pickup remains available on a
+delivery-only closure, pickup-only items cannot be submitted for delivery, and the selected
+zone's description is readable in checkout, the saved order and the delivered email.
+Record unperformed checks as pending. You can review checkout without submitting another
+order; submission reserves real stock.
+
 ## Restore point
 
 The original main commit before publication is:

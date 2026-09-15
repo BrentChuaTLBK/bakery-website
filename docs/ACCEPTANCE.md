@@ -79,6 +79,9 @@ Set real operational details only after acceptance. Reset date quantities, promo
 | C09 | Increase/decrease cart quantities, remove one line, reload, and reopen checkout. | Correct selections and totals persist; cart supports empty state; no submitted order is created until submission. | __________________ |
 | C10 | Submit an unpaid order; then change catalog price, description, options, and archive that product. Open the saved order. | Saved product details, configuration, unit prices, and totals remain unchanged. Archive preserves history. | __________________ |
 | C11 | Select a date before browsing; change to an unavailable date with items already in cart. | Product/date availability and reasons are shown; affected items remain in cart. Customer must choose a suitable date or explicitly remove items. | __________________ |
+| C12 | Enable **Pickup only** on a product, save, reload its editor and browse the shop with Pickup selected. | The setting persists; the product is clearly marked pickup only and can be ordered for an otherwise available pickup date. | __________________ |
+| C13 | Put that pickup-only product and a delivery-eligible product in one cart, then select Delivery. Repeat with a stale checkout opened before the setting changed. | Delivery is blocked for the whole cart with an explanation naming the affected product. The customer can choose Pickup or remove it; no automatic split order, silent removal, or submission occurs. The server rejects a direct delivery quote/order attempt as well. | __________________ |
+| C14 | Disable **Pickup only**, save and reload the shop. | Delivery is available again when the date, zone and stock permit it. Existing saved orders are not changed by either setting change. | __________________ |
 
 ## 4. Full production days and date capacity
 
@@ -100,6 +103,10 @@ Run the Monday example on an actual Monday in the preview or through an explicit
 | D12 | Attempt to lower D capacity below its current held plus committed units. | Capacity edit is rejected with a useful explanation; existing orders are not removed or silently changed. | __________________ |
 | D13 | Pause new orders while a valid awaiting-payment order exists. Visit existing order link and submit valid proof before deadline. | New orders are blocked; existing order access, payment instructions, and valid proof submission work. Main website stays online. | __________________ |
 | D14 | Leave a cart open; another session consumes remaining capacity or staff blocks the date. Submit the stale cart. | Server rejects the unavailable request with an actionable explanation; no partial order, stock hold, or promo hold survives failure. | __________________ |
+| D15 | Use the **Non-production dates** calendar to select two dates in different months; toggle one off, save, and reload. Navigate and select with a keyboard too. | Selected dates are visibly identified and persist across month navigation and saving; toggling removes only that date. These dates stop counting toward product lead time, without automatically becoming booking closures. | __________________ |
+| D16 | Use **Closed to new fulfillment bookings** to select a date and save. Check Pickup and Delivery for that date, then remove the selection and save. | Both methods reject new bookings while selected. Reopening restores otherwise eligible bookings. The separate production calendar and existing orders are unchanged. | __________________ |
+| D17 | Use **Delivery unavailable dates** to close only delivery on a date that otherwise permits both methods. Switch between Pickup and Delivery in the customer shop. | Delivery is unavailable on that date; pickup remains available subject to normal lead time and stock. The backend also rejects a stale/direct delivery submission. Other dates are unaffected. | __________________ |
+| D18 | Load existing saved date exceptions, add a delivery closure, and save another business setting. Reopen all three calendars and a previously submitted order on the closed date. | Existing selections survive; saving one calendar does not overwrite the others. The submitted order keeps its date, method, payment state and stock allocation. | __________________ |
 
 ## 5. Guest checkout, pickup, and delivery
 
@@ -114,6 +121,9 @@ Run the Monday example on an actual Monday in the preview or through an explicit
 | O07 | Review checkout, then submit once. Save reference and secure link. | Items/options, subtotal, promo/discount, delivery fee, and final total are visible before submission. Server creates one reference; Awaiting payment + Pending confirmation; proof deadline is creation + exactly 15 minutes. | __________________ |
 | O08 | Open saved guest secure link in a signed-out browser. | Guest can view only that order and valid payment actions without creating an account; link remains usable for status after the proof deadline. | __________________ |
 | O09 | Try editing/cancelling a submitted order as its customer. | Customer cannot directly amend or cancel it; contact details explain how to request help. | __________________ |
+| O10 | Enter a two-line delivery-zone description, such as a motorcycle-capacity/contact note, and save. Choose a locality in that zone in checkout, then open Review. | The selected zone's description appears with its line breaks in checkout and review. It is explanatory text; it does not add a charge or alter the configured fixed delivery fee. | __________________ |
+| O11 | Switch to another zone with a different description, a zone with no description, and then Pickup. Include harmless `<b>text</b>` in a staging description. | The text follows the selected zone, disappears when blank or using Pickup, and displays HTML-like input as plain text. No previous zone's instructions remain visible. | __________________ |
+| O12 | Submit a delivery order with a description, then edit that zone's description. Reopen the order and prepare a fresh checkout for the same zone. | The saved order retains the submitted zone name/description and fee. New checkout uses the updated description. A deliberate admin fulfillment/zone change is reviewed and saved as an order edit. | __________________ |
 
 ## 6. Accounts and real authentication emails
 
@@ -235,6 +245,7 @@ Before each scenario, record reference, customer inbox, action time in Manila, w
 | E09 | Edit a paid order so its displayed total rises, then wait for all pending mail. | No automatic extra-payment request/email, second proof-approval flow, or balance-due block appears. | __________________ |
 | E10 | In staging only, temporarily configure a bad email credential or pause worker, submit an order, then restore it. | Order remains saved. Delivery failure/pending state is visible and not reported as sent; durable queue retries after repair without duplicate successful mail. | __________________ |
 | E11 | Change an order date or cancel/complete it after reminder enqueue but before send. | Sender rechecks current date/status and skips stale or ineligible reminder. | __________________ |
+| E12 | Receive a delivery order email with a two-line zone description; change the zone description before a later payment/status email. Compare with a pickup order and an older order without zone text. | Delivery emails use the order's saved zone text with readable line breaks and escaped HTML, even after zone settings change. Pickup emails omit delivery-zone text. Older orders do not acquire new instructions. This text does not change the recorded fee or total. | __________________ |
 
 ## 12. Privacy, upload protection, and server validation
 

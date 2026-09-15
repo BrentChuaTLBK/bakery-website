@@ -21,3 +21,7 @@
 .pickup-details .pickup-text + .pickup-text{margin-top:8px}
 .info-grid > div{min-width:0}
 #checkout-form input[name="social_username"]:disabled{background:#f3eee7;color:var(--muted);cursor:not-allowed}
+.delivery-zone-text{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.delivery-zone-note{margin:14px 0}
+.pickup-only-badge{margin:0 0 8px}
+.method-toggle button:disabled{opacity:.5;cursor:not-allowed}
