@@ -23,6 +23,9 @@ export default async function ({ db, check, state }) {
   })();
 
   await check('migration preserves original one-hour deadlines and all existing order, stock and email data', async () => {
+    // Restore the installed API after this legacy migration fixture so later
+    // suites retain any migrations that were applied after the payment window.
+    const installedAPI = await h.scalar("select pg_get_functiondef('public.shop_api(text,jsonb,text)'::regprocedure)");
     // Simulate upgrading the previous API in this isolated database only.
     const original = await readFile(new URL('../../supabase/migrations/202609130001_ordering.sql', import.meta.url), 'utf8');
     const legacyAPI = original.match(/create function public\.shop_api\([\s\S]*?\nend \$\$;/)?.[0];
@@ -45,6 +48,7 @@ export default async function ({ db, check, state }) {
     assert.equal(retained.fulfillment_status, 'pending_confirmation');
     assert.equal(await remaining(product, date), 2);
     assert.equal(deadlineSeconds(await api('create_order', checkout(product, date))), 900);
+    await db.exec(installedAPI);
   })();
 
   await check('unpaid stock stays reserved before the exact deadline and catalog releases it after the deadline without cron', async () => {

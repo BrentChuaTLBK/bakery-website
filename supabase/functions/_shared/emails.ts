@@ -77,8 +77,13 @@ export function renderEmail(payload: any): { html: string; text: string } {
       heading = "Your order has been updated";
       message = "Our team updated your order. Open the secure order page to review the current details and history. For an order already paid, payment remains recorded and our team handles any difference directly with you.";
   }
+  // Zone details belong to the saved order, not the zone's current configuration.
+  const deliveryZone = [
+    typeof order.delivery_zone_name === "string" && order.delivery_zone_name.trim() ? `Delivery zone: ${order.delivery_zone_name}` : "",
+    typeof order.delivery_zone_description === "string" && order.delivery_zone_description.trim() ? order.delivery_zone_description : "",
+  ].filter(Boolean).join("\n");
   const fulfillment = order.method === "delivery"
-    ? `Delivery window: ${settings.delivery_window || "See your order page"}. Arrival can be anytime within this window; no exact time is guaranteed.\n${[order.recipient?.name, order.recipient?.phone, order.address?.line1, order.address?.line2, order.address?.locality, order.address?.postal_code].filter(Boolean).join("\n")}`
+    ? [`Delivery window: ${settings.delivery_window || "See your order page"}. Arrival can be anytime within this window; no exact time is guaranteed.`, [order.recipient?.name, order.recipient?.phone, order.address?.line1, order.address?.line2, order.address?.locality, order.address?.postal_code].filter(Boolean).join("\n"), deliveryZone].filter(Boolean).join("\n")
     : [settings.pickup_address, settings.pickup_hours && `Opening hours: ${settings.pickup_hours}`, settings.pickup_instructions].filter(Boolean).join("\n");
   const items = Array.isArray(order.items) ? order.items : [];
   const itemText = items.map((item: any) => `${item.quantity} × ${item.name}${selections(item) ? ` (${selections(item)})` : ""} — ${money(item.line_total_cents)}`).join("\n");

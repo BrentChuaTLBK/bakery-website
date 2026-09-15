@@ -81,6 +81,57 @@ test('payment emails use each saved deadline and avoid outdated duration claims 
   }
 });
 
+test('delivery emails preserve the saved zone description, line breaks and fee while escaping HTML', () => {
+  const delivery = payload('order_submitted');
+  Object.assign(delivery.order, {
+    method: 'delivery',
+    delivery_zone_name: 'North <Zone>',
+    delivery_zone_description: 'One motorcycle included.\nIf <b>one is not enough</b>, we will contact you & agree on transport.',
+    delivery_cents: 12000,
+    total_cents: 72000,
+  });
+  delivery.settings.delivery_zone_name = 'Changed zone';
+  delivery.settings.delivery_zone_description = 'New terms must not replace saved instructions.';
+  for (const event_type of ['order_submitted', 'payment_approved', 'out_for_delivery', 'order_edited']) {
+    const result = renderEmail({ ...delivery, event_type });
+    assert.match(result.text, /Delivery zone: North <Zone>/);
+    assert.ok(result.text.includes(delivery.order.delivery_zone_description));
+    assert.match(result.html, /Delivery zone: North &lt;Zone&gt;/);
+    assert.match(result.html, /One motorcycle included\.<br>If &lt;b&gt;one is not enough&lt;\/b&gt;, we will contact you &amp; agree on transport\./);
+    assert.doesNotMatch(result.html, /<b>one is not enough<\/b>/);
+    assert.doesNotMatch(result.text, /Changed zone|New terms/);
+    assert.match(result.text, /Delivery fee: ₱120\.00/);
+    assert.match(result.text, /Current order total: ₱720\.00/);
+  }
+});
+
+test('legacy and blank delivery zone snapshots omit zone text without using current settings', () => {
+  for (const snapshot of [{}, { delivery_zone_name: '', delivery_zone_description: '' }, { delivery_zone_name: ' ', delivery_zone_description: '\n ' }]) {
+    const delivery = payload('order_submitted');
+    Object.assign(delivery.order, { method: 'delivery' }, snapshot);
+    delivery.settings.delivery_zone_name = 'Current zone';
+    delivery.settings.delivery_zone_description = 'Current description';
+    const result = renderEmail(delivery);
+    for (const output of [result.text, result.html]) {
+      assert.doesNotMatch(output, /Delivery zone:|Current zone|Current description|undefined|null/);
+      assert.match(output, /Delivery window:/);
+    }
+  }
+});
+
+test('pickup emails suppress delivery zone details even if stale delivery snapshot fields are present', () => {
+  const pickup = payload('ready_for_pickup');
+  pickup.order.delivery_zone_name = 'Delivery-only zone';
+  pickup.order.delivery_zone_description = 'Delivery-only transport instructions';
+  pickup.order.pickup_instructions = 'Pickup line one\nPickup line two';
+  const result = renderEmail(pickup);
+  assert.match(result.text, /Pickup line one\nPickup line two/);
+  assert.match(result.html, /Pickup line one<br>Pickup line two/);
+  for (const output of [result.text, result.html]) {
+    assert.doesNotMatch(output, /Delivery-only|Delivery zone:|Delivery window:/);
+  }
+});
+
 test('unlisted origins and unauthenticated product uploads never reach database or storage', async () => {
   globalThis.fetch = async () => { throw new Error('Unexpected network request'); };
   const untrusted = new Request('https://project.supabase.co/functions/v1/proof-upload', { method: 'POST', headers: { Origin: 'https://untrusted.test' }, body: form() });

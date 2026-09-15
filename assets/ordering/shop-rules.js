@@ -16,12 +16,28 @@ export function earliestLeadDate(product,settings,now = new Date()){
   }
   return null;
 }
-export function availability(product,date,settings,inventory,now=new Date()){
+export function fulfillmentIssue(method,date,settings){
+  if(!date)return '';
+  if(!(settings.fulfillment_weekdays??[0,1,2,3,4,5,6]).includes(dayOfWeek(date))||(settings.blocked_dates??[]).includes(date))return 'Closed to new orders on this date. Choose another date.';
+  if((settings[`${method}_blocked_dates`]??[]).includes(date))return `${method==='delivery'?'Delivery':'Pickup'} is unavailable on this date. Choose another date or fulfillment method.`;
+  return '';
+}
+export function deliveryRestriction(items,products,date,settings){
+  const names=[...new Set(items.map(line=>products.find(p=>p.id===line.product_id)).filter(p=>p?.pickup_only===true).map(p=>p.name))];
+  if(names.length)return `Pickup only: ${names.join(', ')}. Choose pickup for this basket, or remove these products to use delivery.`;
+  return fulfillmentIssue('delivery',date,settings);
+}
+export function deliveryZone(zones,locality,method){
+  return method==='delivery'?zones.find(z=>z.active&&z.localities?.includes(locality)):undefined;
+}
+export function availability(product,date,settings,inventory,now=new Date(),method='pickup'){
   const earliest=earliestLeadDate(product,settings,now);
   if(!product.active)return {available:false,reason:'Currently unavailable',earliest};
+  if(method==='delivery'&&product.pickup_only===true)return {available:false,reason:'Pickup only. Choose pickup to order this product.',earliest};
   if(!date)return {available:true,reason:`${product.lead_days} full production day${product.lead_days===1?'':'s'} notice`,earliest};
   if(!earliest||date<earliest)return {available:false,reason:earliest?`Needs more preparation time. Earliest ${earliest}.`:'No production dates configured.',earliest};
-  if(!(settings.fulfillment_weekdays??[0,1,2,3,4,5,6]).includes(dayOfWeek(date))||(settings.blocked_dates??[]).includes(date))return {available:false,reason:'Closed to new orders on this date',earliest};
+  const closure=fulfillmentIssue(method,date,settings);
+  if(closure)return {available:false,reason:closure,earliest};
   const row=inventory.find(r=>r.product_id===product.id&&r.date===date);
   const remaining=row?Number(row.remaining??(row.capacity-Number(row.reserved||0))):0;
   if(!row||!row.available)return {available:false,reason:'Not available on this date',earliest};
