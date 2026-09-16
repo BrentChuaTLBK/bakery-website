@@ -86,3 +86,27 @@ test('pickup and delivery percentages use the eligible paid-order denominator', 
   assert.match(methodPanel, /Delivery<\/span><strong>1<\/strong><small>50\.0% of paid orders/);
   assert.match(methodPanel, /Unpaid, cancelled, expired and Refund-labelled orders are excluded/);
 });
+
+test('sales trend table and chart tooltip count the same paid orders as sales', () => {
+  const html = view([
+    order(), order({fulfillment_status: 'completed'}),
+    order({payment_status: 'awaiting_payment', paid_amount_cents: null}),
+    order({payment_status: 'under_review', paid_amount_cents: null}),
+    order({fulfillment_status: 'cancelled'}), order({fulfillment_status: 'expired'}),
+    order({refund_label: true}),
+  ], {period: 'today'});
+  const trend = html.match(/<section class="panel analytics-trend">[\s\S]*?<\/section>/)?.[0];
+  assert.equal(metric(html, 'orders'), '7', 'The overall order-count card still includes all orders');
+  assert.match(trend, /<th scope="col">Paid orders<\/th>/);
+  assert.match(trend, /2026-09-16<\/th><td>2<\/td><td>₱260\.00<\/td>/);
+  assert.match(trend, /title="2026-09-16: ₱260\.00 sales, 2 paid orders"/);
+  assert.match(trend, /aria-label="2026-09-16: ₱260\.00 sales, 2 paid orders"/);
+  assert.doesNotMatch(trend, /Orders placed|7 paid orders|7 orders placed/);
+});
+
+test('a trend date with unpaid orders shows zero paid orders and zero sales', () => {
+  const html = view([order({payment_status: 'under_review', paid_amount_cents: null})], {period: 'today'});
+  const trend = html.match(/<section class="panel analytics-trend">[\s\S]*?<\/section>/)?.[0];
+  assert.match(trend, /2026-09-16<\/th><td>0<\/td><td>₱0\.00<\/td>/);
+  assert.match(trend, /₱0\.00 sales, 0 paid orders/);
+});
