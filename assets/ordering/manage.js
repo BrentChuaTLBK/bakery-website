@@ -2,7 +2,7 @@ import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars } from './date-calendar.js';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=refunds-1';
-import { renderAnalytics } from './analytics-view.js?v=refunds-1';
+import { renderAnalytics } from './analytics-view.js?v=paid-count-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];

@@ -13,7 +13,7 @@ Choose Today, Last 7 days, Last 30 days, This month, All time, or Custom dates. 
 | Top products | Top ten products by units, combining different flavors/options under their parent product. Ties use item value, then name. Item value is before order discounts and excludes delivery. |
 | Order status | Current paid, full-refund, awaiting-payment, review, expired and cancelled counts. Full-refund counts may overlap with cancelled orders. Expired/cancelled percentages use all selected orders. |
 | Pickup versus delivery | Current fulfillment method for paid orders only, excluding cancelled, expired and Refund-labelled orders. Percentages use this same eligible paid-order count, not all orders. |
-| Sales over time | Current sales attributed to placement dates. Long date ranges group into weeks or months. Use **View exact figures** to see the underlying values. |
+| Sales over time | Current sales and the number of qualifying paid orders attributed to placement dates. The chart tooltip and **View exact figures → Paid orders** exclude unpaid, cancelled, expired and Refund-labelled orders, matching sales. Completed paid orders remain included. Long date ranges group into weeks or months. |
 
 ## How edits affect analytics
 
