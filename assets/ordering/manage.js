@@ -1,8 +1,8 @@
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload } from './client.js';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars } from './date-calendar.js';
-import { analyticsDateRange, buildAnalytics } from './analytics.js';
-import { renderAnalytics } from './analytics-view.js';
+import { analyticsDateRange, buildAnalytics } from './analytics.js?v=refunds-1';
+import { renderAnalytics } from './analytics-view.js?v=refunds-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -233,7 +233,7 @@ function orderActionDialog(action) {
     'approve_payment': ['Approve full initial payment', `Confirm that you have received ${money(o.total_cents)} in full for ${o.reference}. Approval marks payment Paid and fulfillment Confirmed.`, false],
     'reject_payment': ['Reject payment & close order', 'The order will become Rejected and Cancelled. Held product quantities and the unused promo reservation are released. This order will not accept another proof upload.', true],
     'cancel_order': ['Cancel this order', 'Record why this order is being cancelled. Cancellation does not indicate that a refund has been made.', true],
-    'set_refund_label': [o.refund_label ? 'Remove Refund label' : 'Apply Refund label', 'This is a manual label for your team. It does not process a refund or change payment, fulfillment, or promo usage.', true]
+    'set_refund_label': [o.refund_label ? 'Remove Refund label' : 'Apply Refund label', o.refund_label ? 'Removing the label restores this order to Analytics sales, product rankings and the pickup/delivery breakdown if it is paid and not cancelled or expired. The money transfer remains manual.' : 'A Refund label means a full refund for Analytics. It removes the entire current paid-order total, including delivery after discounts, from sales and excludes the order from product rankings and the pickup/delivery breakdown. You still send the refund manually. Payment, fulfillment, stock and promo usage stay unchanged.', true]
   }[action];
   showDialog(content[0], `<form data-form="order-action" data-operation="${action}">${formError}<p class="muted">${esc(content[1])}</p>${action === 'approve_payment' ? `<p class="notice">Payment reference: <strong>${esc(o.payment_reference || '—')}</strong>. Check the private proof and your receiving account before approving.</p>` : ''}${content[2] ? textarea('reason', 'Reason / staff record', '', '', 'required maxlength="4000"') : ''}${action === 'cancel_order' && o.payment_status === 'paid' ? check('restore_stock', 'Return the committed units to sellable quantity. Select only if these units can be sold again.', false) : ''}${action === 'cancel_order' && o.payment_status === 'paid' ? '<p class="help-text">Leave unchecked for units already produced or otherwise not available to sell. Paid remains Paid, and a redeemed promo use stays counted.</p>' : ''}<div class="dialog-actions"><button type="button" class="button button-secondary" data-action="back-order">Back</button><button type="submit" class="button ${action === 'reject_payment' || action === 'cancel_order' ? 'button-danger' : ''}">${esc(content[0])}</button></div></form>`);
 }

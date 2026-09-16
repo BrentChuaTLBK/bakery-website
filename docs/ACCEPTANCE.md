@@ -204,7 +204,7 @@ Start each edit from a fresh active order and record old date, items, totals, re
 | M15 | Repeat M14 from Ready for pickup / Out for delivery where method still matches. | Existing fulfillment progress remains; date alone does not reset or advance it. | __________________ |
 | M16 | Open same revision in two staff sessions. Save different edits from each. | First valid save succeeds; stale conflicting save is rejected clearly. No lost update or corrupted stock/promo totals. | __________________ |
 | M17 | Cancel unpaid order with reason; cancel a paid order once with stock restore and another without restore. | Unpaid holds return once. Paid remains Paid; explicit restore returns eligible units, no-restore leaves produced units unavailable. Reasons/staff/time retained. | __________________ |
-| M18 | Repeatedly cancel same order. Toggle Refund label on and off, then filter it. | No duplicate release; Refund is independently filterable/removable and never claims money was refunded. | __________________ |
+| M18 | Repeatedly cancel same order. Toggle Refund label on and off, then filter it. | No duplicate release; Refund is independently filterable/removable. It excludes a paid order’s full latest value, units and method from analytics; cancelled orders are not deducted twice. Removing it restores reporting only for eligible paid orders. Actual transfers remain manual. | __________________ |
 | M19 | Move Paid → Preparing → Ready for pickup for pickup; Paid → Preparing → Out for delivery for delivery; mark Completed manually. Try wrong-method status. | Explicit authorized transitions work; wrong-method readiness is rejected; no calendar-only transition. | __________________ |
 | M20 | Export CSV and print summary; use demo name beginning with `=1+1`. | Export includes required order details and quoted values; spreadsheet formula-like input is neutralized. Print is readable, with saved options/totals/reference. No unintended private-note exposure. | __________________ |
 | M21 | As staff S, perform permitted order/stock actions; attempt owner-only settings/catalog/promos/role changes using both UI and a direct request. | Server enforces role permissions; hidden controls are not the only protection. | __________________ |
@@ -300,3 +300,11 @@ Review the merge and deployment walkthrough in [SETUP.md](SETUP.md). A completed
 - [ ] Mixed carts containing any ineligible product cannot quote or submit for today. The customer sees the conflict; products are not silently removed or split into separate orders.
 - [ ] Same-day eligibility cannot bypass a global booking closure, method-specific closure, pickup-only restriction, stock limit, or paused shop. A non-production date alone does not block ready-stock fulfillment.
 - [ ] Stale open checkouts cannot submit today after the cutoff or after the product option is disabled; rejected requests reserve no stock and queue no email. Existing saved orders and paid states remain unchanged.
+
+### Analytics refunds and fulfillment mix
+
+- [ ] A paid order with a Refund label contributes zero sales, units, product-ranking value and pickup/delivery count, including when already completed. Original payment approval stays visible.
+- [ ] Applying the label to an edited order excludes its latest total, including delivery after discounts. Removing it restores the latest values if paid and not cancelled/expired.
+- [ ] Cancelled plus Refund-labelled orders are excluded once. An unpaid labelled order cannot reduce sales or add a monetary refund.
+- [ ] Pickup and delivery percentages count only paid orders excluding cancellations, expiry and full refunds. They show 0% when none qualify.
+- [ ] Refund changes appear in the original placement-date period. Refresh loads another staff member’s changes.

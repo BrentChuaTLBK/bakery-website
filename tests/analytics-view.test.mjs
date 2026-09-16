@@ -66,9 +66,23 @@ test('empty report has zero sales, an unavailable average and a useful empty sta
   assert.doesNotMatch(html, /NaN|undefined|Infinity/);
 });
 
-test('a refund flag does not invent a monetary refund in rendered sales', () => {
+test('full-refund label removes sales and shows the refunded value separately', () => {
   const html = view([order({ refund_label: true })]);
-  assert.equal(metric(html, 'sales'), '₱130.00');
-  assert.match(html, /Orders with a refund label<\/dt><dd>1/);
-  assert.match(html, /Refund labels alone do not deduct money/);
+  assert.equal(metric(html, 'sales'), '₱0.00');
+  assert.equal(metric(html, 'average'), '—');
+  assert.equal(metric(html, 'units'), '0');
+  assert.match(html, /Paid orders with a Refund label<\/dt><dd>1/);
+  assert.match(html, /Full-refund order value<\/dt><dd>₱130\.00/);
+  assert.match(html, /A Refund label removes the full current order value/);
+  assert.doesNotMatch(html, /Refund labels alone do not deduct money/);
+});
+
+test('pickup and delivery percentages use the eligible paid-order denominator', () => {
+  const html = view([order(), order({method: 'delivery'}), order({method: 'delivery', payment_status: 'under_review'}), order({method: 'pickup', refund_label: true})]);
+  const methodPanel = html.match(/<h2>Pickup versus delivery<\/h2>[\s\S]*?<\/section>/)?.[0];
+  assert.equal(metric(html, 'orders'), '4');
+  assert.match(methodPanel, /Paid orders/);
+  assert.match(methodPanel, /Pickup<\/span><strong>1<\/strong><small>50\.0% of paid orders/);
+  assert.match(methodPanel, /Delivery<\/span><strong>1<\/strong><small>50\.0% of paid orders/);
+  assert.match(methodPanel, /Unpaid, cancelled, expired and Refund-labelled orders are excluded/);
 });
