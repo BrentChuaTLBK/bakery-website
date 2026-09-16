@@ -50,7 +50,7 @@ test('paid edits immediately change sales and products while preserving original
   assert.equal(a.trend[0].approvedPaymentsCents, 26000);
 });
 
-test('cancellation removes sales and product units but never invents a refund', () => {
+test('cancelled orders with a full-refund label are excluded only once', () => {
   const a = buildAnalytics([order({fulfillment_status: 'cancelled', refund_label: true})], {today});
   assert.equal(a.totalOrders, 1);
   assert.equal(a.cancelledCount, 1);
@@ -59,18 +59,25 @@ test('cancellation removes sales and product units but never invents a refund', 
   assert.equal(a.currentOrderValueCents, 0);
   assert.equal(a.averageOrderValueCents, null);
   assert.equal(a.refundFlaggedCount, 1);
+  assert.equal(a.refundedPaidOrderCount, 1);
+  assert.equal(a.fullRefundOrderValueCents, 26000);
   assert.equal(a.refundDifferenceCents, 0);
   assert.equal(a.totalUnits, 0);
   assert.deepEqual(a.topProducts, []);
 });
 
-test('completed paid orders count as sales and a refund label alone changes no amount', () => {
+test('a full-refund label removes completed paid orders from sales and all derived metrics', () => {
   const a = buildAnalytics([order({fulfillment_status: 'completed', refund_label: true})], {today});
-  assert.equal(a.currentOrderValueCents, 26000);
-  assert.equal(a.activePaidOrderCount, 1);
+  assert.equal(a.currentOrderValueCents, 0);
+  assert.equal(a.activePaidOrderCount, 0);
+  assert.equal(a.averageOrderValueCents, null);
   assert.equal(a.approvedPaymentsCents, 26000);
-  assert.equal(a.totalUnits, 2);
+  assert.equal(a.totalUnits, 0);
   assert.equal(a.refundFlaggedCount, 1);
+  assert.equal(a.fullRefundOrderValueCents, 26000);
+  assert.equal(a.pickupCount, 0);
+  assert.deepEqual(a.topProducts, []);
+  assert.equal(a.trend.reduce((sum, bucket) => sum + bucket.currentOrderValueCents, 0), 0);
 });
 
 test('active unpaid statuses are separate from expired and rejected reservations', () => {
@@ -85,11 +92,78 @@ test('active unpaid statuses are separate from expired and rejected reservations
   assert.equal(a.underReviewCount, 1);
   assert.equal(a.expiredCount, 1);
   assert.equal(a.cancelledCount, 1);
-  assert.equal(a.pickupCount, 2);
-  assert.equal(a.deliveryCount, 2);
+  assert.equal(a.pickupCount, 0);
+  assert.equal(a.deliveryCount, 0);
   assert.equal(a.currentOrderValueCents, 0);
   assert.equal(a.approvedPaymentsCents, 0);
   assert.equal(a.totalUnits, 0);
+});
+
+test('full refund excludes the latest edited total with delivery and discount; removing label restores it', () => {
+  const edited = order({total_cents: 47000, subtotal_cents: 39000, discount_cents: 2000, delivery_cents: 10000,
+    items: [item({quantity: 3, line_total_cents: 39000})], method: 'delivery', refund_label: true});
+  const refunded = buildAnalytics([edited], {today});
+  assert.equal(refunded.fullRefundOrderValueCents, 47000);
+  assert.equal(refunded.approvedPaymentsCents, 26000);
+  assert.equal(refunded.currentOrderValueCents, 0);
+  assert.equal(refunded.currentProductValueCents, 0);
+  assert.equal(refunded.currentDiscountCents, 0);
+  assert.equal(refunded.currentDeliveryCents, 0);
+  assert.equal(refunded.additionalPaymentCents, 0);
+  assert.equal(refunded.deliveryCount, 0);
+  const restored = buildAnalytics([{...edited, refund_label: false}], {today});
+  assert.equal(restored.currentOrderValueCents, 47000);
+  assert.equal(restored.averageOrderValueCents, 47000);
+  assert.equal(restored.fullRefundOrderValueCents, 0);
+  assert.equal(restored.totalUnits, 3);
+  assert.equal(restored.deliveryCount, 1);
+  assert.equal(restored.currentProductValueCents - restored.currentDiscountCents + restored.currentDeliveryCents, 47000);
+  assert.equal(buildAnalytics([{...edited, refund_label: false, fulfillment_status: 'cancelled'}], {today}).currentOrderValueCents, 0);
+});
+
+test('pickup and delivery count only kept paid orders, including completed orders', () => {
+  const a = buildAnalytics([
+    order(), order({method: 'delivery', fulfillment_status: 'completed'}),
+    order({method: 'delivery', payment_status: 'under_review', paid_amount_cents: null}),
+    order({method: 'pickup', payment_status: 'awaiting_payment', paid_amount_cents: null}),
+    order({method: 'delivery', fulfillment_status: 'cancelled'}),
+    order({method: 'delivery', fulfillment_status: 'expired'}),
+    order({method: 'delivery', refund_label: true})
+  ], {today});
+  assert.equal(a.totalOrders, 7);
+  assert.equal(a.pickupCount, 1);
+  assert.equal(a.deliveryCount, 1);
+  assert.equal(a.activePaidOrderCount, 2);
+  assert.equal(a.currentOrderValueCents, 52000);
+  assert.equal(a.averageOrderValueCents, 26000);
+});
+
+test('refunded cancellations never reduce other orders or invent negative sales', () => {
+  const a = buildAnalytics([order(), order({total_cents: 100000, fulfillment_status: 'cancelled', refund_label: true})], {today});
+  assert.equal(a.currentOrderValueCents, 26000);
+  assert.equal(a.fullRefundOrderValueCents, 100000);
+  assert.equal(a.averageOrderValueCents, 26000);
+  assert.equal(a.totalUnits, 2);
+});
+
+test('an unpaid refund label is counted but creates no refund money or negative sale', () => {
+  const a = buildAnalytics([order({refund_label: true, payment_status: 'awaiting_payment', paid_amount_cents: null})], {today});
+  assert.equal(a.totalOrders, 1);
+  assert.equal(a.refundFlaggedCount, 1);
+  assert.equal(a.refundedPaidOrderCount, 0);
+  assert.equal(a.fullRefundOrderValueCents, 0);
+  assert.equal(a.currentOrderValueCents, 0);
+});
+
+test('refunds revise the placement-date period and need no original payment amount', () => {
+  const refunded = order({created_at: '2026-09-15T01:00:00Z', refund_label: true, paid_amount_cents: null});
+  const outside = buildAnalytics([refunded], {today, start: today, end: today});
+  assert.equal(outside.fullRefundOrderValueCents, 0);
+  assert.equal(outside.refundedPaidOrderCount, 0);
+  const inside = buildAnalytics([refunded], {today, start: '2026-09-15', end: '2026-09-15'});
+  assert.equal(inside.fullRefundOrderValueCents, 26000);
+  assert.equal(inside.currentOrderValueCents, 0);
+  assert.equal(inside.missingApprovedAmountCount, 1);
 });
 
 test('missing approval amounts are surfaced without substituting edited order totals', () => {

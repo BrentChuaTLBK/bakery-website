@@ -70,7 +70,7 @@ function makeTrend(rows, start, end, today) {
     if (order.payment_status === 'paid') {
       bucket.paidOrderCount++;
       bucket.approvedPaymentsCents += cents(order.paid_amount_cents);
-      if (!CLOSED.has(order.fulfillment_status)) {
+      if (!CLOSED.has(order.fulfillment_status) && order.refund_label !== true) {
         bucket.activePaidOrderCount++;
         bucket.currentOrderValueCents += cents(order.total_cents);
       }
@@ -81,9 +81,11 @@ function makeTrend(rows, start, end, today) {
 
 /**
  * Filter by Manila placement date and summarize CURRENT order/payment states.
- * Sales use current paid, non-cancelled/non-expired orders (including completed).
+ * Sales use current paid orders without cancellation, expiry or a full-refund label.
+ * Completed orders remain included unless labelled for refund.
  * Approved payments preserve the original recorded approval, even after cancellation.
- * A refund label never subtracts money: this system has no refund transaction ledger.
+ * A Refund label excludes the full current order value, including delivery after discounts.
+ * It is a reporting rule, not evidence that the manual money transfer has completed.
  */
 export function buildAnalytics(orders = [], {start = '', end = '', today = manilaOrderDate(new Date()), products = []} = {}) {
   const invalidRange = Boolean((start && !validDate(start)) || (end && !validDate(end)) || (start && end && start > end));
@@ -96,6 +98,7 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
     additionalPaymentCents: 0, refundDifferenceCents: 0,
     awaitingPaymentCount: 0, underReviewCount: 0, expiredCount: 0, cancelledCount: 0,
     refundFlaggedCount: 0, paidAdjustmentCount: 0, pickupCount: 0, deliveryCount: 0,
+    refundedPaidOrderCount: 0, fullRefundOrderValueCents: 0,
     totalUnits: 0, topProducts: [], trend: [], trendUnit: 'day', trendInterval: 1
   };
   if (invalidRange) return result;
@@ -111,8 +114,6 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
   result.totalOrders = rows.length;
   rows.forEach(({order}, index) => {
     const closed = CLOSED.has(order.fulfillment_status);
-    if (order.method === 'pickup') result.pickupCount++;
-    if (order.method === 'delivery') result.deliveryCount++;
     if (order.fulfillment_status === 'expired') result.expiredCount++;
     if (order.fulfillment_status === 'cancelled') result.cancelledCount++;
     if (order.refund_label === true) result.refundFlaggedCount++;
@@ -128,7 +129,14 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
       result.approvedPaymentsCents += approved;
       if (current !== null && current !== approved) result.paidAdjustmentCount++;
     }
-    if (closed) return;
+    if (order.refund_label === true) {
+      result.refundedPaidOrderCount++;
+      result.fullRefundOrderValueCents += current ?? 0;
+    }
+    // A cancelled, expired or fully refunded sale is excluded once, never subtracted twice.
+    if (closed || order.refund_label === true) return;
+    if (order.method === 'pickup') result.pickupCount++;
+    if (order.method === 'delivery') result.deliveryCount++;
     result.activePaidOrderCount++;
     result.currentOrderValueCents += current ?? 0;
     result.currentProductValueCents += cents(order.subtotal_cents);
