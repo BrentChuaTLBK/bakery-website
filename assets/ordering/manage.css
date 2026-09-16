@@ -35,4 +35,41 @@
 .manage-page .calendar-date-list button{border:1px solid #d9c9b8;border-radius:6px;background:#f8f1e6;color:var(--caramel);padding:7px;font-size:10px;cursor:pointer}
 .calendar-date-list button span{margin-left:3px}
 .manage-page .zone-description{white-space:pre-wrap;overflow-wrap:anywhere}
+.analytics-filters{margin-bottom:22px}
+.analytics-filters form{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.analytics-filters .field{margin:0;flex:1;min-width:150px;max-width:240px}
+.analytics-filters .form-error{flex-basis:100%;margin:0}
+.analytics-updated{font-size:10px;color:var(--muted);line-height:1.6;margin:8px 0 0}
+.analytics-metrics .metric-value{font-size:clamp(24px,2.4vw,34px);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.analytics-metrics .metric-note{font-size:10px;line-height:1.65;color:var(--muted)}
+.analytics-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-bottom:22px}
+.analytics-grid>section,.analytics-grid>div{min-width:0}
+.analytics-grid .section-heading{align-items:start;gap:12px;flex-wrap:wrap}
+.analytics-chart-scroll{overflow-x:auto;padding:10px 0 0}
+.analytics-chart{height:190px;display:grid;grid-template-columns:repeat(var(--columns),minmax(16px,1fr));gap:5px;align-items:end;border-bottom:1px solid var(--line);min-width:calc(var(--columns) * 21px)}
+.analytics-chart-column{height:100%;display:flex;align-items:end;position:relative}
+.analytics-chart-bar{display:block;width:100%;height:var(--bar-height);background:var(--caramel);border-radius:4px 4px 0 0}
+.analytics-chart-column:hover .analytics-chart-bar{background:#a57448}
+.analytics-chart-axis{display:flex;justify-content:space-between;gap:14px;font-size:10px;color:var(--muted);padding:10px 0 16px}
+.analytics-numbers{font-size:11px;border-top:1px solid var(--line);padding-top:12px}
+.analytics-numbers summary{cursor:pointer;color:var(--caramel);padding:5px 0}
+.analytics-numbers .table-wrap{margin-top:12px;max-height:280px;overflow:auto}
+.analytics-products th[scope="row"],.analytics-numbers th[scope="row"]{background:none;border:0;border-bottom:1px solid #f0ebe1;color:var(--ink);letter-spacing:normal;text-transform:none;font-size:11px;line-height:1.6;padding:16px 20px}
+.analytics-products th[scope="row"]{white-space:normal;min-width:130px;overflow-wrap:anywhere;max-width:230px}
+.analytics-rank{display:inline-block;color:var(--muted);font-size:10px;margin-right:10px}
+.analytics-empty{padding:22px 0;color:var(--muted);font-size:12px;line-height:1.7}
+.analytics-empty h3{color:var(--ink)}
+.analytics-breakdown{margin:0 0 18px;font-size:12px;line-height:1.6}
+.analytics-breakdown>div{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding:12px 0}
+.analytics-breakdown dt{color:var(--muted)}
+.analytics-breakdown dd{margin:0;font-weight:700;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
+.analytics-method{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:24px 0}
+.analytics-method>div{background:#f8f2e8;border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:10px}
+.analytics-method span,.analytics-method small{font-size:11px;color:var(--muted)}
+.analytics-method strong{font:34px Georgia,serif}
+.analytics-accounting .analytics-grid{margin-bottom:0}
+.analytics-accounting .notice{margin:20px 0 0}
+.analytics-filters :focus-visible,.analytics-numbers summary:focus-visible{outline:2px solid var(--caramel);outline-offset:3px}
+@media(max-width:1100px){.analytics-grid{grid-template-columns:1fr}.analytics-metrics .metric-value{font-size:30px}}
+@media(max-width:480px){.analytics-metrics{grid-template-columns:1fr 1fr}.analytics-metrics .metric-value{font-size:26px}.analytics-grid{gap:16px;margin-bottom:16px}.analytics-filters form{gap:12px}.analytics-filters .field{max-width:none;min-width:0;flex-basis:100%}.analytics-filters .button{width:100%}.analytics-breakdown{font-size:11px}.analytics-method>div{padding:16px}.analytics-chart{height:160px}.analytics-products th[scope="row"]{padding-left:15px;padding-right:15px}}
 @media(max-width:420px){.manage-page .date-calendar{padding:10px}.calendar-month{border-spacing:1px}.calendar-month td,.manage-page .calendar-day{min-height:36px;height:36px}.calendar-toolbar{grid-template-columns:36px minmax(0,1fr) 36px}}

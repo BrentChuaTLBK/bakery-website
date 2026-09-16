@@ -1,0 +1,188 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {analyticsDateRange, buildAnalytics, manilaOrderDate} from '../assets/ordering/analytics.js';
+
+const today = '2026-09-16';
+const item = (overrides = {}) => ({product_id: 'nori', name: 'Nori', quantity: 2, unit_price_cents: 13000, line_total_cents: 26000, ...overrides});
+const order = (overrides = {}) => ({id: 'one', created_at: '2026-09-16T01:00:00Z', payment_status: 'paid', fulfillment_status: 'confirmed', method: 'pickup', paid_amount_cents: 26000, total_cents: 26000, subtotal_cents: 26000, discount_cents: 0, delivery_cents: 0, items: [item()], ...overrides});
+
+test('date presets include today and cross month and leap-year boundaries', () => {
+  assert.deepEqual(analyticsDateRange('today', today), {start: today, end: today});
+  assert.deepEqual(analyticsDateRange('last7', '2026-03-02'), {start: '2026-02-24', end: '2026-03-02'});
+  assert.deepEqual(analyticsDateRange('last30', '2024-03-01'), {start: '2024-02-01', end: '2024-03-01'});
+  assert.deepEqual(analyticsDateRange('this_month', today), {start: '2026-09-01', end: today});
+  for (const preset of ['all', 'custom']) assert.deepEqual(analyticsDateRange(preset, today), {start: '', end: ''});
+});
+
+test('Manila midnight boundaries determine placement dates, not fulfillment dates', () => {
+  assert.equal(manilaOrderDate('2026-09-15T15:59:59.999Z'), '2026-09-15');
+  assert.equal(manilaOrderDate('2026-09-15T16:00:00Z'), today);
+  const a = buildAnalytics([
+    order({created_at: '2026-09-15T15:59:59.999Z', fulfillment_date: today}),
+    order({created_at: '2026-09-15T16:00:00Z', fulfillment_date: '2026-09-22'}),
+    order({created_at: '2026-09-16T15:59:59.999Z'}),
+    order({created_at: '2026-09-16T16:00:00Z'})
+  ], {start: today, end: today, today});
+  assert.equal(a.totalOrders, 2);
+  assert.equal(a.currentOrderValueCents, 52000);
+  assert.equal(a.trend[0].orderCount, 2);
+});
+
+test('paid edits immediately change sales and products while preserving original approvals', () => {
+  const initial = order();
+  const options = {today, start: today, end: today};
+  assert.equal(buildAnalytics([initial], options).currentOrderValueCents, 26000);
+  const edited = order({total_cents: 47000, subtotal_cents: 39000, discount_cents: 2000, delivery_cents: 10000,
+    items: [item({quantity: 3, line_total_cents: 39000})], method: 'delivery'});
+  const a = buildAnalytics([edited], options);
+  assert.equal(a.currentOrderValueCents, 47000);
+  assert.equal(a.averageOrderValueCents, 47000);
+  assert.equal(a.approvedPaymentsCents, 26000);
+  assert.equal(a.averageApprovedPaymentCents, 26000);
+  assert.equal(a.currentProductValueCents, 39000);
+  assert.equal(a.currentDiscountCents, 2000);
+  assert.equal(a.currentDeliveryCents, 10000);
+  assert.equal(a.additionalPaymentCents, 21000);
+  assert.equal(a.refundDifferenceCents, 0);
+  assert.equal(a.paidAdjustmentCount, 1);
+  assert.equal(a.totalUnits, 3);
+  assert.equal(a.trend[0].currentOrderValueCents, 47000);
+  assert.equal(a.trend[0].approvedPaymentsCents, 26000);
+});
+
+test('cancellation removes sales and product units but never invents a refund', () => {
+  const a = buildAnalytics([order({fulfillment_status: 'cancelled', refund_label: true})], {today});
+  assert.equal(a.totalOrders, 1);
+  assert.equal(a.cancelledCount, 1);
+  assert.equal(a.paidOrderCount, 1);
+  assert.equal(a.approvedPaymentsCents, 26000);
+  assert.equal(a.currentOrderValueCents, 0);
+  assert.equal(a.averageOrderValueCents, null);
+  assert.equal(a.refundFlaggedCount, 1);
+  assert.equal(a.refundDifferenceCents, 0);
+  assert.equal(a.totalUnits, 0);
+  assert.deepEqual(a.topProducts, []);
+});
+
+test('completed paid orders count as sales and a refund label alone changes no amount', () => {
+  const a = buildAnalytics([order({fulfillment_status: 'completed', refund_label: true})], {today});
+  assert.equal(a.currentOrderValueCents, 26000);
+  assert.equal(a.activePaidOrderCount, 1);
+  assert.equal(a.approvedPaymentsCents, 26000);
+  assert.equal(a.totalUnits, 2);
+  assert.equal(a.refundFlaggedCount, 1);
+});
+
+test('active unpaid statuses are separate from expired and rejected reservations', () => {
+  const a = buildAnalytics([
+    order({payment_status: 'awaiting_payment', paid_amount_cents: null, fulfillment_status: 'pending_confirmation'}),
+    order({payment_status: 'under_review', paid_amount_cents: null, fulfillment_status: 'pending_confirmation', method: 'delivery'}),
+    order({payment_status: 'awaiting_payment', paid_amount_cents: null, fulfillment_status: 'expired'}),
+    order({payment_status: 'rejected', paid_amount_cents: null, fulfillment_status: 'cancelled', method: 'delivery'})
+  ], {today});
+  assert.equal(a.totalOrders, 4);
+  assert.equal(a.awaitingPaymentCount, 1);
+  assert.equal(a.underReviewCount, 1);
+  assert.equal(a.expiredCount, 1);
+  assert.equal(a.cancelledCount, 1);
+  assert.equal(a.pickupCount, 2);
+  assert.equal(a.deliveryCount, 2);
+  assert.equal(a.currentOrderValueCents, 0);
+  assert.equal(a.approvedPaymentsCents, 0);
+  assert.equal(a.totalUnits, 0);
+});
+
+test('missing approval amounts are surfaced without substituting edited order totals', () => {
+  const a = buildAnalytics([order({paid_amount_cents: null}), order({paid_amount_cents: undefined}), order({paid_amount_cents: 0}), order()], {today});
+  assert.equal(a.paidOrderCount, 4);
+  assert.equal(a.missingApprovedAmountCount, 2);
+  assert.equal(a.approvedAmountOrderCount, 2);
+  assert.equal(a.approvedPaymentsCents, 26000);
+  assert.equal(a.averageApprovedPaymentCents, 13000);
+  assert.equal(a.currentOrderValueCents, 104000);
+});
+
+test('positive and negative order adjustments remain separate across customers', () => {
+  const a = buildAnalytics([order({total_cents: 36000}), order({total_cents: 16000})], {today});
+  assert.equal(a.additionalPaymentCents, 10000);
+  assert.equal(a.refundDifferenceCents, 10000);
+  assert.equal(a.paidAdjustmentCount, 2);
+  assert.equal(a.averageOrderValueCents, 26000);
+});
+
+test('top products aggregate flavor lines by product ID and count each order once', () => {
+  const a = buildAnalytics([
+    order({items: [item({quantity: 1, line_total_cents: 13000, name: 'Old name', selections: {flavor: 'original'}}), item({quantity: 2, line_total_cents: 26000, name: 'New name', selections: {flavor: 'bbq'}})]}),
+    order({id: 'two', items: [item({quantity: 1, line_total_cents: 13000})]}),
+    order({id: 'three', items: [item({product_id: 'cake', name: 'Nori', quantity: 4, line_total_cents: 80000})]}),
+    order({fulfillment_status: 'expired', items: [item({quantity: 100, line_total_cents: 1300000})]})
+  ], {today, products: [{id: 'nori', name: 'Krisp Nori Pouch'}]});
+  assert.deepEqual(a.topProducts, [
+    {productId: 'cake', name: 'Nori', units: 4, lineValueCents: 80000, orderCount: 1},
+    {productId: 'nori', name: 'Krisp Nori Pouch', units: 4, lineValueCents: 52000, orderCount: 2}
+  ]);
+  assert.equal(a.totalUnits, 8);
+});
+
+test('deleted products retain snapshot names and missing line totals use saved unit prices', () => {
+  const a = buildAnalytics([order({items: [item({name: 'Discontinued pouch', line_total_cents: undefined})]})], {today, products: []});
+  assert.equal(a.topProducts[0].name, 'Discontinued pouch');
+  assert.equal(a.topProducts[0].lineValueCents, 26000);
+});
+
+test('malformed and negative values never produce negative or NaN reports', () => {
+  const a = buildAnalytics([
+    order({paid_amount_cents: -5, total_cents: -1, subtotal_cents: Infinity, discount_cents: 'no', delivery_cents: -9,
+      items: [item({quantity: -2}), item({quantity: 1.5}), item({quantity: 1, line_total_cents: -5}), null]}),
+    order({paid_amount_cents: '26000', total_cents: '26000', items: []})
+  ], {today});
+  assert.equal(a.missingApprovedAmountCount, 1);
+  assert.equal(a.approvedPaymentsCents, 26000);
+  assert.equal(a.currentOrderValueCents, 26000);
+  assert.equal(a.totalUnits, 1);
+  assert.equal(a.topProducts[0].lineValueCents, 0);
+  for (const value of Object.values(a)) if (typeof value === 'number') assert.ok(Number.isFinite(value) && value >= 0);
+});
+
+test('empty reports are meaningful and invalid dates or reversed filters are safe', () => {
+  const empty = buildAnalytics([], {start: '2026-09-10', end: today, today});
+  assert.equal(empty.totalOrders, 0);
+  assert.equal(empty.averageOrderValueCents, null);
+  assert.equal(empty.trend.length, 7);
+  assert.ok(empty.trend.every(bucket => bucket.currentOrderValueCents === 0));
+  assert.equal(buildAnalytics([order({created_at: 'invalid'})], {today}).invalidDateOrderCount, 1);
+  assert.equal(manilaOrderDate('2026-02-30'), '');
+  assert.equal(manilaOrderDate(null), '');
+  for (const range of [{start: '2026-09-17', end: today}, {start: '2026-02-30', end: today}]) {
+    const a = buildAnalytics([order()], {...range, today});
+    assert.equal(a.invalidRange, true);
+    assert.equal(a.totalOrders, 0);
+    assert.deepEqual(a.trend, []);
+  }
+});
+
+test('trends stay within 31 bars for daily, weekly and multi-year reports and preserve totals', () => {
+  for (const [start, end, unit] of [
+    ['2026-09-01', '2026-09-30', 'day'],
+    ['2026-06-01', '2026-09-30', 'week'],
+    ['2025-01-01', '2026-09-30', 'month'],
+    ['2010-01-01', '2026-09-30', 'month']
+  ]) {
+    const a = buildAnalytics([order(), order({fulfillment_status: 'cancelled'})], {start, end, today});
+    assert.equal(a.trendUnit, unit);
+    assert.ok(a.trend.length <= 31);
+    assert.equal(a.trend[0].start, start);
+    assert.equal(a.trend.at(-1).end, end);
+    assert.equal(a.trend.reduce((sum, bucket) => sum + bucket.orderCount, 0), 2);
+    assert.equal(a.trend.reduce((sum, bucket) => sum + bucket.approvedPaymentsCents, 0), 52000);
+    assert.equal(a.trend.reduce((sum, bucket) => sum + bucket.currentOrderValueCents, 0), 26000);
+  }
+});
+
+test('report building does not mutate orders, product snapshots or products', () => {
+  const rows = [order()];
+  const products = [{id: 'nori', name: 'Nori renamed'}];
+  const before = JSON.stringify({rows, products});
+  buildAnalytics(rows, {today, products});
+  assert.equal(JSON.stringify({rows, products}), before);
+});

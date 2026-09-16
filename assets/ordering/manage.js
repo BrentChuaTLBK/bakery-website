@@ -1,6 +1,8 @@
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload } from './client.js';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars } from './date-calendar.js';
+import { analyticsDateRange, buildAnalytics } from './analytics.js';
+import { renderAnalytics } from './analytics-view.js';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -18,6 +20,7 @@ let editDraft = null;
 let editPreviewKey = null;
 let editExpectedQuote = null;
 let modalReturnFocus = null;
+state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
 const modal = $('#admin-dialog');
 bindDateCalendars($('#workspace'));
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
@@ -64,7 +67,7 @@ modal.addEventListener('click', event => { if (event.target === modal) { const r
 async function refresh() {
   if (!configured) return;
   const result = await api('admin_bootstrap');
-  Object.assign(state, result, { connected: true });
+  Object.assign(state, result, { connected: true, analyticsUpdatedAt: new Date().toISOString() });
   state.products.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
   state.categories.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name));
   const reviews = state.orders.filter(o => o.payment_status === 'under_review').length;
@@ -75,8 +78,11 @@ async function refresh() {
 }
 function render() {
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
-  const views = { overview: overviewView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView };
+  const views = { overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+}
+function analyticsView() {
+  return heading('Analytics', 'Your orders, sales and most-loved products.', `<button class="button button-secondary" data-action="refresh" ${locked()}>Refresh analytics</button>`) + renderAnalytics(state, { today: manilaDate(), money, escapeHtml: esc, formatDate });
 }
 function overviewView() {
   const today = manilaDate();
@@ -448,7 +454,7 @@ function exportOrders() {
 
 document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]');
-  if (view) { state.view = view.dataset.view; render(); if (state.view === 'team' && state.connected && state.role === 'owner') { try { await loadTeam(); } catch (error) { toast(error.message, 'error'); } } return; }
+  if (view) { state.view = view.dataset.view; render(); if (state.view === 'analytics' && state.connected) { try { await refresh(); } catch (error) { toast('Analytics could not refresh. The last loaded figures are shown. ' + error.message, 'error'); } } if (state.view === 'team' && state.connected && state.role === 'owner') { try { await loadTeam(); } catch (error) { toast(error.message, 'error'); } } return; }
   const button = event.target.closest('[data-action]');
   if (!button) return;
   event.preventDefault();
@@ -470,6 +476,13 @@ document.addEventListener('input', event => {
 document.addEventListener('change', async event => {
   const target = event.target;
   try {
+    if (target.id === 'analytics-period') {
+      const period = target.value;
+      const previousRange = state.analyticsFilter.period === 'custom' ? state.analyticsFilter : analyticsDateRange(state.analyticsFilter.period, manilaDate());
+      state.analyticsFilter = { period, ...(period === 'custom' ? { start: previousRange.start || manilaDate(), end: previousRange.end || manilaDate() } : analyticsDateRange(period, manilaDate())) };
+      render(); $('#analytics-period')?.focus();
+      return;
+    }
     if (target.id === 'inventory-date') { state.inventoryDate = target.value; render(); }
     if (target.id === 'promo-kind') {
       const value = $('#promo-value');
@@ -518,6 +531,20 @@ document.addEventListener('change', async event => {
 });
 
 document.addEventListener('submit', async event => {
+  const analyticsForm = event.target.closest('#analytics-filters');
+  if (analyticsForm) {
+    event.preventDefault();
+    const start = fieldValue(analyticsForm, 'start');
+    const end = fieldValue(analyticsForm, 'end');
+    if (!analyticsForm.reportValidity()) return;
+    if (!start || !end || end > manilaDate() || buildAnalytics([], { start, end, today: manilaDate() }).invalidRange) {
+      $('#analytics-filter-error').textContent = 'Choose valid dates, with the end on or after the start and no later than today.';
+      return;
+    }
+    state.analyticsFilter = { period: 'custom', start, end };
+    render(); $('#analytics-period')?.focus();
+    return;
+  }
   const form = event.target.closest('form[data-form]');
   if (!form) return;
   event.preventDefault();
@@ -627,4 +654,3 @@ async function init() {
   }
 }
 init();
-
