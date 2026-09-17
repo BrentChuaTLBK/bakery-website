@@ -80,26 +80,29 @@ test('unexpected periods or visitor breakdowns cannot be mistaken for a whole-pr
   ]) {
     const h = setup();
     h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? daily() : broken));
-    await assert.rejects(h.report(), { status: 502 });
+    const result = await h.report();
+    assert.equal(result.status, 'partial');
+    assert.equal(result.visitorsToday, 18);
+    assert.equal(result.activeLast30Minutes, null);
+    assert.equal(result.issues.realtime, 'unexpected_report');
   }
 });
 
 test('report validation identifies the failing report without exposing provider contents', async () => {
   for (const [reportType, broken, expected] of [
-    ['daily', { ...daily(), metadata: { timeZone: 'Asia/Manila', emptyReason: 'PRIVATE_PROVIDER_REASON' } }, /today's visitor report: Google marked the report as unavailable/],
-    ['daily', { ...daily(), metadata: { timeZone: 'Asia/Manila', schemaRestrictionResponse: { activeMetricRestrictions: [{ metricName: 'PRIVATE_METRIC' }] } } }, /today's visitor report: Google is restricting access/],
-    ['realtime', { ...realtime(), metricHeaders: [{ name: 'PRIVATE_METRIC' }] }, /realtime visitor report: the requested visitor metric is missing/],
-    ['realtime', { ...realtime(), dimensionHeaders: [{ name: 'PRIVATE_DIMENSION' }] }, /realtime visitor report: an unexpected visitor grouping/],
+    ['daily', { ...daily(), metadata: { timeZone: 'Asia/Manila', emptyReason: 'PRIVATE_PROVIDER_REASON' } }, 'report_pending'],
+    ['daily', { ...daily(), metadata: { timeZone: 'Asia/Manila', schemaRestrictionResponse: { activeMetricRestrictions: [{ metricName: 'PRIVATE_METRIC' }] } } }, 'restricted'],
+    ['realtime', { ...realtime(), metricHeaders: [{ name: 'PRIVATE_METRIC' }] }, 'metric_mismatch'],
+    ['realtime', { ...realtime(), dimensionHeaders: [{ name: 'PRIVATE_DIMENSION' }] }, 'unexpected_report'],
   ]) {
     const h = setup();
     h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport')
       ? reportType === 'daily' ? broken : daily()
       : reportType === 'realtime' ? broken : realtime()));
-    await assert.rejects(h.report(), error => {
-      assert.match(error.message, expected);
-      assert.doesNotMatch(error.message, /PRIVATE_/);
-      return error.status === 502;
-    });
+    const result = await h.report();
+    assert.equal(result.status, 'partial');
+    assert.equal(result.issues[reportType === 'daily' ? 'today' : 'realtime'], expected);
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE_/);
   }
 });
 
@@ -127,7 +130,11 @@ test('an in-flight report crossing the property midnight is retried instead of c
     if (url.endsWith(':runReport')) { h.advance(2_000); return reply(daily()); }
     return reply(realtime());
   });
-  await assert.rejects(h.report(), /new reporting day/);
+  const first = await h.report();
+  assert.equal(first.status, 'partial');
+  assert.equal(first.visitorsToday, null);
+  assert.equal(first.issues.today, 'day_changed');
+  assert.equal(first.activeLast30Minutes, 3);
   assert.equal((await h.report()).status, 'ready');
   assert.equal(h.calls.length, 5);
 });
@@ -139,6 +146,26 @@ test('missing configuration is explicit, invalid property IDs cannot become requ
     const h = setup({ GA_PROPERTY_ID: id });
     await assert.rejects(h.report(), { status: 503 }); assert.equal(h.calls.length, 0);
   }
+});
+
+test('a slower realtime request crossing midnight cannot cause yesterday to be cached as today', async () => {
+  const h = setup();
+  h.setTime('2026-09-17T15:59:59Z');
+  h.setProvider(async url => {
+    if (url.includes('oauth2.')) return tokenReply();
+    if (url.endsWith(':runReport')) return reply(daily());
+    // Let the daily fetch and JSON parsing finish before Realtime returns.
+    await new Promise(resolve => setImmediate(resolve));
+    h.advance(2_000);
+    return reply(realtime());
+  });
+  const result = await h.report();
+  assert.equal(result.status, 'partial');
+  assert.equal(result.visitorsToday, null);
+  assert.equal(result.activeLast30Minutes, 3);
+  assert.equal(result.issues.today, 'day_changed');
+  assert.equal((await h.report()).status, 'ready');
+  assert.equal(h.calls.length, 5);
 });
 
 test('valid empty reports return zero; malformed or withheld reports never masquerade as zero', async () => {
@@ -153,29 +180,90 @@ test('valid empty reports return zero; malformed or withheld reports never masqu
     { ...daily(), rowCount: 2, rows: [daily().rows[0], daily().rows[0]] } ]) {
     const fresh = setup();
     fresh.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? broken : realtime()));
-    await assert.rejects(fresh.report());
+    const result = await fresh.report();
+    assert.equal(result.status, 'partial');
+    assert.equal(result.visitorsToday, null);
+    assert.equal(result.activeLast30Minutes, 3);
+    assert.ok(result.issues.today);
   }
 });
 
-test('provider failures are redacted and partial reports are not cached or reported as successful', async () => {
+test('provider failures are redacted and an available card survives while failed cards retry', async () => {
   const h = setup();
   h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : url.endsWith(':runReport') ? reply(daily()) : reply({ error: { message: 'private-key-secret-upstream' } }, 403));
-  await assert.rejects(h.report(), error => error.status === 503 && !error.message.includes('private-key'));
+  const partial = await h.report();
+  assert.equal(partial.status, 'partial');
+  assert.equal(partial.visitorsToday, 18);
+  assert.equal(partial.activeLast30Minutes, null);
+  assert.deepEqual(partial.issues, { realtime: 'access' });
+  assert.doesNotMatch(JSON.stringify(partial), /private-/);
   h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : url.endsWith(':runReport') ? reply(daily('21')) : reply(realtime('5')));
   assert.equal((await h.report()).visitorsToday, 21);
   assert.equal(h.calls.length, 5);
   h.advance(60_000);
   h.setProvider(async () => { throw new Error('private-network-secret'); });
-  await assert.rejects(h.report(), error => error.status === 503 && !error.message.includes('private-network'));
+  const failed = await h.report();
+  assert.equal(failed.status, 'unavailable');
+  assert.equal(failed.visitorsToday, null);
+  assert.equal(failed.activeLast30Minutes, null);
+  assert.equal(failed.timeZone, null);
+  assert.deepEqual(failed.issues, { today: 'network', realtime: 'network' });
+  assert.doesNotMatch(JSON.stringify(failed), /private-/);
+});
+
+test('a headerless daily report stays unavailable and does not hide realtime or fabricate zero', async () => {
+  for (const empty of [
+    { metadata: { timeZone: 'Asia/Manila' } },
+    { metricHeaders: [], rows: [], rowCount: 0, metadata: { timeZone: 'Asia/Manila' } },
+  ]) {
+    const h = setup();
+    h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? empty : realtime()));
+    const result = await h.report();
+    assert.deepEqual(result, { status: 'partial', visitorsToday: null, activeLast30Minutes: 3,
+      timeZone: 'Asia/Manila', updatedAt: '2026-09-17T08:00:00.000Z', issues: { today: 'report_pending' } });
+    h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? daily('6') : realtime('2')));
+    const recovered = await h.report();
+    assert.equal(recovered.status, 'ready');
+    assert.equal(recovered.visitorsToday, 6);
+    assert.equal(recovered.activeLast30Minutes, 2);
+    assert.equal(h.calls.length, 5, 'A partial response must not delay an explicit retry through caching');
+  }
+});
+
+test('headers with a different metric or missing headers with data are not treated as pending or counted', async () => {
+  for (const broken of [
+    { ...daily(), metricHeaders: [{ name: 'activeUsers' }] },
+    { ...daily(), metricHeaders: [] },
+    { ...daily(), metricHeaders: undefined },
+    { ...daily(), metricHeaders: { name: 'totalUsers' }, rows: [] },
+  ]) {
+    const h = setup();
+    h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? broken : realtime()));
+    const result = await h.report();
+    assert.equal(result.visitorsToday, null);
+    assert.equal(result.activeLast30Minutes, 3);
+    assert.equal(result.issues.today, 'metric_mismatch');
+  }
+});
+
+test('a missing daily timezone cannot hide a valid realtime report', async () => {
+  const h = setup();
+  h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? { ...daily(), metadata: {} } : realtime('0')));
+  const result = await h.report();
+  assert.equal(result.status, 'partial');
+  assert.equal(result.visitorsToday, null);
+  assert.equal(result.activeLast30Minutes, 0);
+  assert.equal(result.timeZone, null);
+  assert.deepEqual(result.issues, { today: 'unexpected_report' });
 });
 
 test('revoked OAuth is discarded, quota responses use a retry message, changed property clears caches', async () => {
   const h = setup(); await h.report();
   h.advance(60_000);
   h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply({ error: 'secret' }, 401));
-  await assert.rejects(h.report(), { status: 503 });
+  assert.deepEqual((await h.report()).issues, { today: 'access', realtime: 'access' });
   h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply({ error: 'secret' }, 429));
-  await assert.rejects(h.report(), /wait a minute/);
+  assert.deepEqual((await h.report()).issues, { today: 'busy', realtime: 'busy' });
   assert.equal(h.calls.filter(c => c.url.includes('oauth2.')).length, 2);
   h.environment.GA_PROPERTY_ID = '987654321';
   h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : url.endsWith(':runReport') ? reply(daily('7')) : reply(realtime('1')));
