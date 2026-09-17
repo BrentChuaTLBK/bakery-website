@@ -39,4 +39,4 @@ This page reports order values, not profit or a cash ledger. All calculations us
 
 Use local fixtures for destructive test scenarios. Do not cancel real customer orders solely to test reporting.
 
-Website visits are separate from order analytics. **Website traffic → Open Google Analytics** opens your existing reporting account. Shop tracking is prepared but disabled until the account setting in [TRAFFIC.md](TRAFFIC.md) has been checked.
+Website visits are separate from order analytics. **Website traffic → Open Google Analytics** opens your existing reporting account. Shop page-view tracking is enabled after the owner’s confirmation of the account setting. Verify collection after publishing using [TRAFFIC.md](TRAFFIC.md).

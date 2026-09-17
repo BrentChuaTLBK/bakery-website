@@ -2,18 +2,18 @@
 
 The homepage already uses Google Analytics stream **G-108BDB1XQ0**. The admin Analytics page links to Google Analytics; traffic totals are not imported into the order dashboard.
 
-The shop integration is prepared but **disabled** until the setting below is confirmed. Refund and sales reporting work independently of this setting.
+Shop page-view tracking is **enabled in this version**, following the owner’s confirmation that Enhanced measurement was turned off. It becomes active when this version is published. Actual collection still needs to be verified in Google Analytics; local checks do not send real events. Refund and sales reporting work independently of traffic tracking.
 
-## One account setting before enabling shop traffic
+## Keep the Google stream setting configured
 
 1. Sign in to [Google Analytics](https://analytics.google.com/).
 2. Select the property for **thelittlebakerkitchen.com**.
 3. Open **Admin → Data collection and modification → Data streams**.
 4. Open your website's web stream and check that its Measurement ID is **G-108BDB1XQ0**.
 5. Turn **Enhanced measurement OFF** and save if a Save button appears.
-6. Tell the developer this is saved. The developer can then change `data-ga-pageviews-enabled="false"` to `"true"` on the traffic script in `shop.html` and publish.
+6. Keep Enhanced measurement off while using this integration. The owner has already confirmed this step for activation. To disable shop collection later, change `data-ga-pageviews-enabled="true"` to `"false"` on the traffic script in `shop.html` and publish.
 
-This setting controls automatic form, link, download and browser-history events. The shop also displays private order receipts, so these automatic events should stay off. The prepared integration explicitly sends the public shop pageview; it does not need Enhanced Measurement. This stream-wide change also disables those extra automatic events on the homepage, while its basic pageview tag remains.
+This setting controls automatic form, link, download and browser-history events. The shop also displays private order receipts, so these automatic events should stay off. The integration explicitly sends the public shop pageview; it does not need Enhanced Measurement. This stream-wide change also disables those extra automatic events on the homepage, while its basic pageview tag remains.
 
 Google's [Enhanced Measurement instructions](https://support.google.com/analytics/answer/9216061) explain the stream setting. Its [pageview guide](https://developers.google.com/analytics/devguides/collection/ga4/views) explains why `send_page_view: false` alone does not disable automatic history events.
 

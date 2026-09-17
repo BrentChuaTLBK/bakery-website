@@ -21,11 +21,23 @@ function load({url = origin + '/shop.html', referrer = '', enabled = true, disab
   return {window, scripts, windowEvents, documentEvents, context, commands: () => (window.dataLayer || []).map(args => Array.from(args))};
 }
 
-test('shop integration remains inert until the account setting is confirmed', () => {
+test('explicitly disabling shop tracking prevents script loading and events', () => {
   const fixture = load({enabled: false});
   assert.deepEqual(fixture.scripts, []);
   assert.deepEqual(fixture.commands(), []);
-  assert.match(readFileSync(new URL('../shop.html', import.meta.url), 'utf8'), /traffic\.js[^>]*data-ga-pageviews-enabled="false"/);
+});
+
+test('published shop enables public traffic while private links remain excluded', () => {
+  const html = readFileSync(new URL('../shop.html', import.meta.url), 'utf8');
+  const flag = html.match(/traffic\.js[^>]*data-ga-pageviews-enabled="(true|false)"/)?.[1];
+  assert.equal(flag, 'true');
+  const enabled = flag === 'true';
+  const publicPage = load({enabled});
+  assert.equal(publicPage.scripts.length, 1);
+  assert.equal(publicPage.commands().filter(command => command[0] === 'event' && command[1] === 'page_view').length, 1);
+  const privatePage = load({enabled, url: origin + '/shop.html#order=private&token=secret'});
+  assert.equal(privatePage.scripts.length, 0);
+  assert.deepEqual(privatePage.commands(), []);
 });
 
 test('production page sends one sanitized pageview and suppresses automatic initial pageview', () => {
