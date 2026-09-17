@@ -9,7 +9,7 @@ The **Analytics → Website visitors** section covers the website's tracked page
 
 These cards refresh every minute while Analytics is visible. Changing the order date filter does not change their periods. Today's report can take longer to process than Realtime, so the two figures may temporarily differ in ways you do not expect. Browsers, blockers and different devices affect Google's visitor estimates.
 
-The cards show **—** while loading, disconnected or unavailable. Only a successful report with no reported visitors shows **0**. Order counts, paid-order sales and refunds continue to work separately.
+Each card loads independently. An available Realtime count stays visible even when today's total is unavailable, and vice versa. A missing count shows **—** with an explanation and retries automatically. Only a valid report with no reported visitors shows **0**; missing metric headers are never interpreted as zero. Order counts, paid-order sales and refunds continue to work separately.
 
 ## Connect the visitor cards
 
@@ -71,7 +71,7 @@ The matching database update and `website-analytics` Edge Function must be deplo
 
 One person visiting several pages is not several unique visitors. Different browsers or devices may still be counted separately.
 
-If you see **Connect Google Analytics reporting**, one or both Supabase secrets are missing. If counts are **temporarily unavailable**, check the numeric property ID, Viewer access, enabled Data API and valid JSON key. An ad blocker can prevent a test visit from being recorded. Access/key changes can take a little time to take effect.
+If you see **Connect Google Analytics reporting**, one or both Supabase secrets are missing. If one count is unavailable, read the explanation under that card; the other count can still work. A missing daily total alone does not mean the saved key is wrong. Google processes daily and Realtime data separately, and the dashboard retries automatically. Only an access error calls for checking the property ID, Viewer access and enabled Data API. An ad blocker can prevent a test visit from being recorded. Access/key changes can take a little time to take effect.
 
 ## Keep tracking configured
 
@@ -90,7 +90,7 @@ These are website-wide visitor totals from tracked activity, not a checkout funn
 - Retain the existing `ALLOWED_ORIGINS` for the live website. No DNS, email, customer account or website-hosting changes are required.
 - Set the two Google secrets above server-side. The only frontend credential remains the existing public Supabase key.
 - Requests use fixed Google endpoints, the `analytics.readonly` scope, no dimensions/page filters, `runReport` with today's `totalUsers`, and `runRealtimeReport` with the last 30 minutes' `activeUsers`. This prevents double counting caused by adding page totals.
-- Reports are cached for at most 60 seconds per function instance, with current staff authorization before cache access. Requests are deduplicated and bounded by timeouts. Cache entries expire across the property's date boundary. OAuth tokens and keys never leave the server.
+- Complete reports are cached for at most 60 seconds per function instance, with current staff authorization before cache access. Partial or unavailable reports retry on refresh. Requests are deduplicated and bounded by timeouts. Cache entries expire across the property's date boundary. OAuth tokens and keys never leave the server.
 - The dashboard polls only while Analytics is visible, aborts on navigation/sign-out, ignores late responses and updates only the visitor panel, preserving order filters and focus.
 - Run `npm run test:analytics`, `npm run test:traffic`, `npm run test:backend` and `node tests/edge/run.mjs`. Google requests are mocked in tests; verify real reporting only after access is configured. Tests do not send real visits or emails.
 

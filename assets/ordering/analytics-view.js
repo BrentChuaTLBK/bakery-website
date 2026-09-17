@@ -1,4 +1,4 @@
-import { renderWebsiteVisitors } from './website-visitors.js?v=visitors-1';
+import { renderWebsiteVisitors } from './website-visitors.js?v=visitors-2';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=refunds-1';
 
 const PERIODS = [['today', 'Today'], ['last7', 'Last 7 days'], ['last30', 'Last 30 days'], ['this_month', 'This month'], ['all', 'All time'], ['custom', 'Custom dates']];

@@ -7,8 +7,16 @@ const NETWORK_TIMEOUT_MS = 10_000;
 
 type Configuration = { property: string; email: string; privateKey: string; keyId?: string; identity: string };
 export type VisitorReport = {
-  status: "ready"; visitorsToday: number; activeLast30Minutes: number; timeZone: string; updatedAt: string;
+  status: "ready" | "partial" | "unavailable";
+  visitorsToday: number | null; activeLast30Minutes: number | null; timeZone: string | null; updatedAt: string;
+  issues?: { today?: ReportIssue; realtime?: ReportIssue };
 };
+
+type ReportIssue = "report_pending" | "metric_mismatch" | "restricted" | "withheld" | "unexpected_report" |
+  "network" | "access" | "busy" | "day_changed";
+class ReportError extends HttpError {
+  constructor(public issue: ReportIssue, message: string) { super(502, message); }
+}
 
 type Dependencies = {
   getEnv?: (name: string) => string;
@@ -36,20 +44,46 @@ function configuration(getEnv: (name: string) => string): Configuration | null {
   } catch { throw new HttpError(503, "The Google Analytics reporting connection needs its settings checked."); }
 }
 
-// No dimensions or page filters are requested: Google deduplicates users across the entire property.
+// No page dimensions or filters are requested: Google deduplicates users across
+// the property. Google may describe the single requested period with dateRange;
+// this is a period label, not a breakdown of visitors to be added together.
 function aggregate(report: any, metric: string): number {
-  if (!report || report.error || report.metricHeaders?.length !== 1 || report.metricHeaders[0]?.name !== metric ||
-    (report.dimensionHeaders?.length || 0) !== 0 || report.metadata?.emptyReason ||
-    (report.metadata?.schemaRestrictionResponse?.activeMetricRestrictions?.length || 0) > 0) {
-    throw new HttpError(502, "Google Analytics has not returned a usable visitor report. Please try again shortly.");
+  const label = metric === "totalUsers" ? "today's visitor report" : "the realtime visitor report";
+  const reject = (reason: string, issue: ReportIssue = "unexpected_report"): never => {
+    // Only fixed descriptions are returned, never raw provider data or errors.
+    throw new ReportError(issue, `Google Analytics could not supply ${label}: ${reason}.`);
+  };
+  if (!report || report.error) reject("no valid report was returned");
+  if ((report.metadata?.schemaRestrictionResponse?.activeMetricRestrictions?.length || 0) > 0) {
+    reject("Google is restricting access to the requested metric", "restricted");
+  }
+  if (report.metadata?.emptyReason) reject("Google marked the report as unavailable; try again later", report.metadata?.subjectToThresholding ? "withheld" : "report_pending");
+  const dimensions = report.dimensionHeaders ?? [];
+  const singlePeriod = Array.isArray(dimensions) && dimensions.length === 1 && dimensions[0]?.name === "dateRange";
+  if (!Array.isArray(dimensions) || (dimensions.length !== 0 && !singlePeriod)) {
+    reject("an unexpected visitor grouping was returned");
+  }
+  if (!Array.isArray(report.metricHeaders) || report.metricHeaders.length !== 1 || report.metricHeaders[0]?.name !== metric) {
+    // An empty/missing metric header is not a verified zero. Keep this card
+    // unavailable while allowing the other report to be displayed.
+    const noHeaders = report.metricHeaders == null || (Array.isArray(report.metricHeaders) && report.metricHeaders.length === 0);
+    const noRows = report.rows == null || (Array.isArray(report.rows) && report.rows.length === 0);
+    const empty = noHeaders && noRows && (report.rowCount === undefined || report.rowCount === 0);
+    reject("the requested visitor metric is missing", report.metadata?.subjectToThresholding ? "withheld" : empty ? "report_pending" : "metric_mismatch");
   }
   const rows = report.rows ?? [];
   if (!Array.isArray(rows) || rows.length > 1 || (report.rowCount !== undefined && report.rowCount !== rows.length)) {
     throw new HttpError(502, "Google Analytics returned an unexpected visitor report.");
   }
   if (!rows.length) {
-    if (report.metadata?.subjectToThresholding) throw new HttpError(503, "Google Analytics is withholding this visitor report because of its data thresholds.");
+    if (report.metadata?.subjectToThresholding) reject("Google is withholding this report because of its data thresholds", "withheld");
     return 0; // A successful, valid report with no rows means no reported visitors.
+  }
+  const dimensionValues = rows[0]?.dimensionValues ?? [];
+  if (!Array.isArray(dimensionValues) || (singlePeriod
+    ? dimensionValues.length !== 1 || dimensionValues[0]?.value !== "date_range_0"
+    : dimensionValues.length !== 0)) {
+    reject("the returned reporting period does not match the request");
   }
   const values = rows[0]?.metricValues;
   const value = values?.[0]?.value;
@@ -75,7 +109,7 @@ export function createReporter(dependencies: Dependencies = {}) {
 
   async function request(url: string, init: RequestInit): Promise<Response> {
     try { return await fetcher(url, { ...init, redirect: "error", signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS) }); }
-    catch { throw new HttpError(503, "Google Analytics is temporarily unavailable. Please try again shortly."); }
+    catch { throw new ReportError("network", "Google Analytics is temporarily unavailable. Please try again shortly."); }
   }
 
   async function token(config: Configuration): Promise<string> {
@@ -114,8 +148,8 @@ export function createReporter(dependencies: Dependencies = {}) {
     });
     if (!response.ok) {
       if (response.status === 401 && identity === config.identity) accessToken = null;
-      if ([401, 403].includes(response.status)) throw new HttpError(503, "Google Analytics access is not ready. Check the property ID, Viewer access and enabled Data API.");
-      if (response.status === 429) throw new HttpError(503, "Google Analytics is busy. Please wait a minute before refreshing.");
+      if ([401, 403].includes(response.status)) throw new ReportError("access", "Google Analytics access is not ready. Check the property ID, Viewer access and enabled Data API.");
+      if (response.status === 429) throw new ReportError("busy", "Google Analytics is busy. Please wait a minute before refreshing.");
       throw new HttpError(502, "Google Analytics could not load visitor counts. Please try again shortly.");
     }
     return await response.json().catch(() => { throw new HttpError(502, "Google Analytics returned an unreadable report."); });
@@ -127,25 +161,53 @@ export function createReporter(dependencies: Dependencies = {}) {
     if (config.identity !== identity) {
       identity = config.identity; accessToken = null; tokenPending = null; reportPending = null; cached = null;
     }
-    if (cached && cached.expiresAt > now() &&
+    if (cached && cached.expiresAt > now() && cached.report.timeZone &&
       reportDay(Date.parse(cached.report.updatedAt), cached.report.timeZone) === reportDay(now(), cached.report.timeZone)) return cached.report;
     if (reportPending) return reportPending;
     const pending = (async () => {
       const bearer = await token(config);
       const startedAt = now();
-      const [daily, realtime] = await Promise.all([
-        googleReport(config, bearer, "runReport", { dateRanges: [{ startDate: "today", endDate: "today" }], metrics: [{ name: "totalUsers" }] }),
-        googleReport(config, bearer, "runRealtimeReport", { metrics: [{ name: "activeUsers" }], minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0 }] }),
+      let timeZone: string | null = null;
+      const [daily, realtime] = await Promise.allSettled([
+        (async () => {
+          const data = await googleReport(config, bearer, "runReport", { dateRanges: [{ startDate: "today", endDate: "today" }], metrics: [{ name: "totalUsers" }] });
+          const zone = data?.metadata?.timeZone;
+          try {
+            if (typeof zone !== "string" || !zone) throw new Error();
+            reportDay(now(), zone);
+          } catch { throw new ReportError("unexpected_report", "Google Analytics did not return its reporting timezone."); }
+          timeZone = zone;
+          if (reportDay(startedAt, zone) !== reportDay(now(), zone)) {
+            throw new ReportError("day_changed", "A new reporting day just started. Refresh to load today’s visitor counts.");
+          }
+          return aggregate(data, "totalUsers");
+        })(),
+        // Google's default is exactly the last 30 minutes, including for 360
+        // properties. No explicit range or visitor breakdown is needed.
+        googleReport(config, bearer, "runRealtimeReport", { metrics: [{ name: "activeUsers" }] }).then(data => aggregate(data, "activeUsers")),
       ]);
-      const timeZone = daily?.metadata?.timeZone;
-      try { if (typeof timeZone !== "string" || !timeZone) throw new Error(); reportDay(now(), timeZone); }
-      catch { throw new HttpError(502, "Google Analytics did not return its reporting timezone. Please try again shortly."); }
-      if (reportDay(startedAt, timeZone) !== reportDay(now(), timeZone)) {
-        throw new HttpError(503, "A new reporting day just started. Refresh to load today’s visitor counts.");
+      const issues: NonNullable<VisitorReport["issues"]> = {};
+      const issue = (error: unknown): ReportIssue => error instanceof ReportError ? error.issue : "unexpected_report";
+      if (daily.status === "rejected") issues.today = issue(daily.reason);
+      if (realtime.status === "rejected") issues.realtime = issue(realtime.reason);
+      let visitorsToday = daily.status === "fulfilled" ? daily.value : null;
+      const activeLast30Minutes = realtime.status === "fulfilled" ? realtime.value : null;
+      // Realtime may finish after midnight even if the daily request finished
+      // before it. Never stamp yesterday's total with the new reporting day.
+      if (visitorsToday !== null && timeZone && reportDay(startedAt, timeZone) !== reportDay(now(), timeZone)) {
+        visitorsToday = null;
+        issues.today = "day_changed";
       }
-      const report: VisitorReport = { status: "ready", visitorsToday: aggregate(daily, "totalUsers"),
-        activeLast30Minutes: aggregate(realtime, "activeUsers"), timeZone, updatedAt: new Date(now()).toISOString() };
-      if (identity === config.identity) cached = { report, expiresAt: now() + CACHE_MS };
+      const report: VisitorReport = {
+        status: visitorsToday !== null && activeLast30Minutes !== null ? "ready" :
+          visitorsToday !== null || activeLast30Minutes !== null ? "partial" : "unavailable",
+        visitorsToday, activeLast30Minutes,
+        timeZone, updatedAt: new Date(now()).toISOString(),
+        ...(Object.keys(issues).length ? { issues } : {}),
+      };
+      // Retry partial reports on refresh. Neither a missing nor a failed count
+      // is converted into zero, reused from yesterday or substituted with Realtime.
+      if (identity === config.identity && report.status === "ready") cached = { report, expiresAt: now() + CACHE_MS };
       return report;
     })();
     reportPending = pending;

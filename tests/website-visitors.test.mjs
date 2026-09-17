@@ -5,6 +5,8 @@ import { renderAnalytics } from '../assets/ordering/analytics-view.js';
 
 const esc = text => String(text ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const report = { status: 'ready', visitorsToday: 1234, activeLast30Minutes: 12, timeZone: 'Asia/Manila', updatedAt: '2026-09-17T06:30:00.000Z' };
+const realtimeOnly = { ...report, status: 'partial', visitorsToday: null, timeZone: null, issues: { today: 'report_pending' } };
+const todayOnly = { ...report, status: 'partial', activeLast30Minutes: null, issues: { realtime: 'network' } };
 const metric = (html, key) => html.match(new RegExp(`data-traffic-metric="${key}">([^<]*)`))?.[1];
 function harness(fetchReport) {
   const changes = [], timers = new Map();
@@ -34,6 +36,101 @@ test('zero is shown only for a successful zero-count report', () => {
   const html = renderWebsiteVisitors({ ...report, visitorsToday: 0, activeLast30Minutes: 0 }, esc);
   assert.equal(metric(html, 'today'), '0');
   assert.equal(metric(html, 'realtime'), '0');
+});
+
+test('a pending daily report preserves the realtime count and labels browser time accurately', async () => {
+  const h = harness(() => realtimeOnly);
+  await h.poller.setActive(true);
+  assert.deepEqual(h.latest(), realtimeOnly);
+  const html = renderWebsiteVisitors(h.latest(), esc);
+  assert.equal(metric(html, 'today'), '—');
+  assert.equal(metric(html, 'realtime'), '12');
+  assert.match(html, /data-traffic-issue="today">Google has not returned this visitor count yet/);
+  assert.doesNotMatch(html, /data-traffic-issue="realtime"/);
+  assert.match(html, /your browser time/);
+  assert.doesNotMatch(html, /Asia\/Manila/);
+  h.poller.reset();
+});
+
+test('a failed realtime report preserves the daily count and its Google timezone', async () => {
+  const h = harness(() => todayOnly);
+  await h.poller.setActive(true);
+  assert.deepEqual(h.latest(), todayOnly);
+  const html = renderWebsiteVisitors(h.latest(), esc);
+  assert.equal(metric(html, 'today'), '1,234');
+  assert.equal(metric(html, 'realtime'), '—');
+  assert.match(html, /data-traffic-issue="realtime">The reporting connection is temporarily unavailable/);
+  assert.doesNotMatch(html, /data-traffic-issue="today"/);
+  assert.match(html, /Asia\/Manila/);
+  assert.doesNotMatch(html, /your browser time/);
+  h.poller.reset();
+});
+
+test('two unavailable reports show their fixed explanations without invented zeroes', async () => {
+  const unavailable = { ...realtimeOnly, status: 'unavailable', activeLast30Minutes: null, issues: { today: 'report_pending', realtime: 'busy' } };
+  const h = harness(() => unavailable);
+  await h.poller.setActive(true);
+  assert.deepEqual(h.latest(), unavailable);
+  const html = renderWebsiteVisitors(h.latest(), esc);
+  assert.equal(metric(html, 'today'), '—');
+  assert.equal(metric(html, 'realtime'), '—');
+  assert.match(html, /has not returned this visitor count yet/);
+  assert.match(html, /Google reporting is busy/);
+  h.poller.reset();
+});
+
+test('a verified zero remains visible independently of the other unavailable report', async () => {
+  const h = harness(() => ({ ...realtimeOnly, activeLast30Minutes: 0 }));
+  await h.poller.setActive(true);
+  const html = renderWebsiteVisitors(h.latest(), esc);
+  assert.equal(metric(html, 'today'), '—');
+  assert.equal(metric(html, 'realtime'), '0');
+  h.poller.reset();
+});
+
+test('refreshing a partial report retains its available figure until the response arrives', async () => {
+  let requests = 0;
+  const pending = deferred();
+  const h = harness(() => ++requests === 1 ? realtimeOnly : pending.promise);
+  await h.poller.setActive(true);
+  const refresh = h.poller.refresh();
+  assert.deepEqual(h.latest(), { ...realtimeOnly, refreshing: true });
+  const html = renderWebsiteVisitors(h.latest(), esc);
+  assert.equal(metric(html, 'realtime'), '12');
+  assert.match(html, /Refreshing/);
+  pending.resolve(report);
+  await refresh;
+  assert.deepEqual(h.latest(), report);
+  assert.equal(h.timers.size, 1);
+  h.poller.reset();
+});
+
+test('inconsistent partial reports and arbitrary issue codes are rejected', async () => {
+  for (const invalid of [
+    { ...realtimeOnly, status: 'ready' },
+    { ...realtimeOnly, status: 'unavailable' },
+    { ...realtimeOnly, visitorsToday: 2 },
+    { ...realtimeOnly, activeLast30Minutes: null },
+    { ...realtimeOnly, issues: undefined },
+    { ...realtimeOnly, issues: { realtime: 'network' } },
+    { ...realtimeOnly, issues: { today: 'report_pending', realtime: 'network' } },
+    { ...realtimeOnly, issues: { today: 'PRIVATE_PROVIDER_ERROR' } },
+    { ...realtimeOnly, issues: { today: ['report_pending'] } },
+    { ...realtimeOnly, issues: { today: 'toString' } },
+    { ...todayOnly, timeZone: null },
+    { ...realtimeOnly, timeZone: 'invalid-zone' },
+    { ...realtimeOnly, timeZone: undefined },
+    { ...report, issues: { today: 'report_pending' } },
+    { ...realtimeOnly, updatedAt: 0 },
+  ]) {
+    const h = harness(() => invalid);
+    await h.poller.setActive(true);
+    assert.deepEqual(h.latest(), { status: 'error' });
+    h.poller.reset();
+  }
+  const html = renderWebsiteVisitors({ ...realtimeOnly, issues: { today: '<script>PRIVATE_PROVIDER_ERROR</script>' } }, esc);
+  assert.doesNotMatch(html, /PRIVATE_PROVIDER_ERROR|<script>/);
+  assert.match(html, /This visitor count is temporarily unavailable/);
 });
 
 test('traffic totals stay fixed when the order period changes', () => {
