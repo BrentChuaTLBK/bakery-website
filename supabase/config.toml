@@ -33,3 +33,7 @@ verify_jwt = false
 
 [functions.email-worker]
 verify_jwt = false
+
+# Explicit Auth user validation and current staff authorization in the handler.
+[functions.website-analytics]
+verify_jwt = false

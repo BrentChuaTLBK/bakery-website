@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 const result = spawnSync(process.execPath, [
   '--experimental-transform-types', '--test',
   fileURLToPath(new URL('./edge.test.mjs', import.meta.url)),
+  fileURLToPath(new URL('./website-analytics.test.mjs', import.meta.url)),
 ], { stdio: 'inherit' });
 if (result.error) {
   console.error(`Unable to run Edge tests: ${result.error.message}`);

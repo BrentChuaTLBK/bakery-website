@@ -73,3 +73,12 @@
 @media(max-width:1100px){.analytics-grid{grid-template-columns:1fr}.analytics-metrics .metric-value{font-size:30px}}
 @media(max-width:480px){.analytics-metrics{grid-template-columns:1fr 1fr}.analytics-metrics .metric-value{font-size:26px}.analytics-grid{gap:16px;margin-bottom:16px}.analytics-filters form{gap:12px}.analytics-filters .field{max-width:none;min-width:0;flex-basis:100%}.analytics-filters .button{width:100%}.analytics-breakdown{font-size:11px}.analytics-method>div{padding:16px}.analytics-chart{height:160px}.analytics-products th[scope="row"]{padding-left:15px;padding-right:15px}}
 @media(max-width:420px){.manage-page .date-calendar{padding:10px}.calendar-month{border-spacing:1px}.calendar-month td,.manage-page .calendar-day{min-height:36px;height:36px}.calendar-toolbar{grid-template-columns:36px minmax(0,1fr) 36px}}
+
+.website-visitors{margin-bottom:22px}
+.website-visitors .section-heading{gap:12px;flex-wrap:wrap}
+.traffic-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.traffic-card{padding:20px;background:#f8f2e8;border-radius:10px;min-width:0}
+.traffic-card h3{font-size:12px;line-height:1.6;margin:0 0 12px}
+.traffic-card .metric-value{font-size:clamp(28px,3vw,42px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.traffic-card .metric-note{font-size:11px;line-height:1.7;margin:10px 0 0}
+@media(max-width:480px){.traffic-metrics{grid-template-columns:1fr;gap:12px}.traffic-card{padding:16px}}
