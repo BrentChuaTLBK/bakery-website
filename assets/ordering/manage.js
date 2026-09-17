@@ -1,8 +1,9 @@
-import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload } from './client.js';
+import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=visitors-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars } from './date-calendar.js';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=refunds-1';
-import { renderAnalytics } from './analytics-view.js?v=traffic-live-1';
+import { renderAnalytics } from './analytics-view.js?v=visitors-1';
+import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -21,6 +22,18 @@ let editPreviewKey = null;
 let editExpectedQuote = null;
 let modalReturnFocus = null;
 state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
+const visitorPoller = createVisitorPoller({
+  fetchReport: websiteVisitorStats,
+  onChange(traffic) {
+    state.websiteTraffic = traffic;
+    const panel = $('#website-visitors');
+    if (panel && state.view === 'analytics') panel.innerHTML = renderWebsiteVisitors(traffic, esc);
+  },
+});
+function syncVisitorPolling() { visitorPoller.setActive(state.connected && state.view === 'analytics' && !document.hidden); }
+document.addEventListener('visibilitychange', syncVisitorPolling);
+window.addEventListener('pagehide', () => visitorPoller.setActive(false));
+window.addEventListener('pageshow', syncVisitorPolling);
 const modal = $('#admin-dialog');
 bindDateCalendars($('#workspace'));
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
@@ -80,6 +93,7 @@ function render() {
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
   const views = { overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  syncVisitorPolling();
 }
 function analyticsView() {
   return heading('Analytics', 'Your orders, sales and most-loved products.', `<button class="button button-secondary" data-action="refresh" ${locked()}>Refresh analytics</button>`) + renderAnalytics(state, { today: manilaDate(), money, escapeHtml: esc, formatDate });
@@ -373,7 +387,7 @@ async function onAction(button) {
   const index = Number(button.dataset.index);
   switch (action) {
     case 'close-dialog': closeDialog(); break;
-    case 'refresh': await refresh(); toast('Dashboard refreshed.'); break;
+    case 'refresh': await Promise.all([refresh(), visitorPoller.refresh()]); toast('Dashboard refreshed.'); break;
     case 'upcoming': state.filters.upcoming = true; state.view = 'orders'; render(); break;
     case 'clear-filters': state.filters = { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }; render(); break;
     case 'new-product': openProduct(); break;
@@ -646,7 +660,7 @@ async function init() {
       return;
     }
     await refresh();
-    auth.onAuthStateChange(event => { if (event === 'SIGNED_OUT') location.replace('account.html?next=manage.html'); });
+    auth.onAuthStateChange(event => { if (event === 'SIGNED_OUT') { state.connected = false; visitorPoller.reset(); location.replace('account.html?next=manage.html'); } });
   } catch (error) {
     $('#shop-status').textContent = 'Dashboard unavailable';
     $('#admin-nav').hidden = true;

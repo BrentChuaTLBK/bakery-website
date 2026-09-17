@@ -39,4 +39,4 @@ This page reports order values, not profit or a cash ledger. All calculations us
 
 Use local fixtures for destructive test scenarios. Do not cancel real customer orders solely to test reporting.
 
-Website visits are separate from order analytics. **Website traffic → Open Google Analytics** opens your existing reporting account. Shop page-view tracking is enabled after the owner’s confirmation of the account setting. Verify collection after publishing using [TRAFFIC.md](TRAFFIC.md).
+Website visitors are separate from order analytics. **Website visitors** shows **Visitors today** and **Active visitors · last 30 minutes** across the website’s tracked pages, using Google’s aggregate user counts. These figures refresh every minute while Analytics is visible and do not follow the order date filter. Today uses the Google Analytics property timezone shown on the card; standard report processing may lag behind Realtime. The cards need a private server reporting connection; until configured, they show a setup message and —, not invented zeros. Follow [TRAFFIC.md](TRAFFIC.md) to connect and verify them.

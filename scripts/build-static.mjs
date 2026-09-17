@@ -19,7 +19,8 @@ if(preview)await writeFile(join(output,'robots.txt'),'User-agent: *\nDisallow: /
 // CNAME remains in the source for the existing domain; previews never publish it.
 // Database migrations, tests and secrets are deliberately outside web output.
 await mkdir(join(output,'docs'),{recursive:true});
-for(const filename of ['SETUP.md','SERVICES.md','ACCEPTANCE.md','REQUIREMENTS.md','DRAFT-STATUS.md']){
+for(const filename of ['SETUP.md','SERVICES.md','ACCEPTANCE.md','REQUIREMENTS.md','DRAFT-STATUS.md','ANALYTICS.md','TRAFFIC.md']){
  try{await cp(join(root,'docs',filename),join(output,'docs',filename))}catch(e){if(e.code!=='ENOENT')throw e}
 }
 console.log(`Static ${preview?'preview':'website'} built: ${pages.length} pages, original assets preserved.`);
+

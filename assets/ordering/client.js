@@ -82,9 +82,9 @@ async function connection() {
   return supabase;
 }
 
-async function edge(name, body) {
+async function edge(name, body, options = {}) {
   const client = await connection();
-  const { data, error } = await client.functions.invoke(name, { body });
+  const { data, error } = await client.functions.invoke(name, { body, ...options });
   if (error) {
     let message = error.message || 'The upload service could not complete this request.';
     try {
@@ -107,6 +107,10 @@ export async function api(action, payload = {}, token = null) {
 
 export async function signedProofUrl(orderId) {
   return edge('proof-url', { order_id: orderId });
+}
+
+export async function websiteVisitorStats({ signal } = {}) {
+  return edge('website-analytics', {}, { signal, timeout: 45_000 });
 }
 
 export async function upload(file, { kind = 'proof', order_id, token, payment_reference } = {}) {
