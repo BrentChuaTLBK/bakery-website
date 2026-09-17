@@ -47,9 +47,60 @@ test('reports deduplicated whole-property users with a signed read-only Google a
   assert.ok(await crypto.subtle.verify('RSASSA-PKCS1-v1_5', keys.publicKey, Buffer.from(signature, 'base64url'), new TextEncoder().encode(`${header}.${claims}`)));
   const reports = h.calls.filter(c => c.url.includes('analyticsdata.'));
   assert.deepEqual(JSON.parse(reports[0].options.body), { dateRanges: [{ startDate: 'today', endDate: 'today' }], metrics: [{ name: 'totalUsers' }] });
-  assert.deepEqual(JSON.parse(reports[1].options.body), { metrics: [{ name: 'activeUsers' }], minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0 }] });
+  assert.deepEqual(JSON.parse(reports[1].options.body), { metrics: [{ name: 'activeUsers' }] });
   for (const call of reports) assert.equal(call.options.headers.Authorization, 'Bearer private-google-token');
   assert.doesNotMatch(JSON.stringify(result), /private-|service_account|123456789/);
+});
+
+test('a single Google dateRange label preserves the whole-property count', async () => {
+  const withPeriod = report => ({ ...report, dimensionHeaders: [{ name: 'dateRange' }],
+    rows: report.rows.map(row => ({ ...row, dimensionValues: [{ value: 'date_range_0' }] })) });
+  for (const [dailyPeriod, realtimePeriod] of [[true, false], [false, true], [true, true]]) {
+    const h = setup();
+    h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport')
+      ? dailyPeriod ? withPeriod(daily()) : daily()
+      : realtimePeriod ? withPeriod(realtime()) : realtime()));
+    const result = await h.report();
+    assert.equal(result.visitorsToday, 18);
+    assert.equal(result.activeLast30Minutes, 3);
+  }
+});
+
+test('unexpected periods or visitor breakdowns cannot be mistaken for a whole-property total', async () => {
+  const row = { ...realtime().rows[0], dimensionValues: [{ value: 'date_range_0' }] };
+  const period = { ...realtime(), dimensionHeaders: [{ name: 'dateRange' }], rows: [row] };
+  for (const broken of [
+    { ...period, dimensionHeaders: [{ name: 'pagePath' }] },
+    { ...period, dimensionHeaders: [{ name: 'dateRange' }, { name: 'country' }] },
+    { ...period, rows: [{ ...row, dimensionValues: [{ value: 'date_range_1' }] }] },
+    { ...period, rows: [{ ...row, dimensionValues: [{ value: 'RESERVED_TOTAL' }] }] },
+    { ...period, rows: [{ ...row, dimensionValues: [] }] },
+    { ...period, rows: [row, row], rowCount: 2 },
+    { ...period, dimensionHeaders: [] },
+  ]) {
+    const h = setup();
+    h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport') ? daily() : broken));
+    await assert.rejects(h.report(), { status: 502 });
+  }
+});
+
+test('report validation identifies the failing report without exposing provider contents', async () => {
+  for (const [reportType, broken, expected] of [
+    ['daily', { ...daily(), metadata: { timeZone: 'Asia/Manila', emptyReason: 'PRIVATE_PROVIDER_REASON' } }, /today's visitor report: Google marked the report as unavailable/],
+    ['daily', { ...daily(), metadata: { timeZone: 'Asia/Manila', schemaRestrictionResponse: { activeMetricRestrictions: [{ metricName: 'PRIVATE_METRIC' }] } } }, /today's visitor report: Google is restricting access/],
+    ['realtime', { ...realtime(), metricHeaders: [{ name: 'PRIVATE_METRIC' }] }, /realtime visitor report: the requested visitor metric is missing/],
+    ['realtime', { ...realtime(), dimensionHeaders: [{ name: 'PRIVATE_DIMENSION' }] }, /realtime visitor report: an unexpected visitor grouping/],
+  ]) {
+    const h = setup();
+    h.setProvider(async url => url.includes('oauth2.') ? tokenReply() : reply(url.endsWith(':runReport')
+      ? reportType === 'daily' ? broken : daily()
+      : reportType === 'realtime' ? broken : realtime()));
+    await assert.rejects(h.report(), error => {
+      assert.match(error.message, expected);
+      assert.doesNotMatch(error.message, /PRIVATE_/);
+      return error.status === 502;
+    });
+  }
 });
 
 test('concurrent reads share a report, 60-second refreshes reuse OAuth, expired OAuth is renewed', async () => {

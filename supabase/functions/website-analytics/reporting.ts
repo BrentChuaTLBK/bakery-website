@@ -36,12 +36,27 @@ function configuration(getEnv: (name: string) => string): Configuration | null {
   } catch { throw new HttpError(503, "The Google Analytics reporting connection needs its settings checked."); }
 }
 
-// No dimensions or page filters are requested: Google deduplicates users across the entire property.
+// No page dimensions or filters are requested: Google deduplicates users across
+// the property. Google may describe the single requested period with dateRange;
+// this is a period label, not a breakdown of visitors to be added together.
 function aggregate(report: any, metric: string): number {
-  if (!report || report.error || report.metricHeaders?.length !== 1 || report.metricHeaders[0]?.name !== metric ||
-    (report.dimensionHeaders?.length || 0) !== 0 || report.metadata?.emptyReason ||
-    (report.metadata?.schemaRestrictionResponse?.activeMetricRestrictions?.length || 0) > 0) {
-    throw new HttpError(502, "Google Analytics has not returned a usable visitor report. Please try again shortly.");
+  const label = metric === "totalUsers" ? "today's visitor report" : "the realtime visitor report";
+  const reject = (reason: string): never => {
+    // Only fixed descriptions are returned, never raw provider data or errors.
+    throw new HttpError(502, `Google Analytics could not supply ${label}: ${reason}.`);
+  };
+  if (!report || report.error) reject("no valid report was returned");
+  if (report.metadata?.emptyReason) reject("Google marked the report as unavailable; try again later");
+  if ((report.metadata?.schemaRestrictionResponse?.activeMetricRestrictions?.length || 0) > 0) {
+    reject("Google is restricting access to the requested metric");
+  }
+  if (!Array.isArray(report.metricHeaders) || report.metricHeaders.length !== 1 || report.metricHeaders[0]?.name !== metric) {
+    reject("the requested visitor metric is missing");
+  }
+  const dimensions = report.dimensionHeaders ?? [];
+  const singlePeriod = Array.isArray(dimensions) && dimensions.length === 1 && dimensions[0]?.name === "dateRange";
+  if (!Array.isArray(dimensions) || (dimensions.length !== 0 && !singlePeriod)) {
+    reject("an unexpected visitor grouping was returned");
   }
   const rows = report.rows ?? [];
   if (!Array.isArray(rows) || rows.length > 1 || (report.rowCount !== undefined && report.rowCount !== rows.length)) {
@@ -50,6 +65,12 @@ function aggregate(report: any, metric: string): number {
   if (!rows.length) {
     if (report.metadata?.subjectToThresholding) throw new HttpError(503, "Google Analytics is withholding this visitor report because of its data thresholds.");
     return 0; // A successful, valid report with no rows means no reported visitors.
+  }
+  const dimensionValues = rows[0]?.dimensionValues ?? [];
+  if (!Array.isArray(dimensionValues) || (singlePeriod
+    ? dimensionValues.length !== 1 || dimensionValues[0]?.value !== "date_range_0"
+    : dimensionValues.length !== 0)) {
+    reject("the returned reporting period does not match the request");
   }
   const values = rows[0]?.metricValues;
   const value = values?.[0]?.value;
@@ -135,7 +156,9 @@ export function createReporter(dependencies: Dependencies = {}) {
       const startedAt = now();
       const [daily, realtime] = await Promise.all([
         googleReport(config, bearer, "runReport", { dateRanges: [{ startDate: "today", endDate: "today" }], metrics: [{ name: "totalUsers" }] }),
-        googleReport(config, bearer, "runRealtimeReport", { metrics: [{ name: "activeUsers" }], minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0 }] }),
+        // Google's default is exactly the last 30 minutes, including for 360
+        // properties. No explicit range or visitor breakdown is needed.
+        googleReport(config, bearer, "runRealtimeReport", { metrics: [{ name: "activeUsers" }] }),
       ]);
       const timeZone = daily?.metadata?.timeZone;
       try { if (typeof timeZone !== "string" || !timeZone) throw new Error(); reportDay(now(), timeZone); }
