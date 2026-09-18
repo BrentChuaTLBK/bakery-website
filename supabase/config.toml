@@ -1,5 +1,9 @@
 project_id = "tlb-kitchen-ordering"
 
+[functions.newsletter]
+# Public capture and token actions; account actions validate Auth JWTs in code.
+verify_jwt = false
+
 [api]
 enabled = true
 schemas = ["public", "graphql_public"]
@@ -37,3 +41,4 @@ verify_jwt = false
 # Explicit Auth user validation and current staff authorization in the handler.
 [functions.website-analytics]
 verify_jwt = false
+

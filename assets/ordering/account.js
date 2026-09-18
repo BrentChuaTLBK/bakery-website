@@ -1,4 +1,6 @@
 import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js';
+import { newsletterRequest } from './newsletter-client.js';
+import { mountNewsletterPreferences } from './newsletter.js';
 
 const root = document.getElementById('account-root');
 const page = document.body.dataset.accountPage;
@@ -9,6 +11,7 @@ let currentUser = null;
 let renderVersion = 0;
 let authChangeTimer;
 let submitting = false;
+let newsletterChoice = false;
 
 // Only this site's ordering destinations can be used after authentication.
 // In particular, protocol-relative URLs and another site's login redirects
@@ -72,6 +75,7 @@ function accountForm() {
     <form id="auth-form"><fieldset ${disabled ? 'disabled' : ''} style="border:0;padding:0;margin:0">
       <label class="field">Email address<input name="email" type="email" autocomplete="email" maxlength="254" required value="${esc(email)}" placeholder="you@example.com"></label>
       ${['signin', 'signup'].includes(mode) ? `<label class="field">Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" ${mode === 'signup' ? 'minlength="10"' : ''} maxlength="128" required ${mode === 'signup' ? 'aria-describedby="password-hint"' : ''}></label>${mode === 'signup' ? '<p class="muted" id="password-hint">Use at least 10 characters. A memorable phrase works well.</p><label class="field">Confirm password<input name="confirm_password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>' : ''}` : ''}
+      ${mode === 'signup' ? `<label class="newsletter-check"><input type="checkbox" name="newsletter" ${newsletterChoice ? 'checked' : ''}><span>Subscribe to TLB’s newsletter <small>Optional. Occasional emails about new treats, seasonal menus, and special offers. Confirm separately by email. Unsubscribe anytime.</small></span></label><div class="newsletter-trap" aria-hidden="true"><label>Leave this field empty<input name="website" tabindex="-1" autocomplete="off"></label></div>` : ''}
       <button class="button" type="submit">${buttons[mode]}</button>
     </fieldset></form>
     <div class="dialog-actions"><button class="button button-quiet" type="button" data-mode="recover">Forgot password?</button><button class="button button-quiet" type="button" data-mode="resend">Resend verification</button></div>
@@ -84,6 +88,7 @@ function renderSignedOut() {
   root.setAttribute('aria-busy', 'false');
   root.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
     email = root.querySelector('[name="email"]')?.value || email;
+    if (root.querySelector('[name="newsletter"]')) newsletterChoice = root.querySelector('[name="newsletter"]').checked;
     mode = button.dataset.mode;
     renderSignedOut();
     root.querySelector('[name="email"]')?.focus();
@@ -98,6 +103,7 @@ async function submitAuth(event) {
   if (!form.reportValidity()) return;
   const data = new FormData(form);
   email = String(data.get('email') || '').trim().toLowerCase();
+  if (mode === 'signup') newsletterChoice = data.get('newsletter') === 'on';
   const password = String(data.get('password') || '');
   if (mode === 'signup' && password !== data.get('confirm_password')) { notice('The passwords do not match. Please enter them again.', 'danger'); return; }
   submitting = true;
@@ -112,13 +118,20 @@ async function submitAuth(event) {
     if (mode === 'signup') {
       const { data: result, error } = await auth.signUp({ email, password, options: { emailRedirectTo: redirect('auth-callback.html') } });
       if (error && !/already|registered|exists/i.test(error.message)) throw error;
+      let newsletterError = false;
+      if (newsletterChoice) {
+        try { await newsletterRequest('subscribe', { email, source: 'account_signup', website: String(data.get('website') || '') }); }
+        catch { newsletterError = true; }
+      }
       if (result?.session) {
         // The backend still enforces verified-email eligibility for promotions.
         // Owner setup must keep Confirm Email enabled in Supabase.
         await renderAccount();
+        if (newsletterChoice) signupNewsletterNotice(newsletterError);
         return;
       }
       notice('If this address is eligible, you will receive a verification link. Check your inbox and spam folder. If you already have an account, sign in or reset your password.', 'success');
+      if (newsletterChoice) signupNewsletterNotice(newsletterError);
     } else if (mode === 'resend') {
       const { error } = await auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirect('auth-callback.html') } });
       if (error && !/not found|already|confirmed|registered/i.test(error.message)) throw error;
@@ -130,6 +143,28 @@ async function submitAuth(event) {
     }
   } catch (error) { notice(friendlyError(error, mode), 'danger'); }
   finally { submitting = false; if (form.isConnected) form.querySelector('fieldset').disabled = false; }
+}
+
+function signupNewsletterNotice(failed) {
+  const node = document.getElementById('account-notice');
+  if (!node) return;
+  node.hidden = false;
+  const extra = document.createElement('p');
+  extra.style.marginTop = '12px';
+  extra.textContent = failed ? 'Your account request is complete, but we could not request your newsletter confirmation. Retry below; you do not need to create your account again.' : 'We also requested a separate newsletter confirmation email. Confirm that subscription to receive news and special offers.';
+  node.append(extra);
+  if (!failed) return;
+  const button = document.createElement('button');
+  button.type = 'button'; button.className = 'button button-secondary'; button.textContent = 'Retry newsletter signup';
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      await newsletterRequest('subscribe', { email, source: 'account_signup', website: '' });
+      extra.textContent = 'Check your inbox and spam folder for the separate newsletter confirmation email.';
+      button.remove();
+    } catch { extra.textContent = 'We still could not request your newsletter confirmation. Please try again shortly. Your account request is complete.'; button.disabled = false; }
+  };
+  node.append(button);
 }
 
 function orderCard(order) {
@@ -160,6 +195,11 @@ async function renderAccount() {
   const verified = Boolean(user.email_confirmed_at);
   root.innerHTML = `<div class="account-header"><div><p class="eyebrow">Your little corner</p><h1>Welcome back</h1><p>${esc(user.email)} <span class="badge">${verified ? 'Email verified' : 'Verification pending'}</span></p></div><div class="dialog-actions"><a class="button button-secondary" href="${esc(next)}">${esc(returnLabel)}</a><a class="button button-quiet" id="staff-link" href="manage.html" hidden>Staff dashboard</a><button class="button button-quiet" id="sign-out" type="button">Sign out</button></div></div><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified ? '' : '<div class="notice"><p>Verify your email to use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<section aria-labelledby="orders-title"><div class="section-heading"><div><h2 id="orders-title">Your orders</h2><p class="muted">All orders placed while signed in, including those awaiting payment or under review.</p></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><p class="muted">Placed an order as a guest? Open the secure link from your confirmation email.</p><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div></section>`;
   root.setAttribute('aria-busy', 'false');
+  const preferences = document.createElement('section');
+  preferences.className = 'panel newsletter-preferences';
+  preferences.id = 'newsletter-preferences';
+  preferences.setAttribute('aria-label', 'Email preferences');
+  root.append(preferences);
   document.getElementById('sign-out').addEventListener('click', async event => {
     event.currentTarget.disabled = true;
     const { error } = await auth.signOut({ scope: 'local' });
@@ -177,6 +217,7 @@ async function renderAccount() {
   });
   await Promise.allSettled([
     loadHistory(version),
+    mountNewsletterPreferences(preferences, user.email),
     api('admin_bootstrap').then(() => { if (version === renderVersion) document.getElementById('staff-link')?.removeAttribute('hidden'); }),
   ]);
 }
@@ -254,3 +295,4 @@ try {
   root.innerHTML = '<section class="panel account-card"><h1>Your account</h1><div class="notice danger">The account service could not be reached. Please refresh the page and try again.</div><a class="button button-secondary" href="shop.html">Back to the shop</a></section>';
   root.setAttribute('aria-busy', 'false');
 }
+

@@ -135,7 +135,8 @@ export default async function ({ db, check, state }) {
   })();
 
   await check('optional-reference patch accepts CRLF source while preserving later service code and grants', async () => {
-    const original = await readFile(new URL('../../supabase/migrations/202609130001_ordering.sql', import.meta.url), 'utf8');
+    // Normalize checkout line endings before constructing the explicit CRLF fixture.
+    const original = (await readFile(new URL('../../supabase/migrations/202609130001_ordering.sql', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
     const legacyService = original.match(/create function public\.shop_service\([\s\S]*?\nend \$\$;/)?.[0];
     assert.ok(legacyService);
     const current = await scalar("select pg_get_functiondef('public.shop_service(text,jsonb)'::regprocedure)");
@@ -151,3 +152,4 @@ export default async function ({ db, check, state }) {
     } finally { await db.exec(current); }
   })();
 }
+

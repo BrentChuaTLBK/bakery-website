@@ -1,0 +1,27 @@
+/* Scoped so the original homepage and the ordering pages keep their styles. */
+.newsletter-section,.newsletter-dialog,.newsletter-card,.newsletter-preferences{box-sizing:border-box;color:#2f2624;font-family:Inter,Arial,sans-serif;line-height:1.6}
+.newsletter-section{background:#f8e8df;border-top:1px solid #e8dfd3;padding:42px 24px}
+.newsletter-section-inner{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:38px;max-width:1080px;margin:auto}
+.newsletter-eyebrow{margin:0 0 10px;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#764b25}
+.newsletter-title{font-size:clamp(26px,3vw,36px);letter-spacing:-.7px;line-height:1.2;margin:0 0 12px;color:#2f2624}
+.newsletter-section p,.newsletter-dialog p,.newsletter-card p{margin:0 0 16px}
+.newsletter-copy{color:#70584a;max-width:450px;font-size:15px}
+.newsletter-field{display:block;margin:0 0 12px;font-size:13px;font-weight:700}
+.newsletter-field input{box-sizing:border-box;display:block;width:100%;min-height:48px;margin-top:6px;padding:12px 14px;border:1px solid #cabbab;border-radius:9px;background:white;color:#2f2624;font:16px/1.4 Inter,Arial,sans-serif}
+.newsletter-button{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:46px;border:1px solid transparent;border-radius:9px;padding:11px 20px;background:#764b25;color:white;font:700 14px/1.5 Inter,Arial,sans-serif;text-decoration:none;cursor:pointer}
+.newsletter-button:hover{background:#603b1c;color:white}.newsletter-button:disabled{opacity:.6;cursor:wait}
+.newsletter-button-secondary{background:transparent;border-color:#cabbab;color:#2f2624}.newsletter-button-secondary:hover{background:#f8e8df;color:#2f2624}
+.newsletter-field input:focus,.newsletter-button:focus-visible,.newsletter-close:focus-visible,.newsletter-check input:focus-visible{outline:3px solid #ac6750;outline-offset:3px}
+.newsletter-fine{font-size:12px;color:#70584a;margin-top:13px!important;margin-bottom:0!important}.newsletter-fine a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.newsletter-status{font-size:14px;padding:12px 14px;margin-top:15px!important;border:1px solid #cee0cb;border-radius:9px;background:#edf5ec;color:#386149}.newsletter-status[data-error=true]{background:#fdf0ed;color:#a33a32;border-color:#ecc6bf}
+.newsletter-trap{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
+dialog.newsletter-dialog{width:min(460px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:38px 30px 28px;border:1px solid #e8dfd3;border-radius:22px;background:#fffdf8;box-shadow:0 30px 100px #24180e33}
+.newsletter-dialog::backdrop{background:#241a146b;backdrop-filter:blur(3px)}
+.newsletter-close{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#764b25;font-size:27px;cursor:pointer}
+.newsletter-dialog .newsletter-title{font-size:34px;max-width:340px}.newsletter-dialog .newsletter-button{width:100%}.newsletter-dialog .newsletter-button-secondary{margin-top:10px}
+.newsletter-mark{display:block;box-sizing:border-box;width:48px;height:48px;padding:8px;border-radius:50%;background:#764b25;object-fit:contain;margin-bottom:16px}
+.newsletter-card{max-width:580px;margin:24px auto;padding:32px;background:#fffdf8;border:1px solid #e8dfd3;border-radius:18px}.newsletter-card h1{font-size:30px}.newsletter-card .newsletter-form{margin-top:24px}
+.newsletter-check{display:flex;align-items:flex-start;gap:10px;margin:18px 0;color:#2f2624;font-size:13px;font-weight:400}.newsletter-check input{flex:0 0 auto;width:18px;height:18px;margin-top:2px;accent-color:#764b25}.newsletter-check small{display:block;margin-top:4px;color:#70584a;font-size:12px}
+.newsletter-preferences{margin:28px 0}.newsletter-preferences h2{margin-bottom:8px}.newsletter-preferences .newsletter-status{max-width:680px}.newsletter-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+@media(max-width:640px){.newsletter-section-inner{grid-template-columns:1fr;gap:18px}.newsletter-section{padding:32px 22px}.newsletter-card{padding:24px}.newsletter-dialog .newsletter-title{font-size:29px}}
+
