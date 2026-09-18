@@ -61,7 +61,7 @@ export default async function ({ db, check, state }) {
     const validate = payload => db.query('select tlb.validate_contact($1::jsonb)', [JSON.stringify(payload)]);
     await assert.rejects(validate({ ...base, buyer: { ...base.buyer, name: '' } }), /buyer name/);
     await assert.rejects(validate({ ...base, buyer: { ...base.buyer, email: 'invalid' } }), /buyer email/);
-    await assert.rejects(validate({ ...base, buyer: { ...base.buyer, social_username: 'qa', social_platform: '' } }), /Facebook or Instagram/);
+    await assert.rejects(validate({ ...base, buyer: { ...base.buyer, social_username: 'qa', social_platform: '' } }), /Choose Facebook, Instagram, or N\/A/);
     await assert.rejects(validate({ ...base, method: 'delivery', recipient: { name: '', phone: '09171234567' }, address: { line1: '123 QA Street' } }), /recipient name/);
     await assert.rejects(validate({ ...base, method: 'delivery', recipient: { name: 'QA Recipient', phone: '09171234567' }, address: { line1: '' } }), /complete delivery address/);
   })();

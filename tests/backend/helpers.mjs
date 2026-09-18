@@ -31,7 +31,7 @@ export async function makeHarness(db) {
   const item = (product, quantity = 1, selections = {}) => ({ product_id: product.id, quantity, selections });
   const checkout = (product, date, changes = {}) => ({
     items: [item(product)], fulfillment_date: date, method: 'pickup',
-    buyer: { name: 'QA Customer', email: 'customer@example.test', phone: '09171234567' },
+    buyer: { name: 'QA Customer', email: 'customer@example.test', phone: '09171234567', social_platform: 'instagram', social_username: 'qa_customer' },
     recipient: { name: 'QA Recipient', phone: '09177654321' },
     instructions: 'Test fixture only', idempotency_key: randomUUID(), ...changes,
   });

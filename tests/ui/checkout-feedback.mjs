@@ -141,18 +141,26 @@ try {
   await assertPickup('#checkout-form .pickup-text', Object.values(pickup));
 
   assert.equal(await field('social_username').isDisabled(), true);
-  assert.equal(await field('social_username').inputValue(), '', 'None clears a stale username restored from local storage');
+  assert.equal(await field('social_username').inputValue(), '', 'No selected platform clears a stale username restored from local storage');
   await field('buyer_phone').fill('+63 917 000 0000');
+  assert.equal(await field('social_platform').evaluate(node => node.required), true);
+  assert.equal(await field('social_platform').evaluate(node => node.checkValidity()), false);
+  await page.locator('#review-order').click();
+  assert.equal((await calls('quote')).length, 0, 'A platform answer is required before requesting a quote');
   for (const platform of ['facebook', 'instagram']) {
     await field('social_platform').selectOption(platform);
     assert.equal(await field('social_username').isEnabled(), true);
     assert.equal(await field('social_username').evaluate(node => node.required), true);
-    await field('social_username').fill(platform + '.user');
+    await assertRejected('social_username', '');
+    await assertRejected('social_username', '   ');
+    await field('social_username').fill('  ' + platform + '.user  ');
     await review();
     const request = (await calls('quote')).at(-1).payload;
     assert.equal(request.buyer.social_platform, platform);
     assert.equal(request.buyer.social_username, platform + '.user');
     await edit();
+    assert.equal(await field('social_platform').inputValue(), platform, 'Returning from review restores the selected platform');
+    assert.equal(await field('social_username').inputValue(), platform + '.user', 'Only social fields are trimmed in the saved checkout');
     await field('social_platform').selectOption('');
     assert.equal(await field('social_username').isDisabled(), true);
     assert.equal(await field('social_username').inputValue(), '');
@@ -160,12 +168,32 @@ try {
     assert.equal(await page.locator('#checkout-form').evaluate(form => new FormData(form).has('social_username')), false);
   }
 
+  await field('social_platform').selectOption('facebook');
+  await field('social_username').fill('N/A');
+  await review();
+  assert.equal((await calls('quote')).at(-1).payload.buyer.social_username, 'N/A');
+  await edit();
+  await field('social_platform').selectOption('instagram');
+  assert.equal(await field('social_username').inputValue(), 'N/A', 'Typed N/A is preserved between Facebook and Instagram');
+  await field('social_platform').selectOption('na');
+  assert.equal(await field('social_username').isEnabled(), true);
+  assert.equal(await field('social_username').evaluate(node => node.readOnly), true);
+  assert.equal(await field('social_username').inputValue(), 'N/A');
+  assert.deepEqual(await page.locator('#checkout-form').evaluate(form => {
+    const data = new FormData(form);
+    return [data.get('social_platform'), data.get('social_username')];
+  }), ['na', 'N/A'], 'Readonly N/A remains part of form submission');
+  await field('social_platform').selectOption('facebook');
+  assert.equal(await field('social_username').inputValue(), '', 'Automatic N/A is cleared when a real platform is chosen');
+  await assertRejected('social_username', '');
+  await field('social_platform').selectOption('na');
+
   for (const invalid of ['call me tomorrow', '0917hello0000', '123456', '1234567890123456', '0917+0000000', '0917/000/0000']) await assertRejected('buyer_phone', invalid);
   for (const valid of ['09170000000', '+63 917 000 0000', '(02) 8123-4567', '0917-000-0000']) {
     await field('buyer_phone').fill(valid);
     await review();
     assert.equal((await calls('quote')).at(-1).payload.buyer.phone, valid);
-    assert.equal((await calls('quote')).at(-1).payload.buyer.social_username, '');
+    assert.equal((await calls('quote')).at(-1).payload.buyer.social_username, 'N/A');
     await assertPickup('#checkout-dialog .pickup-text', [pickup.pickup_address]);
     await edit();
   }
@@ -190,8 +218,10 @@ try {
   await page.locator('#back-to-menu').click();
   await page.locator('[data-method="pickup"]').click();
   await page.locator('#checkout-button').click();
-  assert.equal(await field('social_username').isDisabled(), true);
-  assert.equal(await field('social_username').inputValue(), '');
+  assert.equal(await field('social_platform').inputValue(), 'na');
+  assert.equal(await field('social_username').isEnabled(), true);
+  assert.equal(await field('social_username').evaluate(node => node.readOnly), true);
+  assert.equal(await field('social_username').inputValue(), 'N/A');
   await page.setViewportSize({ width: 390, height: 844 });
   await assertPickup('#checkout-form .pickup-text', Object.values(pickup));
   const overflow = await page.locator('#checkout-form .pickup-text').evaluateAll(nodes => nodes.some(node => node.scrollWidth > node.clientWidth + 1));
@@ -205,8 +235,8 @@ try {
   await page.locator('.order-title h1').waitFor();
   assert.equal((await calls('create_order')).length, 1);
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), fixtureKey);
-  assert.equal(saved.buyer.social_platform, '');
-  assert.equal(saved.buyer.social_username, '');
+  assert.equal(saved.buyer.social_platform, 'na');
+  assert.equal(saved.buyer.social_username, 'N/A');
   assert.equal(saved.method, 'pickup');
   assert.equal(saved.recipient, null, 'Switching to pickup must not submit stale delivery contact data');
   assert.equal(saved.total_cents, 13000);
@@ -216,7 +246,7 @@ try {
   assert.equal(await page.locator('.order-title h1').textContent(), 'LOCAL-CHECKOUT-TEST');
   assert.deepEqual(errors, []);
   assert.deepEqual(forbidden, [], 'Production services must never be contacted');
-  console.log('PASS: real pickup/delivery checkout; buyer and recipient number validation; no invalid quote/order requests; optional social-field state and payload; exact pickup newlines and literal HTML on checkout, review, and saved/reloaded order; local API only.');
+  console.log('PASS: real pickup/delivery checkout; buyer and recipient number validation; no invalid quote/order requests; required social contact, typed and selected N/A, switching, restoration, and payload; exact pickup newlines and literal HTML on checkout, review, and saved/reloaded order; local API only.');
 } finally {
   await browser?.close();
   await new Promise(resolveClose => server.close(resolveClose));
