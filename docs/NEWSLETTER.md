@@ -113,3 +113,21 @@ Record the browser/device, action, result, and timestamp. Keep keys, confirmatio
 
 If signup reports unavailable, check the migration/config row, function deployment, allowed origin, verified sender, and Full Access key permissions. If a retry says the preference is being updated, wait for the 90-second operation lease before retrying. Do not repeatedly rotate links, clear unsubscribe flags, or bulk opt customers in to diagnose a failure.
 
+## Acceptance finding: topic updates accepted without taking effect
+
+During controlled live acceptance on 19 September 2026 (Manila time), Resend returned HTTP 200 and `{object: "contact_topics", id: ...}` for topic-update requests, but subsequent provider reads still showed the previous subscription. Both documented contact-ID and email-address paths produced this result, including a separate connector request. The topic remained opted in more than 20 minutes later despite matching contact and topic IDs. The original website had reported an unsubscribe and saved it locally without changing the provider preference.
+
+The request body is a bare array: `[{"id":"TOPIC_ID","subscription":"opt_out"}]`. This matches the [current REST cURL example](https://resend.com/docs/api-reference/contacts/update-contact-topics), the [Node SDK implementation](https://github.com/resend/resend-node/blob/main/src/contacts/topics/contact-topics.ts#L32), and [Resend member's OpenAPI correction PR #103](https://github.com/resend/resend-openapi/pull/103). That unmerged PR identifies the object-with-`topics` schema as specification drift. Testing the wrapper `{"topics":[...]}` returned HTTP 422 `validation_error`; it is not a fix. The cause of the accepted but ineffective raw-array request remains unresolved.
+
+The deployed mitigation reads the stored topic state after topic writes and after new-contact creation. The backend completes the local preference change and returns success only after verifying the requested provider state. A no-op or failed verification returns HTTP 503 instead of claiming success. Global unsubscribe suppression remains respected. **Local validation: 47 Edge tests passed**, including mocked provider behavior; this does not establish that the live provider mutation works.
+
+**Campaign launch is blocked until a controlled live test demonstrates a real topic change.** Manual cleanup of the controlled test contact in Resend's contact/preferences UI has been requested and is not yet confirmed. Do not clear a global unsubscribe flag or reset unrelated preferences to work around this failure. Every eventual newsletter Broadcast must still select **both** the dedicated newsletter segment and **TLB Newsletter** topic; segment membership alone does not establish current consent.
+
+### Compact reproduction for provider support
+
+1. Use a controlled test contact that is opted in to the newsletter topic. Record the contact ID and exact topic ID privately; verify the starting state with `GET /contacts/{contact_id}/topics`.
+2. Send `PATCH /contacts/{contact_id}/topics` with `Content-Type: application/json` and body `[{"id":"TOPIC_ID","subscription":"opt_out"}]`. The observed response is HTTP 200 with `object: "contact_topics"` and an `id`.
+3. Repeat the GET. The observed topic remains `opt_in`, including after more than 20 minutes. The documented email-address path gives the same result. The object-wrapped body instead returns HTTP 422 `validation_error`.
+4. Provide request timestamps, provider request/log IDs, sanitized bodies/statuses, and before/after topic state to Resend support. Keep API keys, authorization headers, customer addresses, and confirmation links out of public reports. Ask why the accepted mutation does not persist and request a verified supported correction.
+
+After resolution, repeat unsubscribe and separately confirmed resubscription, verify provider and account state agree, confirm unrelated topic/global preferences are unchanged, and complete the test-contact cleanup. No campaign is needed for these checks.

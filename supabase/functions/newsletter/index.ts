@@ -45,19 +45,32 @@ function provider() {
   };
 }
 type Provider = ReturnType<typeof provider>;
-async function subscribed(api: Provider, contact: any, topicId: string): Promise<boolean> {
-  if (!contact || contact.unsubscribed) return false;
+async function topicPreference(api: Provider, contactId: string, topicId: string): Promise<string | null> {
   let after = "";
   for (let page = 0; page < 10; page++) {
-    const topics = await api(`/contacts/${encodeURIComponent(contact.id)}/topics?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    const topics = await api(`/contacts/${encodeURIComponent(contactId)}/topics?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
     if (!Array.isArray(topics?.data)) throw new HttpError(503, "Unable to check newsletter preferences. Please try again.");
     const topic = topics.data.find((item: any) => item.id === topicId);
-    if (topic) return topic.subscription === "opt_in";
-    if (!topics.has_more) return false;
+    if (topic) return topic.subscription;
+    if (!topics.has_more) return null;
     after = topics.data.at(-1)?.id;
     if (!after) break;
   }
   throw new HttpError(503, "Unable to check newsletter preferences. Please try again.");
+}
+async function subscribed(api: Provider, contact: any, topicId: string): Promise<boolean> {
+  return Boolean(contact && !contact.unsubscribed && await topicPreference(api, contact.id, topicId) === "opt_in");
+}
+async function verifyPreference(api: Provider, contactId: string, topicId: string, subscription: string) {
+  if (await topicPreference(api, contactId, topicId) !== subscription) {
+    throw new HttpError(503, "Your newsletter preference could not be verified. Please wait a moment and try again.");
+  }
+}
+async function updatePreference(api: Provider, contactId: string, topicId: string, subscription: string) {
+  // Use the documented REST array. HTTP success alone does not prove the update
+  // was applied; read back the topic before acknowledging the preference.
+  await api(`/contacts/${encodeURIComponent(contactId)}/topics`, "PATCH", [{ id: topicId, subscription }]);
+  await verifyPreference(api, contactId, topicId, subscription);
 }
 async function configuration(): Promise<any> {
   const config = await service("configuration");
@@ -144,20 +157,21 @@ Deno.serve(endpoint(async (request, headers) => {
       }
       if (!contact) {
         contact = await api("/contacts", "POST", { email: state.email, segments: [{ id: config.segment_id }], topics: [{ id: config.topic_id, subscription: "opt_in" }] });
+        if (!contact?.id) throw new HttpError(503, "Subscription could not be confirmed. Please try again in a moment.");
+        await verifyPreference(api, contact.id, config.topic_id, "opt_in");
       } else {
         await api(`/contacts/${encodeURIComponent(contact.id)}/segments/${encodeURIComponent(config.segment_id)}`, "POST");
-        await api(`/contacts/${encodeURIComponent(contact.id)}/topics`, "PATCH", [{ id: config.topic_id, subscription: "opt_in" }]);
+        await updatePreference(api, contact.id, config.topic_id, "opt_in");
       }
       if (!contact?.id) throw new HttpError(503, "Subscription could not be confirmed. Please try again in a moment.");
       const unsubscribeToken = randomToken();
       await service("finish_confirm", { email: state.email, operation_id: state.operation_id, contact_id: contact.id, unsubscribe_token_hash: await digest(unsubscribeToken) });
       return json({ ok: true, status: "subscribed" }, 200, headers);
     }
-    if (contact) await api(`/contacts/${encodeURIComponent(contact.id)}/topics`, "PATCH", [{ id: config.topic_id, subscription: "opt_out" }]);
+    if (contact) await updatePreference(api, contact.id, config.topic_id, "opt_out");
     await service("finish_unsubscribe", { email: state.email, operation_id: state.operation_id });
     return json({ ok: true, status: "unsubscribed" }, 200, headers);
     // Ambiguous network failures deliberately retain the lease until expiry.
   }
   throw new HttpError(400, "Unknown newsletter action.");
 }));
-
