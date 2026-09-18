@@ -132,7 +132,7 @@ export async function mountNewsletterPreferences(container, email) {
 function renderLanding() {
   if (!landing) return;
   if (!linkToken || !linkAction) {
-    landing.innerHTML = `<p class="newsletter-eyebrow">The TLB Newsletter</p><h1>Fresh from TLB’s kitchen</h1><p>New treats, seasonal menus, and special offers, delivered occasionally to your inbox.</p>${formMarkup('homepage', 'newsletter-page')}<p class="newsletter-fine">Already subscribed? Use the unsubscribe link in any newsletter, or <a href="account.html">manage your account preferences</a>.</p>`;
+    landing.innerHTML = `<p class="newsletter-eyebrow">The TLB Newsletter</p><h1>Fresh from TLB Kitchen</h1><p>New treats, seasonal menus, and special offers, delivered occasionally to your inbox.</p>${formMarkup('homepage', 'newsletter-page')}<p class="newsletter-fine">Already subscribed? Use the unsubscribe link in any newsletter, or <a href="account.html">manage your account preferences</a>.</p>`;
     mountNewsletterForms(landing); return;
   }
   const confirming = linkAction === 'confirm';
@@ -206,7 +206,7 @@ async function setupShopPopup() {
       dialog.className = 'newsletter-dialog'; dialog.id = 'newsletter-dialog';
       dialog.setAttribute('aria-labelledby', 'newsletter-popup-title');
       dialog.setAttribute('aria-describedby', 'newsletter-popup-copy');
-      dialog.innerHTML = `<button class="newsletter-close" type="button" aria-label="Close newsletter invitation">×</button><img class="newsletter-mark" src="assets/img/brands/Hat.png" alt=""><p class="newsletter-eyebrow">The TLB Newsletter</p><h2 class="newsletter-title" id="newsletter-popup-title">Fresh from TLB’s kitchen</h2><p class="newsletter-copy" id="newsletter-popup-copy">Be first to hear about new treats, seasonal menus, and special offers.</p>${formMarkup('shop_popup', 'newsletter-popup', user?.email || '')}<button class="newsletter-button newsletter-button-secondary" type="button" data-newsletter-dismiss>Maybe later</button>`;
+      dialog.innerHTML = `<button class="newsletter-close" type="button" aria-label="Close newsletter invitation">×</button><img class="newsletter-mark" src="assets/img/brands/Hat.png" alt=""><p class="newsletter-eyebrow">The TLB Newsletter</p><h2 class="newsletter-title" id="newsletter-popup-title">Fresh from TLB Kitchen</h2><p class="newsletter-copy" id="newsletter-popup-copy">Be first to hear about new treats, seasonal menus, and special offers.</p>${formMarkup('shop_popup', 'newsletter-popup', user?.email || '')}<button class="newsletter-button newsletter-button-secondary" type="button" data-newsletter-dismiss>Maybe later</button>`;
       document.body.append(dialog);
       mountNewsletterForms(dialog);
       dialog.querySelector('.newsletter-close').onclick = () => dialog.close();
