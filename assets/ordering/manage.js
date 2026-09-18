@@ -1,4 +1,5 @@
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=visitors-1';
+import { prepareOrderSave } from './order-edit-save.js?v=automatic-save-1';
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars } from './date-calendar.js';
@@ -19,8 +20,6 @@ const state = { view: 'overview', role: null, connected: false, products: [], ca
 let activeOrder = null;
 let productDraft = null;
 let editDraft = null;
-let editPreviewKey = null;
-let editExpectedQuote = null;
 let modalReturnFocus = null;
 state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
 const visitorPoller = createVisitorPoller({
@@ -319,7 +318,6 @@ function editItemMarkup(item, index) {
   return `<div class="edit-item"><div class="edit-item-top">${select(`product_${index}`, 'Product', `${product ? '' : option(item.product_id, original?.name || 'Archived product', item.product_id)}${state.products.map(p => option(p.id, p.name + (p.active ? '' : ' (hidden)'), item.product_id)).join('')}`, `data-edit-product="${index}" required`)}${input(`qty_${index}`, 'Units', item.quantity, 'number', 'required min="1" max="9999" step="1" data-edit-value')}<button type="button" class="icon-button" data-action="remove-edit-item" data-index="${index}" aria-label="Remove item">×</button></div>${configuration}<p class="line-price" id="edit-price-${index}">${money(editItemPrice(item))} per unit · ${money(editItemPrice(item) * item.quantity)}</p></div>`;
 }
 function renderEditOrder() {
-  editPreviewKey = null; editExpectedQuote = null;
   const d = editDraft;
   const localityOptions = [...new Set([...state.zones.filter(z => z.active).flatMap(z => z.localities), d.address?.locality].filter(Boolean))];
   showDialog(`Edit ${activeOrder.reference}`, `<form data-form="order-edit">${formError}
@@ -329,8 +327,8 @@ function renderEditOrder() {
     <button type="button" class="button button-secondary" data-action="add-edit-item" ${state.products.length ? '' : 'disabled'}>+ Add product</button>
     <div class="subsection"><h3>Buyer details</h3><div class="field-row three">${input('buyer_name', 'Name', d.buyer.name, 'text', 'required')}${input('buyer_email', 'Email', d.buyer.email, 'email', 'required')}${input('buyer_phone', 'Contact number', d.buyer.phone, 'tel', 'required')}</div>${socialFields(d.buyer)}</div>
     <div class="subsection" id="edit-delivery" ${d.method === 'pickup' ? 'hidden' : ''}><h3>Delivery recipient & address</h3><div class="field-row">${input('recipient_name', 'Recipient name', d.recipient?.name, 'text', d.method === 'delivery' ? 'required' : '')}${input('recipient_phone', 'Recipient contact number', d.recipient?.phone, 'tel', d.method === 'delivery' ? 'required' : '')}</div>${select('locality', 'Covered city / barangay', option('', 'Select location', d.address?.locality) + localityOptions.map(locality => option(locality, locality, d.address?.locality)).join(''), `id="edit-locality" ${d.method === 'delivery' ? 'required' : ''}`)}${input('line1', 'Street address / building', d.address?.line1, 'text', d.method === 'delivery' ? 'required' : '')}<div class="field-row">${input('line2', 'Unit / floor / additional address', d.address?.line2)}${input('postal_code', 'Postal code', d.address?.postal_code)}</div></div>
-    <div class="subsection">${textarea('instructions', 'Fulfillment instructions', d.instructions)}${input('delivery_fee', 'Delivery fee override · PHP', amount(d.method === 'pickup' ? 0 : d.delivery_cents), 'number', 'required min="0" step="0.01" data-edit-value', 'The zone fee is suggested when the location changes. You may adjust it for this order.')}<div id="edit-totals"></div><p class="help-text">The initial estimate uses saved prices and promo rules. Preview the changes to get the server-validated total before saving. Paid-order differences are settled directly with the customer.</p><div id="edit-preview-notice"></div>${textarea('reason', 'Reason for these changes', d.reason, 'The before and after values, staff member, and timestamp are kept in history.', 'required maxlength="4000"')}</div>
-    <div class="dialog-actions"><button type="button" class="button button-secondary" data-action="back-order">Back</button><button type="button" class="button button-secondary" data-action="preview-edit">Preview changes</button><button type="submit" class="button" id="save-order-edit" disabled>Save order changes</button></div></form>`);
+    <div class="subsection">${textarea('instructions', 'Fulfillment instructions', d.instructions)}${input('delivery_fee', 'Delivery fee override · PHP', amount(d.method === 'pickup' ? 0 : d.delivery_cents), 'number', 'required min="0" step="0.01" data-edit-value', 'The zone fee is suggested when the location changes. You may adjust it for this order.')}<div id="edit-totals"></div><p class="help-text">The total shown is an estimate. Save changes checks prices and availability automatically. If the total changes, you’ll be asked to confirm the old and new totals. Paid-order differences are settled directly with the customer.</p><div id="edit-save-notice"></div>${textarea('reason', 'Reason for these changes', d.reason, 'The before and after values, staff member, and timestamp are kept in history.', 'required maxlength="4000"')}</div>
+    <div class="dialog-actions"><button type="button" class="button button-secondary" data-action="back-order">Back</button><button type="submit" class="button" id="save-order-edit">Save changes</button></div></form>`);
   updateEditPreview();
 }
 function editChanges() {
@@ -449,20 +447,6 @@ async function onAction(button) {
     case 'edit-order': startEditOrder(); break;
     case 'edit-contact': contactDialog(); break;
     case 'change-edit-options': captureEdit(); { const item = editDraft.items[index]; const product = state.products.find(p => p.id === item.product_id); item.preserve_configuration = false; item.selections = newSelections(product); } renderEditOrder(); break;
-    case 'preview-edit': {
-      const form = $('[data-form="order-edit"]');
-      if (!form.reportValidity()) break;
-      captureEdit(); validateEdit();
-      const changes = editChanges();
-      if (!Object.keys(changes).length) throw new Error('There are no changes to preview.');
-      const preview = await api('preview_edit_order', { order_id: activeOrder.id, revision: activeOrder.revision, changes });
-      editPreviewKey = stable(changes);
-      editExpectedQuote = Object.fromEntries(['items', 'subtotal_cents', 'discount_cents', 'delivery_cents', 'total_cents', ...['delivery_zone_name', 'delivery_zone_description'].filter(key => Object.hasOwn(preview, key))].map(key => [key, preview[key]]));
-      $('#edit-totals').innerHTML = totals({ ...activeOrder, ...preview });
-      $('#edit-preview-notice').innerHTML = `${editDraft.method === 'delivery' && preview.delivery_zone_description ? `<section class="detail-section"><h3>Delivery notes${preview.delivery_zone_name ? ` · ${esc(preview.delivery_zone_name)}` : ''}</h3><p class="zone-description">${esc(preview.delivery_zone_description)}</p></section>` : ''}<p class="notice success">Server preview ready. Review the total and delivery notes, then save. Availability is checked again when saving.</p>`;
-      $('#save-order-edit').disabled = false;
-      break;
-    }
     case 'add-edit-item': captureEdit(); { const product = state.products.find(p => p.active) || state.products[0]; editDraft.items.push({ product_id: product.id, quantity: product.min_quantity || 1, selections: newSelections(product) }); } renderEditOrder(); break;
     case 'remove-edit-item': captureEdit(); editDraft.items.splice(index, 1); renderEditOrder(); break;
     case 'print-order': window.print(); break;
@@ -497,7 +481,7 @@ document.addEventListener('click', async event => {
 });
 document.addEventListener('input', event => {
   const target = event.target;
-  if (target.closest('[data-form="order-edit"]') && target.name !== 'reason') { editPreviewKey = null; editExpectedQuote = null; $('#save-order-edit').disabled = true; $('#edit-preview-notice').innerHTML = ''; }
+  if (target.closest('[data-form="order-edit"]')) $('#edit-save-notice').innerHTML = '';
   if (target.dataset.filter) {
     state.filters[target.dataset.filter] = target.type === 'checkbox' ? target.checked : target.value;
     const orders = filteredOrders();
@@ -511,7 +495,7 @@ document.addEventListener('change', async event => {
   try {
     if (target.name === 'social_platform' && target.closest('[data-form="order-edit"], [data-form="order-contact"]')) {
       syncAdminSocial(target.form);
-      if (target.closest('[data-form="order-edit"]')) { editPreviewKey = null; editExpectedQuote = null; $('#save-order-edit').disabled = true; $('#edit-preview-notice').innerHTML = ''; }
+      if (target.closest('[data-form="order-edit"]')) $('#edit-save-notice').innerHTML = '';
     }
     if (target.id === 'analytics-period') {
       const period = target.value;
@@ -664,8 +648,39 @@ async function submitForm(form) {
       captureEdit(); validateEdit();
       const changes = editChanges();
       if (!Object.keys(changes).length) throw new Error('There are no changes to save.');
-      if (editPreviewKey !== stable(changes)) throw new Error('Preview these changes and review the updated total before saving.');
-      await updateActive('edit_order', orderMutationPayload({ changes, reason: editDraft.reason, expected_quote: editExpectedQuote })); break;
+      const original = activeOrder;
+      const reason = editDraft.reason;
+      const submitted = stable({ changes, reason });
+      // Hold this form steady during the server check; restore each control afterward.
+      const controls = [...form.elements].map(control => [control, control.disabled]);
+      controls.forEach(([control]) => { control.disabled = true; });
+      try {
+        const payload = await prepareOrderSave({
+          order: original, changes, reason, idempotencyKey: uid(),
+          preview: request => api('preview_edit_order', request),
+          isCurrent: () => {
+            if (!form.isConnected || !modal.open || activeOrder.id !== original.id || activeOrder.revision !== original.revision) return false;
+            captureEdit();
+            return stable({ changes: editChanges(), reason: editDraft.reason }) === submitted;
+          },
+          onPreview: checked => {
+            $('#edit-totals').innerHTML = totals({ ...original, ...checked });
+            $('#edit-save-notice').innerHTML = `${checked.method === 'delivery' && checked.delivery_zone_description ? `<section class="detail-section"><h3>Delivery notes${checked.delivery_zone_name ? ` · ${esc(checked.delivery_zone_name)}` : ''}</h3><p class="zone-description">${esc(checked.delivery_zone_description)}</p></section>` : ''}`;
+          },
+          confirmTotalChange: ({ oldTotal, newTotal, paymentStatus }) => window.confirm(
+            `Current total: ${money(oldTotal)}\nNew total: ${money(newTotal)}\n\n${paymentStatus === 'paid' ? 'Payment will remain Paid. Settle any difference directly with the customer.\n\n' : ''}Save these changes?`
+          ),
+        });
+        if (!payload) {
+          $('#edit-save-notice').insertAdjacentHTML('beforeend', '<p class="notice">Changes have not been saved. You can keep editing or go back to the order.</p>');
+          break;
+        }
+        await updateActive('edit_order', payload);
+      } catch (error) {
+        if (error.message?.includes('Prices changed since the amendment preview')) throw new Error('Prices or delivery details changed while saving. Click Save changes again to check the latest total.');
+        throw error;
+      } finally { controls.forEach(([control, disabled]) => { control.disabled = disabled; }); }
+      break;
     }
   }
 }
