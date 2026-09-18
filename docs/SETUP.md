@@ -432,7 +432,7 @@ For an already-open shop, publish the matching website payment instructions befo
 4. Choose your allocated date, add one `DEMO — Test Cookie Box`, select pickup and use an inbox you control for the buyer. The total should be **PHP 100.00**.
 5. Review and submit once. Save the order reference and keep its private link to yourself.
 6. Refresh the order page and open the order in admin. Both should show the same saved order, total and **Awaiting payment** status. The initial order email should arrive after processing.
-7. Upload a JPEG/PNG/WebP marked `DEMO — TEST ONLY`, at most 5 MB, with reference `DEMO-REF-001`. No transfer is needed. Payment should become **Under review**.
+7. Upload a JPEG/PNG/WebP marked `DEMO — TEST ONLY`, at most 5 MB. Leave the payment reference blank, or enter `DEMO-REF-001` to test a supplied reference. No transfer is needed. Payment should become **Under review**.
 8. In admin, open **Daily quantities** and select the test date: **Held + approved** should be `1` and **Remaining** should be `4`. View the order's private proof and select **Approve full payment**. Check **Paid / Confirmed**, the approval email, and that the stock counts remain `1` and `4`.
 9. Repeat with delivery to your test locality and a clearly labelled test address. One box without a promo should total **PHP 150.00**. After that second order, the date's stock counts should be `2` held/approved and `3` remaining.
 10. Pause new orders again when you finish if you do not want further test submissions.
@@ -473,7 +473,7 @@ The 44 local automated checks passed during development. They do not prove your 
 | Order email missing | Check functions, worker secrets, scheduler results, business website URL and the admin email queue. |
 | Email link opens localhost or the wrong site | Recheck Step 4 URLs, the republished configuration and admin's Ordering website URL. |
 | Admin access denied | Verify your bakery email and check the owner row. Supabase service login is not bakery owner login. |
-| Proof upload/view fails | Check image type/size, reference, deadline, order state, private bucket and deployed functions. |
+| Proof upload/view fails | Check image type/size, deadline, order state, private bucket and deployed functions. Payment reference is optional. |
 
 **When asking for help, send:** step number, button/command used, exact error and a screenshot with secret values hidden. Do not send a full private guest-order URL; it contains an access token.
 

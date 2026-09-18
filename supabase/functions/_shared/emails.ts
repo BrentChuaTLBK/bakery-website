@@ -39,7 +39,7 @@ export function renderEmail(payload: any): { html: string; text: string } {
   switch (payload.event_type) {
     case "order_submitted":
       heading = "Your order has been received";
-      message = "Your order is awaiting full initial payment and manual approval. Submit your payment proof and payment reference through the secure order link before the deadline. Uploading proof places the payment under review; it does not confirm payment.";
+      message = "Your order is awaiting full initial payment and manual approval. Upload your proof of payment through the secure order link before the deadline. A payment reference is optional. Uploading proof places the payment under review; it does not confirm payment.";
       instructions = `Payment instructions:\n${settings.payment_instructions || "Open your order page for payment instructions."}\n\nPayment-proof deadline: ${date(order.payment_deadline, true)}.`;
       break;
     case "payment_approved":

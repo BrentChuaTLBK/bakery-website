@@ -18,7 +18,9 @@ Deno.serve(endpoint(async (request, headers) => {
   const userId = await verifiedUser(request, kind === "product");
   const orderId = kind === "proof" ? uuid(form.get("order_id")) : null;
   const token = field(form.get("token"), "Order access token", 256);
-  const paymentReference = field(form.get("payment_reference"), "Payment reference", 200, kind === "proof");
+  const suppliedReference = form.get("payment_reference");
+  if (suppliedReference !== null && typeof suppliedReference !== "string") throw new HttpError(400, "Payment reference must be text.");
+  const paymentReference = field(suppliedReference, "Payment reference", 200);
   const authorization = await service("authorize_upload", { kind, order_id: orderId, token, user_id: userId });
   if (!authorization?.allowed) throw new HttpError(403, "You cannot upload an image for this request.");
   const bucket = kind === "proof" ? "payment-proofs" : "product-images";

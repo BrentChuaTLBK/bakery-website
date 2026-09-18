@@ -47,7 +47,7 @@ The first column below identifies actual requirements. The defaults are disclose
 | Capacity | Per product per date; pickup/delivery share; no flavor or order-count stock | Explicit capacity row required; missing row means unavailable; reduction below held+committed is rejected |
 | Delivery | Fixed admin zones, supported-address validation, separate recipient details | Exact structured locality selection plus full address; no automated arbitrary-address geocoding |
 | Delivery timing | Date only; window initially 9 AM–6 PM | Configurable text window; no time-slot controls or guaranteed morning arrival |
-| Proof | Secure, validated upload plus payment reference; 15-minute deadline | JPEG/PNG/WebP, maximum 5 MB; successful validated commit must occur strictly before deadline; PDF not allowed in this draft |
+| Proof | Required secure, validated proof upload; payment reference optional; 15-minute deadline | JPEG/PNG/WebP, maximum 5 MB; successful validated commit must occur strictly before deadline; PDF not allowed in this draft |
 | Guest access | Unguessable secure access link | Link grants access to its holder; token is not the human-readable order reference and does not expire with the payment deadline |
 | Proof viewing | Private | Staff receives a temporary signed URL, draft lifetime five minutes |
 | Account tokens | Secure, expiring verification and single-use password reset | Supabase-authenticated flow; configured lifetimes and redirect URLs documented during owner setup |
@@ -112,7 +112,7 @@ The first column below identifies actual requirements. The defaults are disclose
 | Q45 | Atomic delta quantity/date movement with rollback and concurrency control | Transactional `edit_order` and revision guard | M04–M10, M16, X07 | Local DB plus connected replay evidence required |
 | Q46 | Saved price for unchanged config, current for new | Item identity/snapshot pricing in edit | M07–M08, C10 | Quantity-only saved-price default disclosed |
 | Q47 | Paid edits retain Paid/current progress/original approved amount | `edit_order`; immutable approval record; history | M14–M15, E09 | No extra-payment state/request/email |
-| Q48 | Cancel reason and explicit restoration choice; separate Refund label | `cancel_order`, `set_refund_label` | M17–M18, R12, E04 | Label excludes the full current value from analytics; manual transfer is not performed or confirmed |
+| Q48 | Cancel reason and explicit restoration choice; separate Refund label | `cancel_order`, `set_refund_label` | M17–M18, R12, E04 | Label displays fulfillment as Refunded and excludes the full current value from analytics; manual transfer is not performed or confirmed |
 | Q49 | Separate payment/fulfillment; explicit ready/dispatched/completed only | `set_fulfillment`; method-aware transition validation | M19, E05–E06 | Fulfillment date never advances status itself |
 | Q50 | Customer cannot directly amend/cancel submitted order | Owner/admin authorization; customer contact route | O09, S01–S03 | Server-enforced, not just hidden UI |
 | Q51 | CSV export and printable summary | Admin export/print | M20 | Formula-injection handling and privacy review |
