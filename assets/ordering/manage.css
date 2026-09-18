@@ -103,3 +103,10 @@
 .manage-page .order-edit-confirmation__actions .button{font-size:12px;min-height:42px;padding:11px 15px}
 .manage-page .order-edit-confirmation button:focus-visible{outline:2px solid var(--caramel);outline-offset:3px}
 @media(max-width:480px){.order-edit-confirmation__shell{padding:22px}.manage-page .order-edit-confirmation__header h2{font-size:24px}.order-edit-confirmation__totals>div{padding:14px 11px}.order-edit-confirmation__totals dd{font-size:24px}.order-edit-confirmation__actions{flex-direction:column-reverse}.order-edit-confirmation__actions .button{width:100%}}
+
+/* Product browsing filters stay in place while results update. */
+.product-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(140px,1fr) minmax(180px,1.4fr);gap:16px;align-items:end}
+.product-filters .field{margin-bottom:0}
+.product-filters input,.product-filters select{min-height:42px}
+.product-filter-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:10px 0 18px}
+@media(max-width:760px){.product-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.product-filters .product-search{grid-column:1/-1}}
