@@ -163,6 +163,7 @@ try {
   await page.locator('[name="buyer_name"]').fill('Calendar Buyer');
   await page.locator('[name="buyer_email"]').fill('calendar@example.test');
   await page.locator('[name="buyer_phone"]').fill('09170000000');
+  await page.locator('[name="social_platform"]').selectOption('na');
   await page.locator('#back-to-menu').click();
   await choose('2026-09-23');
   assert.equal((await saved()).items.length, 1);

@@ -38,6 +38,7 @@ try{
  assert.match(await page.locator('#cart').innerText(),/60\.00 per unit/);
  await page.locator('#checkout-button').click();
  await page.locator('[name="buyer_name"]').fill('Demo Buyer');await page.locator('[name="buyer_email"]').fill('demo@example.test');await page.locator('[name="buyer_phone"]').fill('09170000000');
+ await page.locator('[name="social_platform"]').selectOption('na');
  await page.locator('#review-order').click();
  assert.match(await page.locator('#checkout-title').innerText(),/sweetness/);
  assert.equal(await page.locator('#place-order').isDisabled(),true);
