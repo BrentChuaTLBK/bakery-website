@@ -25,3 +25,10 @@
 .delivery-zone-note{margin:14px 0}
 .pickup-only-badge{margin:0 0 8px}
 .method-toggle button:disabled{opacity:.5;cursor:not-allowed}
+
+/* Keep paired social controls level when the contact explanation wraps. */
+.social-contact-row > .field > input,
+.social-contact-row > .field > select {
+  height: 48px;
+  margin-top: auto;
+}
