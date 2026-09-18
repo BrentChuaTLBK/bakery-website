@@ -19,6 +19,7 @@ const PAYMENT = ['awaiting_payment', 'under_review', 'paid', 'rejected'];
 const FULFILLMENT = ['pending_confirmation', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'completed', 'refunded', 'cancelled', 'expired'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const state = { view: 'overview', role: null, connected: false, products: [], categories: [], inventory: [], promos: [], zones: [], orders: [], settings: {}, staff: [], filters: { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }, inventoryDate: manilaDate() };
+state.productFilters = { search: '', status: '', category: '' };
 let activeOrder = null;
 let productDraft = null;
 let editDraft = null;
@@ -154,10 +155,37 @@ function ordersView() {
   const f = state.filters;
   return heading('Orders', 'From the first checkout to the final handoff.', `<button class="button button-secondary" data-action="export-orders" ${locked()}>Export CSV</button><button class="button" data-action="refresh" ${locked()}>Refresh orders</button>`) + `<section class="panel"><div class="filters"><label>Search<input type="search" id="order-search" data-filter="search" placeholder="Reference, name, email, or phone" value="${esc(f.search)}"></label><label>Payment<select data-filter="payment">${options(PAYMENT, f.payment, 'All payment statuses')}</select></label><label>Fulfillment<select data-filter="fulfillment">${options(FULFILLMENT, f.fulfillment, 'All fulfillment statuses')}</select></label><label>Method<select data-filter="method">${options(['pickup', 'delivery'], f.method, 'Pickup & delivery')}</select></label></div><div class="filter-secondary">${input('filter-date', 'Fulfillment date', f.date, 'date', 'data-filter="date"')}${select('filter-refund', 'Refund label', option('', 'All orders', f.refund) + option('yes', 'With Refund label', f.refund) + option('no', 'Without Refund label', f.refund), 'data-filter="refund"')}<label class="check-field no-margin"><input type="checkbox" data-filter="upcoming" ${f.upcoming ? 'checked' : ''}>Upcoming, grouped by date</label><button class="button button-quiet" data-action="clear-filters">Clear filters</button></div><div class="section-heading"><p class="muted no-margin" id="order-count">${filteredOrders().length} orders</p></div><div id="order-table">${orderTable(filteredOrders())}</div></section>`;
 }
+function filteredProducts() {
+  const { search, status, category } = state.productFilters;
+  const query = search.trim().toLowerCase();
+  const categoryIds = new Set(state.categories.map(c => c.id));
+  return state.products.filter(product =>
+    (!query || product.name.toLowerCase().includes(query)) &&
+    (!status || Boolean(product.active) === (status === 'active')) &&
+    (!category || (category === '__uncategorized__' ? !categoryIds.has(product.category_id) : product.category_id === category))
+  );
+}
+function productFiltersActive() {
+  const f = state.productFilters;
+  return Boolean(f.search || f.status || f.category);
+}
+function productResults(products) {
+  if (!state.products.length) return `<section class="panel">${empty('Room for something delicious', 'Your ordering catalog starts empty. Add your own products, photos, and prices when you’re ready.', `<button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add your first product</button>`)}</section>`;
+  return products.length ? `<div class="product-grid">${products.map(product => `<article class="panel product-card"><div class="product-photo">${safeImage(product.photos?.[0]) ? `<img src="${esc(safeImage(product.photos[0]))}" alt="${esc(product.name)}" loading="lazy">` : '<span aria-hidden="true">♧</span>'}</div><div class="product-card-body"><h3>${esc(product.name)}</h3><p class="muted">${esc(state.categories.find(c => c.id === product.category_id)?.name || 'Uncategorized')}</p><div class="product-card-meta"><span>${product.lead_days} full production day${product.lead_days === 1 ? '' : 's'}</span><span>${product.allow_same_day === true ? '<span class="badge">Same-day eligible</span> ' : ''}${product.pickup_only ? '<span class="badge">Pickup only</span> ' : ''}${badge(product.active ? 'active' : 'hidden')}</span></div><div class="product-card-bottom"><strong>${money(product.price_cents)}</strong><button class="button button-quiet" data-action="edit-product" data-id="${esc(product.id)}">${owner() ? 'Edit product' : 'View product'} →</button></div></div></article>`).join('')}</div>` : `<section class="panel">${empty('No matching products', 'Try another product name, status, or category, or clear the filters.')}</section>`;
+}
+function updateProductResults() {
+  const products = filteredProducts();
+  $('#product-results').innerHTML = productResults(products);
+  $('#product-count').textContent = `Showing ${products.length} of ${state.products.length} product${state.products.length === 1 ? '' : 's'}`;
+  $('[data-action="clear-product-filters"]').disabled = !productFiltersActive();
+}
 function productsView() {
+  const f = state.productFilters;
+  if (f.category && f.category !== '__uncategorized__' && !state.categories.some(c => c.id === f.category)) f.category = '';
+  const products = filteredProducts();
   return heading('Your menu', 'Beautiful bakes, thoughtfully described.', `<button class="button button-secondary" data-action="categories">Categories</button><button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add product</button>`) + readonly() +
-    `<div class="category-chips"><span class="category-chip">All products · ${state.products.length}</span>${state.categories.map(c => `<span class="category-chip">${esc(c.name)}</span>`).join('')}</div>` +
-    (state.products.length ? `<div class="product-grid">${state.products.map(product => `<article class="panel product-card"><div class="product-photo">${safeImage(product.photos?.[0]) ? `<img src="${esc(safeImage(product.photos[0]))}" alt="${esc(product.name)}" loading="lazy">` : '<span aria-hidden="true">♧</span>'}</div><div class="product-card-body"><h3>${esc(product.name)}</h3><p class="muted">${esc(state.categories.find(c => c.id === product.category_id)?.name || 'Uncategorized')}</p><div class="product-card-meta"><span>${product.lead_days} full production day${product.lead_days === 1 ? '' : 's'}</span><span>${product.allow_same_day === true ? '<span class="badge">Same-day eligible</span> ' : ''}${product.pickup_only ? '<span class="badge">Pickup only</span> ' : ''}${badge(product.active ? 'active' : 'hidden')}</span></div><div class="product-card-bottom"><strong>${money(product.price_cents)}</strong><button class="button button-quiet" data-action="edit-product" data-id="${esc(product.id)}">${owner() ? 'Edit product' : 'View product'} →</button></div></div></article>`).join('')}</div>` : `<section class="panel">${empty('Room for something delicious', 'Your ordering catalog starts empty. Add your own products, photos, and prices when you’re ready.', `<button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add your first product</button>`)}</section>`);
+    `<div class="product-filters" role="search" aria-label="Filter products"><label class="field product-search">Search products<input id="product-search" type="search" data-product-filter="search" placeholder="Search by product name" value="${esc(f.search)}" aria-controls="product-results" autocomplete="off"></label>${select('product-status', 'Status', option('', 'All statuses', f.status) + option('active', 'Active', f.status) + option('hidden', 'Hidden', f.status), 'data-product-filter="status" aria-controls="product-results"')}${select('product-category', 'Category', option('', 'All categories', f.category) + state.categories.map(c => option(c.id, c.name, f.category)).join('') + option('__uncategorized__', 'Uncategorized', f.category), 'data-product-filter="category" aria-controls="product-results"')}</div>` +
+    `<div class="product-filter-summary"><p class="muted no-margin" id="product-count" role="status">Showing ${products.length} of ${state.products.length} product${state.products.length === 1 ? '' : 's'}</p><button type="button" class="button button-quiet" data-action="clear-product-filters" ${productFiltersActive() ? '' : 'disabled'}>Clear filters</button></div><div id="product-results">${productResults(products)}</div>`;
 }
 function inventoryView() {
   const rows = state.inventory.filter(row => row.date === state.inventoryDate);
@@ -409,6 +437,10 @@ async function onAction(button) {
     case 'refresh': await Promise.all([refresh(), visitorPoller.refresh()]); toast('Dashboard refreshed.'); break;
     case 'upcoming': state.filters.upcoming = true; state.view = 'orders'; render(); break;
     case 'clear-filters': state.filters = { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }; render(); break;
+    case 'clear-product-filters':
+      state.productFilters = { search: '', status: '', category: '' };
+      $$('[data-product-filter]').forEach(control => { control.value = ''; });
+      updateProductResults(); $('#product-search').focus(); break;
     case 'new-product': openProduct(); break;
     case 'edit-product': openProduct(id); break;
     case 'categories': categoriesDialog(); break;
@@ -485,6 +517,11 @@ document.addEventListener('click', async event => {
 document.addEventListener('input', event => {
   const target = event.target;
   if (target.closest('[data-form="order-edit"]')) $('#edit-save-notice').innerHTML = '';
+  if (target.dataset.productFilter === 'search') {
+    state.productFilters.search = target.value;
+    updateProductResults();
+    return;
+  }
   if (target.dataset.filter) {
     state.filters[target.dataset.filter] = target.type === 'checkbox' ? target.checked : target.value;
     const orders = filteredOrders();
@@ -496,6 +533,11 @@ document.addEventListener('input', event => {
 document.addEventListener('change', async event => {
   const target = event.target;
   try {
+    if (target.dataset.productFilter && target.tagName === 'SELECT') {
+      state.productFilters[target.dataset.productFilter] = target.value;
+      updateProductResults();
+      return;
+    }
     if (target.name === 'social_platform' && target.closest('[data-form="order-edit"], [data-form="order-contact"]')) {
       syncAdminSocial(target.form);
       if (target.closest('[data-form="order-edit"]')) $('#edit-save-notice').innerHTML = '';
