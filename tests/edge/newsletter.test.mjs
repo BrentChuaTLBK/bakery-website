@@ -9,8 +9,18 @@ const reply = (value, status = 200) => new Response(JSON.stringify(value), { sta
 const config = { topic_id: 'topic-newsletter', segment_id: 'segment-newsletter', site_url: 'https://thelittlebakerkitchen.com' };
 const userId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 const secret = 'a'.repeat(64);
-function setup(services = {}, provider = () => reply({ id: 'contact-1', unsubscribed: false })) {
+function setup(services = {}, provider) {
   const calls = [];
+  let preference = 'opt_in';
+  provider ||= (url, options, body) => {
+    if (url.includes('/topics') && options.method === 'PATCH') {
+      assert.ok(Array.isArray(body), 'The REST API expects a raw array');
+      preference = body[0].subscription;
+      return reply({ id: 'contact-1', object: 'contact_topics' });
+    }
+    if (url.includes('/topics')) return reply({ data: [{ id: config.topic_id, subscription: preference }], has_more: false });
+    return reply({ id: 'contact-1', unsubscribed: false });
+  };
   globalThis.fetch = async (url, options = {}) => {
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ url, options, body });
@@ -90,7 +100,7 @@ test('invalid and busy confirmation tokens never mutate a provider contact', asy
 });
 
 test('new confirmed contacts join only the newsletter segment and explicit topic', async () => {
-  const calls = setup({ begin_confirm: { valid: true, email: 'test@example.com', operation_id: 'lease' }, finish_confirm: { status: 'subscribed' } }, (url, options) => options.method === 'GET' ? reply({}, 404) : reply({ id: 'new-contact' }));
+  const calls = setup({ begin_confirm: { valid: true, email: 'test@example.com', operation_id: 'lease' }, finish_confirm: { status: 'subscribed' } }, (url, options) => url.includes('/topics') ? reply({ data: [{ id: config.topic_id, subscription: 'opt_in' }], has_more: false }) : options.method === 'GET' ? reply({}, 404) : reply({ id: 'new-contact' }));
   assert.equal((await request({ action: 'confirm', token: secret })).status, 200);
   const created = providerCalls(calls).find(x => x.options.method === 'POST');
   assert.deepEqual(created.body, { email: 'test@example.com', segments: [{ id: config.segment_id }], topics: [{ id: config.topic_id, subscription: 'opt_in' }] });
@@ -128,6 +138,20 @@ test('account unsubscribe opts out only the newsletter and preserves contact/glo
   assert.deepEqual(patches[0].body, [{ id: config.topic_id, subscription: 'opt_out' }]);
 });
 
+test('provider HTTP 200 without a stored opt-out never reports success or completes the database operation', async () => {
+  const calls = setup({ begin_unsubscribe: { email: 'test@example.com', operation_id: 'lease' } }, url => url.includes('/topics?') ? reply({ data: [{ id: config.topic_id, subscription: 'opt_in' }], has_more: false }) : reply({ id: 'contact-1', unsubscribed: false }));
+  const response = await request({ action: 'unsubscribe' }, true);
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /could not be verified/);
+  assert.ok(!rpcCalls(calls).some(x => ['finish_unsubscribe', 'cancel_operation'].includes(x.body.p_action)));
+});
+
+test('provider HTTP 200 without a stored opt-in never confirms subscription', async () => {
+  const calls = setup({ begin_confirm: { valid: true, email: 'test@example.com', operation_id: 'lease' } }, url => url.includes('/topics?') ? reply({ data: [{ id: config.topic_id, subscription: 'opt_out' }], has_more: false }) : reply({ id: 'contact-1', unsubscribed: false }));
+  assert.equal((await request({ action: 'confirm', token: secret })).status, 503);
+  assert.ok(!rpcCalls(calls).some(x => ['finish_confirm', 'cancel_operation'].includes(x.body.p_action)));
+});
+
 test('provider opt-out is reconciled into account preferences with a revision fence', async () => {
   const calls = setup({ status: { email: 'test@example.com', status: 'subscribed', revision: 4, popup_seen: true }, reconcile: { updated: true } }, url => url.includes('/topics') ? reply({ data: [{ id: config.topic_id, subscription: 'opt_out' }], has_more: false }) : reply({ id: 'contact-1', unsubscribed: false }));
   assert.equal((await (await request({ action: 'status' }, true)).json()).status, 'unsubscribed');
@@ -147,4 +171,3 @@ test('ambiguous provider failure keeps its lease and never reports successful co
   assert.doesNotMatch(await response.text(), /private-provider/);
   assert.ok(!rpcCalls(calls).some(x => ['cancel_operation', 'finish_confirm'].includes(x.body.p_action)));
 });
-
