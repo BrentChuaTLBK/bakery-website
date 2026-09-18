@@ -20,10 +20,12 @@ const FULFILLMENT = ['pending_confirmation', 'confirmed', 'preparing', 'ready_fo
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const state = { view: 'overview', role: null, connected: false, products: [], categories: [], inventory: [], promos: [], zones: [], orders: [], settings: {}, staff: [], filters: { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }, inventoryDate: manilaDate() };
 state.productFilters = { search: '', status: '', category: '' };
+state.promoFilter = '';
 let activeOrder = null;
 let productDraft = null;
 let editDraft = null;
 let modalReturnFocus = null;
+let promoStatusTimer = null;
 state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
 const visitorPoller = createVisitorPoller({
   fetchReport: websiteVisitorStats,
@@ -37,6 +39,9 @@ function syncVisitorPolling() { visitorPoller.setActive(state.connected && state
 document.addEventListener('visibilitychange', syncVisitorPolling);
 window.addEventListener('pagehide', () => visitorPoller.setActive(false));
 window.addEventListener('pageshow', syncVisitorPolling);
+document.addEventListener('visibilitychange', syncPromoStatuses);
+window.addEventListener('pageshow', syncPromoStatuses);
+window.addEventListener('pagehide', () => clearTimeout(promoStatusTimer));
 const modal = $('#admin-dialog');
 bindDateCalendars($('#workspace'));
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
@@ -114,6 +119,7 @@ function render() {
   const views = { overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   syncVisitorPolling();
+  syncPromoStatuses();
 }
 function analyticsView() {
   return heading('Analytics', 'Your orders, sales and most-loved products.', `<button class="button button-secondary" data-action="refresh" ${locked()}>Refresh analytics</button>`) + renderAnalytics(state, { today: manilaDate(), money, escapeHtml: esc, formatDate });
@@ -191,13 +197,45 @@ function inventoryView() {
   const rows = state.inventory.filter(row => row.date === state.inventoryDate);
   return heading('Daily quantities', 'Plan each product, one fulfillment date at a time.') + `<div class="notice inventory-note">Pickup and delivery share the same product quantity on a date. Held and approved quantities count once. A date without an allocation is unavailable. Turning availability off preserves existing orders.</div><section class="panel"><h2>Set a daily allocation</h2><form data-form="inventory">${formError}<div class="inventory-form">${select('product_id', 'Product', option('', 'Choose a product', '') + state.products.map(p => option(p.id, p.name, '')).join(''), 'required')}${input('start_date', 'From date', state.inventoryDate, 'date', 'required')}${input('end_date', 'Through date', state.inventoryDate, 'date', 'required')}<span></span>${input('capacity', 'Total sellable quantity per date', '', 'number', 'min="0" step="1" required', 'Total capacity, including quantities already held or approved.')}${select('available', 'Accept new orders', option('yes', 'Available', 'yes') + option('no', 'Unavailable', 'yes'))}<span></span><button class="button" ${locked()} type="submit">Save allocation</button></div></form></section><section class="panel" style="margin-top:22px"><div class="section-heading"><h2>Quantities by date</h2>${input('inventory-date', 'Fulfillment date', state.inventoryDate, 'date', 'id="inventory-date"')}</div>${rows.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Total quantity</th><th>Held + approved</th><th>Remaining</th><th>Availability</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(state.products.find(p => p.id === row.product_id)?.name || 'Archived product')}</td><td>${row.capacity}</td><td>${row.reserved ?? '—'}</td><td>${row.remaining ?? (row.reserved === undefined ? '—' : row.capacity - row.reserved)}</td><td>${badge(row.available ? 'available' : 'unavailable')}</td></tr>`).join('')}</tbody></table></div>` : empty('No quantities set for this date', 'Add an allocation above to make a product available for this fulfillment date.')}</section>`;
 }
+function promoStatus(promo, now = Date.now()) {
+  const expires = Date.parse(promo.expires_at);
+  if (Number.isFinite(expires) && expires <= now) return 'expired';
+  return promo.active ? 'active' : 'inactive';
+}
+function syncPromoStatuses() {
+  clearTimeout(promoStatusTimer);
+  promoStatusTimer = null;
+  if (state.view !== 'promos' || document.hidden) return;
+  const results = $('#promo-results');
+  if (!results) return;
+  const now = Date.now();
+  results.innerHTML = promoResults(now);
+  const nextExpiry = state.promos.reduce((next, promo) => {
+    const expires = Date.parse(promo.expires_at);
+    return expires > now ? Math.min(next, expires) : next;
+  }, Infinity);
+  if (Number.isFinite(nextExpiry)) promoStatusTimer = setTimeout(syncPromoStatuses, Math.min(nextExpiry - now, 2147483647));
+}
 function promoUsage(promo) {
   const counts = [promo.usage_count, promo.redeemed_count, promo.reserved_count];
   if (!counts.every(value => Number.isSafeInteger(value) && value >= 0)) return '<span class="muted">Usage unavailable</span>';
   return `<strong>${promo.usage_count} / ${promo.global_limit}</strong><small>${promo.redeemed_count} paid · ${promo.reserved_count} reserved</small>`;
 }
+function filteredPromos(now = Date.now()) {
+  return state.promos.filter(promo => !state.promoFilter || promoStatus(promo, now) === state.promoFilter);
+}
+function promoResults(now = Date.now()) {
+  const promos = filteredPromos(now);
+  return `<p class="muted" role="status">Showing ${promos.length} of ${state.promos.length} promo codes</p><section class="panel">${promos.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Code</th><th>Discount</th><th>Minimum products</th><th>Uses / total limit</th><th>Per account</th><th>Expires · Manila</th><th>Status</th><th></th></tr></thead><tbody>${promos.map(promo => `<tr><td><strong>${esc(promo.code)}</strong></td><td>${promo.kind === 'percent' ? `${promo.value}%` : money(promo.value)}${promo.cap_cents && promo.kind === 'percent' ? `<small>Up to ${money(promo.cap_cents)}</small>` : ''}</td><td>${money(promo.min_subtotal_cents)}</td><td>${promoUsage(promo)}</td><td>${promo.per_account_limit} uses</td><td>${esc(dateTime(promo.expires_at))}</td><td>${badge(promoStatus(promo, now))}</td><td><div class="row-actions"><button class="table-link" data-action="edit-promo" data-id="${esc(promo.id)}">Edit</button><button type="button" class="table-link" data-action="delete-promo" data-id="${esc(promo.id)}" aria-label="Delete promo ${esc(promo.code)}" ${ownerLocked()}>Delete</button></div></td></tr>`).join('')}</tbody></table></div>` : empty(state.promos.length ? 'No matching promo codes' : 'A thoughtful extra, when you’re ready', state.promos.length ? 'Choose another status to see your other promo codes.' : 'Create percentage or fixed-amount discounts with minimum spend and usage limits.')}</section>`;
+}
 function promosView() {
-  return heading('A little treat', 'Promo codes for customers with verified email accounts.', `<button class="button" data-action="new-promo" ${owner() ? '' : 'disabled'}>+ Create promo code</button>`) + readonly() + `<section class="panel">${state.promos.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Code</th><th>Discount</th><th>Minimum products</th><th>Uses / total limit</th><th>Per account</th><th>Expires · Manila</th><th>Status</th><th></th></tr></thead><tbody>${state.promos.map(promo => `<tr><td><strong>${esc(promo.code)}</strong></td><td>${promo.kind === 'percent' ? `${promo.value}%` : money(promo.value)}${promo.cap_cents && promo.kind === 'percent' ? `<small>Up to ${money(promo.cap_cents)}</small>` : ''}</td><td>${money(promo.min_subtotal_cents)}</td><td>${promoUsage(promo)}</td><td>${promo.per_account_limit} uses</td><td>${esc(dateTime(promo.expires_at))}</td><td>${badge(promo.active ? 'active' : 'inactive')}</td><td><button class="table-link" data-action="edit-promo" data-id="${esc(promo.id)}">Edit</button></td></tr>`).join('')}</tbody></table></div>` : empty('A thoughtful extra, when you’re ready', 'Create percentage or fixed-amount discounts with minimum spend and usage limits.')}</section><p class="muted">Discounts apply to products and option surcharges. Delivery fees are excluded. Paid and reserved uses both count toward the total limit. Reservations include orders awaiting payment or payment review; expired, rejected or cancelled unpaid orders release them. Paid cancellations and refunds remain counted.</p>`;
+  return heading('A little treat', 'Promo codes for customers with verified email accounts.', `<button class="button" data-action="new-promo" ${owner() ? '' : 'disabled'}>+ Create promo code</button>`) + readonly() +
+    `<div class="filter-secondary">${select('promo-status-filter', 'Status', option('', 'All promo codes', state.promoFilter) + option('active', 'Active', state.promoFilter) + option('expired', 'Expired', state.promoFilter) + option('inactive', 'Inactive', state.promoFilter), 'id="promo-status-filter" aria-controls="promo-results" aria-describedby="promo-filter-help"')}<p id="promo-filter-help" class="muted">Inactive codes have not expired, but are disabled or not yet activated.</p></div><div id="promo-results">${promoResults()}</div><p class="muted">Discounts apply to products and option surcharges. Delivery fees are excluded. Paid and reserved uses both count toward the total limit. Reservations include orders awaiting payment or payment review; expired, rejected or cancelled unpaid orders release them. Paid cancellations and refunds remain counted.</p>`;
+}
+function deletePromoDialog(id) {
+  const promo = state.promos.find(item => item.id === id);
+  if (!promo) throw new Error('Promo code not found. Refresh the dashboard and try again.');
+  showDialog('Delete promo code', `<form data-form="delete-promo" data-id="${esc(id)}">${formError}<p>Delete <strong>${esc(promo.code)}</strong>?</p><p class="muted">This removes the code from your promo list and stops new uses. Existing order discounts and usage history are kept.</p><p class="notice">This cannot be undone from the dashboard. The code name cannot be reused. To stop it temporarily, edit the code and turn off “Make this code active” instead.</p><div class="dialog-actions"><button type="button" class="button button-secondary" data-action="close-dialog">Cancel</button><button type="submit" class="button button-danger" ${ownerLocked()}>Delete promo code</button></div></form>`);
 }
 function weekdayFields(name, title, values) {
   return `<h3>${esc(title)}</h3><div class="weekday-options">${DAYS.map((day, i) => `<label><input name="${name}" type="checkbox" value="${i}" ${(values ?? [0, 1, 2, 3, 4, 5, 6]).includes(i) ? 'checked' : ''}>${day}</label>`).join('')}</div>`;
@@ -461,6 +499,7 @@ async function onAction(button) {
     case 'edit-zone': zoneDialog(id); break;
     case 'new-promo': promoDialog(); break;
     case 'edit-promo': promoDialog(id); break;
+    case 'delete-promo': deletePromoDialog(id); break;
     case 'load-team': await loadTeam(); break;
     case 'open-order': await openOrder(id); break;
     case 'back-order': renderOrderDialog(); break;
@@ -538,6 +577,11 @@ document.addEventListener('input', event => {
 document.addEventListener('change', async event => {
   const target = event.target;
   try {
+    if (target.id === 'promo-status-filter') {
+      state.promoFilter = target.value;
+      syncPromoStatuses();
+      return;
+    }
     if (target.dataset.productFilter && target.tagName === 'SELECT') {
       state.productFilters[target.dataset.productFilter] = target.value;
       updateProductResults();
@@ -671,6 +715,10 @@ async function submitForm(form) {
       settings.delivery_blocked_dates = validDateList(fieldValue(form, 'delivery_blocked_dates'), 'Blocked delivery dates');
       await api('save_settings', { settings }); await refresh(); toast('Shop settings saved.'); break;
     }
+    case 'delete-promo':
+      await api('delete_promo', { id: form.dataset.id });
+      state.promos = state.promos.filter(promo => promo.id !== form.dataset.id);
+      closeDialog(); render(); toast('Promo code deleted. Existing orders are preserved.'); break;
     case 'promo': {
       const kind = fieldValue(form, 'kind');
       const expiry = new Date(fieldValue(form, 'expires_at') + ':00+08:00');
