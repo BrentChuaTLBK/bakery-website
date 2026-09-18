@@ -82,3 +82,24 @@
 .traffic-card .metric-value{font-size:clamp(28px,3vw,42px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .traffic-card .metric-note{font-size:11px;line-height:1.7;margin:10px 0 0}
 @media(max-width:480px){.traffic-metrics{grid-template-columns:1fr;gap:12px}.traffic-card{padding:16px}}
+
+.manage-page dialog.order-edit-confirmation{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 32px);border:1px solid #dfceb8;border-radius:18px;background:var(--cream);color:var(--ink);padding:0;overflow:auto;box-shadow:0 24px 90px #2f26244d}
+.manage-page dialog.order-edit-confirmation::backdrop{background:#2f262477;backdrop-filter:blur(3px)}
+.order-edit-confirmation__shell{padding:28px}
+.order-edit-confirmation__header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.manage-page .order-edit-confirmation__header h2{font:400 26px/1.25 Georgia,serif;letter-spacing:-.02em;margin:0}
+.manage-page .order-edit-confirmation__close{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border:0;border-radius:50%;background:#eee4d5;color:var(--caramel);font-size:23px;line-height:1;cursor:pointer;padding:0}
+.order-edit-confirmation__description{color:var(--muted);font-size:12px;line-height:1.7;margin:14px 0 22px}
+.order-edit-confirmation__totals{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:0}
+.order-edit-confirmation__totals>div{border:1px solid var(--line);border-radius:10px;background:#fffefb;padding:17px 15px;min-width:0}
+.order-edit-confirmation__totals dt{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px}
+.order-edit-confirmation__totals dd{font:400 27px/1.25 Georgia,serif;font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere}
+.order-edit-confirmation__totals .order-edit-confirmation__new-total{background:#efe2ce;border-color:#d9bf99}
+.order-edit-confirmation__new-total dd{color:#68401e}
+.order-edit-confirmation__difference{display:flex;justify-content:space-between;gap:15px;font-size:12px;line-height:1.6;border-bottom:1px solid var(--line);padding:15px 0;margin:0 0 18px;color:var(--muted)}
+.order-edit-confirmation__difference strong{color:var(--caramel);font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere}
+.order-edit-confirmation__payment{font-size:12px;line-height:1.7;background:#eef2e6;border:1px solid #dce4d2;color:#4a613b;border-radius:9px;padding:12px 14px;margin:0 0 22px}
+.order-edit-confirmation__actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+.manage-page .order-edit-confirmation__actions .button{font-size:12px;min-height:42px;padding:11px 15px}
+.manage-page .order-edit-confirmation button:focus-visible{outline:2px solid var(--caramel);outline-offset:3px}
+@media(max-width:480px){.order-edit-confirmation__shell{padding:22px}.manage-page .order-edit-confirmation__header h2{font-size:24px}.order-edit-confirmation__totals>div{padding:14px 11px}.order-edit-confirmation__totals dd{font-size:24px}.order-edit-confirmation__actions{flex-direction:column-reverse}.order-edit-confirmation__actions .button{width:100%}}

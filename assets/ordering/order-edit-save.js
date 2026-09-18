@@ -9,11 +9,20 @@ function freeze(value) {
   return value;
 }
 
+// Reasons are optional in the admin form; keep a nonblank audit value for the API.
+export function normalizeOrderEditReason(value) {
+  if (value === undefined || value === null) return 'N/A';
+  if (typeof value !== 'string') throw new Error('Enter the reason as text.');
+  const reason = value.trim();
+  if (reason.length > 4000) throw new Error('Keep the reason to 4,000 characters or fewer.');
+  return reason || 'N/A';
+}
+
 // Prepare one amendment; the caller performs the mutation immediately afterward.
 export async function prepareOrderSave({ order, changes, reason, idempotencyKey, preview, confirmTotalChange, isCurrent = () => true, onPreview = () => {} }) {
   const snapshot = freeze(structuredClone({
     order_id: order?.id, revision: order?.revision, oldTotal: order?.total_cents,
-    paymentStatus: order?.payment_status, changes, reason, idempotency_key: idempotencyKey,
+    paymentStatus: order?.payment_status, changes, reason: normalizeOrderEditReason(reason), idempotency_key: idempotencyKey,
   }));
   const checkCurrent = () => {
     if (!isCurrent()) throw new Error('The order or form changed while checking. Review your changes and save again.');
@@ -21,8 +30,8 @@ export async function prepareOrderSave({ order, changes, reason, idempotencyKey,
   if (!snapshot.order_id || !Number.isSafeInteger(snapshot.revision) || snapshot.revision < 1 || !validMoney(snapshot.oldTotal)) {
     throw new Error('The saved order is incomplete. Reload the order before saving changes.');
   }
-  if (!isObject(snapshot.changes) || !Object.keys(snapshot.changes).length || typeof snapshot.reason !== 'string' || !snapshot.reason.trim() || !snapshot.idempotency_key) {
-    throw new Error('Enter your changes and a reason before saving.');
+  if (!isObject(snapshot.changes) || !Object.keys(snapshot.changes).length || !snapshot.idempotency_key) {
+    throw new Error('Enter your changes before saving.');
   }
   checkCurrent();
   const result = await preview(freeze({ order_id: snapshot.order_id, revision: snapshot.revision, changes: snapshot.changes }));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareOrderSave } from '../assets/ordering/order-edit-save.js';
+import { normalizeOrderEditReason, prepareOrderSave } from '../assets/ordering/order-edit-save.js';
 
 const order = () => ({ id: 'order-1', revision: 3, total_cents: 10000, payment_status: 'paid' });
 const quote = (total = 10000) => ({ items: [{ product_id: 'product-1', name: 'Nori Chips', quantity: 1, unit_price_cents: total }], subtotal_cents: total, discount_cents: 0, delivery_cents: 0, total_cents: total, preview: true });
@@ -123,10 +123,48 @@ for (const value of [null, {}, { ...quote(), items: [] }, { ...quote(), items: [
   });
 }
 
-test('requires changes and a reason before checking the order', async () => {
-  for (const patch of [{ changes: {} }, { changes: null }, { reason: '' }, { reason: '  ' }]) {
+test('requires changes before checking the order even when a reason is supplied', async () => {
+  for (const patch of [{ changes: {} }, { changes: null }]) {
     const s = setup(patch);
-    await assert.rejects(s.run(), /changes and a reason/);
+    await assert.rejects(s.run(), /Enter your changes/);
     assert.equal(s.calls.preview.length, 0);
   }
 });
+
+for (const reason of [undefined, null, '', '  \t\n\r ', '\u00a0\u2003']) {
+  test(`an optional ${JSON.stringify(reason)} reason prepares a checked save using N/A`, async () => {
+    const s = setup({ reason });
+    if (reason === undefined) delete s.args.reason;
+    const payload = await s.run();
+    assert.equal(normalizeOrderEditReason(reason), 'N/A');
+    assert.equal(payload.reason, 'N/A');
+    assert.equal(s.calls.preview.length, 1);
+    assert.equal(s.calls.confirmations.length, 0);
+    assert.equal(Object.isFrozen(payload), true);
+  });
+}
+
+test('an entered reason is trimmed while preserving its text and interior line breaks', async () => {
+  const reason = '  Customer requested a different date.\nKeep the gift message. \t';
+  const expected = 'Customer requested a different date.\nKeep the gift message.';
+  assert.equal(normalizeOrderEditReason(reason), expected);
+  assert.equal((await setup({ reason }).run()).reason, expected);
+});
+
+test('accepts up to 4000 reason characters after trimming and rejects an oversized reason before checking', async () => {
+  const reason = 'A'.repeat(4000);
+  assert.equal(normalizeOrderEditReason(`  ${reason}\n`), reason);
+  assert.equal((await setup({ reason }).run()).reason, reason);
+  const s = setup({ reason: `${reason}A` });
+  await assert.rejects(s.run(), /4,000 characters/);
+  assert.equal(s.calls.preview.length, 0);
+});
+
+for (const reason of [0, false, [], {}, new String('Reason')]) {
+  test(`rejects a non-string ${Object.prototype.toString.call(reason)} reason before checking`, async () => {
+    const s = setup({ reason });
+    assert.throws(() => normalizeOrderEditReason(reason), /reason as text/);
+    await assert.rejects(s.run(), /reason as text/);
+    assert.equal(s.calls.preview.length, 0);
+  });
+}
