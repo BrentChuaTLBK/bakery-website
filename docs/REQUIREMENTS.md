@@ -112,7 +112,7 @@ The first column below identifies actual requirements. The defaults are disclose
 | Q45 | Atomic delta quantity/date movement with rollback and concurrency control | Transactional `edit_order` and revision guard | M04–M10, M16, X07 | Local DB plus connected replay evidence required |
 | Q46 | Saved price for unchanged config, current for new | Item identity/snapshot pricing in edit | M07–M08, C10 | Quantity-only saved-price default disclosed |
 | Q47 | Paid edits retain Paid/current progress/original approved amount | `edit_order`; immutable approval record; history | M14–M15, E09 | No extra-payment state/request/email |
-| Q48 | Cancel reason and explicit restoration choice; separate Refund label | `cancel_order`, `set_refund_label` | M17–M18, R12, E04 | Label excludes the full current value from analytics; manual transfer is not performed or confirmed |
+| Q48 | Cancel reason and explicit restoration choice; separate Refund label | `cancel_order`, `set_refund_label` | M17–M18, R12, E04 | Label displays fulfillment as Refunded and excludes the full current value from analytics; manual transfer is not performed or confirmed |
 | Q49 | Separate payment/fulfillment; explicit ready/dispatched/completed only | `set_fulfillment`; method-aware transition validation | M19, E05–E06 | Fulfillment date never advances status itself |
 | Q50 | Customer cannot directly amend/cancel submitted order | Owner/admin authorization; customer contact route | O09, S01–S03 | Server-enforced, not just hidden UI |
 | Q51 | CSV export and printable summary | Admin export/print | M20 | Formula-injection handling and privacy review |
