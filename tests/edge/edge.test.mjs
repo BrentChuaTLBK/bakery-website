@@ -147,6 +147,7 @@ test('guest proof authorizes before storage and commits with server-chosen priva
       assert.equal(body.p_payload.user_id, null);
       if (body.p_action === 'authorize_upload') return reply({ allowed: true });
       assert.match(body.p_payload.path, new RegExp(`^${orderId}/[a-f0-9-]+\\.png$`));
+      assert.equal(body.p_payload.payment_reference, 'TEST-123');
       return reply({ id: orderId, payment_status: 'under_review' });
     }
     assert.ok(String(url).includes('/object/payment-proofs/')); actions.push('storage'); return reply({ Key: 'saved' });
@@ -155,6 +156,64 @@ test('guest proof authorizes before storage and commits with server-chosen priva
   assert.equal(response.status, 201);
   assert.equal((await response.json()).order.payment_status, 'under_review');
   assert.deepEqual(actions, ['authorize_upload', 'storage', 'commit_proof']);
+});
+
+test('proof images can be submitted with an omitted or blank payment reference', async () => {
+  for (const reference of [null, '', ' \n\t ', '  BANK-6789  ']) {
+    const actions = [];
+    globalThis.fetch = async (url, options) => {
+      if (String(url).includes('/rpc/')) {
+        const body = JSON.parse(options.body); actions.push(body.p_action);
+        if (body.p_action === 'authorize_upload') return reply({ allowed: true });
+        assert.equal(body.p_action, 'commit_proof');
+        assert.equal(body.p_payload.payment_reference, reference?.trim() || '');
+        assert.match(body.p_payload.path, new RegExp(`^${orderId}/[a-f0-9-]+\\.png$`));
+        return reply({ id: orderId, payment_status: 'under_review' });
+      }
+      assert.ok(String(url).includes('/object/payment-proofs/'));
+      actions.push('storage'); return reply({ Key: 'saved' });
+    };
+    const body = form();
+    if (reference === null) body.delete('payment_reference');
+    else body.set('payment_reference', reference);
+    const response = await upload(request('proof-upload', body));
+    assert.equal(response.status, 201);
+    assert.equal((await response.json()).order.payment_status, 'under_review');
+    assert.deepEqual(actions, ['authorize_upload', 'storage', 'commit_proof']);
+  }
+});
+
+test('optional references do not make proof images optional or bypass image validation', async () => {
+  let providerCalls = 0;
+  globalThis.fetch = async () => { providerCalls++; throw new Error('Unexpected network request'); };
+  const invalidForms = [
+    [body => body.delete('file'), 400, /Choose one image/],
+    [body => body.set('file', 'receipt.png'), 400, /Choose one image/],
+    [body => body.set('file', new File(['%PDF-1.4'], 'receipt.png', { type: 'image/png' })), 415, /image/i],
+    [body => body.set('file', new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'receipt.png', { type: 'image/png' })), 413, /5 MB/],
+    [body => body.set('payment_reference', 'R'.repeat(201)), 400, /Payment reference/],
+    [body => body.set('payment_reference', new File([png], 'receipt.png', { type: 'image/png' })), 400, /Payment reference must be text/],
+  ];
+  for (const [change, status, message] of invalidForms) {
+    const body = form(); body.delete('payment_reference'); change(body);
+    const response = await upload(request('proof-upload', body));
+    assert.equal(response.status, status);
+    assert.match((await response.json()).error, message);
+  }
+  assert.equal(providerCalls, 0);
+});
+
+test('proof without a payment reference still requires authorization before storage', async () => {
+  const actions = [];
+  globalThis.fetch = async (url, options) => {
+    assert.ok(String(url).includes('/rpc/'));
+    const body = JSON.parse(options.body); actions.push(body.p_action);
+    assert.equal(body.p_action, 'authorize_upload');
+    return reply({ allowed: false });
+  };
+  const body = form(); body.delete('payment_reference');
+  assert.equal((await upload(request('proof-upload', body))).status, 403);
+  assert.deepEqual(actions, ['authorize_upload']);
 });
 
 test('proof race failure removes uploaded object and never reports success', async () => {
