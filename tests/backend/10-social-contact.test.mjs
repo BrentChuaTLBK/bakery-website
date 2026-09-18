@@ -181,7 +181,8 @@ export default async function ({ db, check, state }) {
 
   await check('staged rollout supports old optional checkout before enforcing new social contact without changing existing records', async () => {
     const definition = await h.scalar("select pg_get_functiondef('public.shop_api(text,jsonb,text)'::regprocedure)");
-    const hook = "  perform tlb.validate_social_contact(p_payload->'buyer',true);\n";
+    const newline = definition.includes('\r\n') ? '\r\n' : '\n';
+    const hook = "  perform tlb.validate_social_contact(p_payload->'buyer',true);" + newline;
     assert.equal(definition.split(hook).length, 2);
     const { product, date } = await fixture(3);
     const payload = checkout(product, date);
@@ -206,3 +207,4 @@ export default async function ({ db, check, state }) {
     }
   })();
 }
+

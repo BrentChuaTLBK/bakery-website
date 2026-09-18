@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 export default async function ({ db, check, state }) {
   const h = state.harness;
   const { api, ids, checkout, fixture, inventory, item, remaining, order, action, proof } = h;
-  const migration = await readFile(new URL('../../supabase/migrations/20260915161342_product_same_day_orders.sql', import.meta.url), 'utf8');
+  // Match the normalized function source even when Git checks SQL out as CRLF.
+  const migration = (await readFile(new URL('../../supabase/migrations/20260915161342_product_same_day_orders.sql', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   const signatures = ['tlb.calculate_quote(jsonb,uuid,uuid,boolean,timestamp with time zone)', 'public.shop_api(text,jsonb,text)'];
   const definition = signature => h.scalar('select pg_get_functiondef($1::regprocedure)', [signature]);
   const patches = [...migration.matchAll(/\('([^']+)',\s+\$old\$([\s\S]*?)\$old\$,\s+\$new\$([\s\S]*?)\$new\$\)/g)];
@@ -263,3 +264,4 @@ export default async function ({ db, check, state }) {
     await settings(oldSettings);
   }
 }
+
