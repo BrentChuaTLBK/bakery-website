@@ -35,6 +35,42 @@ export default async function ({ check, state }) {
     assert.equal(await remaining(product, nextDate), 1);
   })();
 
+  await check('optional amendment reasons save as N/A in the actual audit history', async () => {
+    const { product, date } = await fixture(3);
+    let current = await api('create_order', checkout(product, date));
+    for (const [index, reason] of [undefined, null, '', ' \t\n ', '\u00a0\u2003'].entries()) {
+      const args = {
+        order: current, changes: { buyer: { name: `QA Correction ${index + 1}` } }, idempotencyKey: randomUUID(),
+        preview: payload => api('preview_edit_order', payload, ids.staff),
+        confirmTotalChange: () => assert.fail('A contact correction must not ask for total confirmation.'),
+      };
+      if (reason !== undefined) args.reason = reason;
+      const payload = await prepareOrderSave(args);
+      assert.equal(payload.reason, 'N/A');
+      current = await api('edit_order', payload, ids.staff);
+      assert.equal(current.buyer.name, `QA Correction ${index + 1}`);
+      assert.equal(current.history.filter(entry => entry.action === 'edit_order').at(-1).reason, 'N/A');
+      assert.equal(await h.scalar("select reason from tlb.history where order_id=$1 and action='edit_order' order by id desc limit 1", [current.id]), 'N/A');
+    }
+    assert.equal(current.revision, 6);
+    assert.equal(await remaining(product, date), 2);
+  })();
+
+  await check('an entered amendment reason retains its text in the actual audit history', async () => {
+    const { product, date } = await fixture(3);
+    const submitted = await api('create_order', checkout(product, date));
+    const reason = 'Customer corrected their name.\nKeep the existing pickup instructions.';
+    const payload = await prepareOrderSave({
+      order: submitted, changes: { buyer: { name: 'QA Requested Name' } }, reason: ` \n${reason}\t `, idempotencyKey: randomUUID(),
+      preview: request => api('preview_edit_order', request, ids.owner),
+      confirmTotalChange: () => assert.fail('A contact correction must not ask for total confirmation.'),
+    });
+    const edited = await api('edit_order', payload, ids.owner);
+    assert.equal(edited.buyer.name, 'QA Requested Name');
+    assert.equal(edited.history.filter(entry => entry.action === 'edit_order').at(-1).reason, reason);
+    assert.equal(await h.scalar("select reason from tlb.history where order_id=$1 and action='edit_order' order by id desc limit 1", [edited.id]), reason);
+  })();
+
   await check('accepted total-change confirmation saves the amendment while preserving paid amount and fulfillment progress', async () => {
     const { product, date } = await fixture(5);
     const submitted = await api('create_order', checkout(product, date, { items: [item(product, 2)] }));

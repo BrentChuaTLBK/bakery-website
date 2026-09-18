@@ -183,7 +183,7 @@ Use fresh orders and deliberately reset fixture limits between independent scena
 
 ## 9. Admin operations and intentional edits
 
-Start each edit from a fresh active order and record old date, items, totals, reservation counts, payment state, fulfillment state, revision, and original approved amount. Supply an explicit reason such as `DEMO — customer requested change`.
+Start each edit from a fresh active order and record old date, items, totals, reservation counts, payment state, fulfillment state, revision, and original approved amount. An edit reason is optional. Leave it blank to record `N/A`, or add a note such as `DEMO — customer requested change`. The before/after values, staff member and timestamp are still recorded.
 
 | ID | Steps | Expected result | Actual / result / issue |
 | --- | --- | --- | --- |
@@ -194,7 +194,7 @@ Start each edit from a fresh active order and record old date, items, totals, re
 | M05 | Attempt the same move to a sold-out or unsupported date. | Entire edit fails; original order/date/totals/promo/reservations remain unchanged. No partial release. | __________________ |
 | M06 | Add a product whose lead time would be too long for the existing order date but has available configured capacity. | Admin can add it; affected stock/date/configuration checks still apply. Customer submission cannot make the same lead-time exception. | __________________ |
 | M07 | Increase/decrease quantity of an unchanged configuration after catalog price changes. | Only affected quantity delta changes; saved unit price is retained for that configuration. | __________________ |
-| M08 | Add a new configuration or new product after a catalog price change; click Save changes. Cancel the total confirmation, then try again and confirm. | Checks run automatically. A changed total shows current and new totals before saving; cancellation leaves the saved order unchanged. New configurations use current prices; unchanged configurations retain saved prices. Unchanged totals save without confirmation. | __________________ |
+| M08 | Add a new configuration or new product after a catalog price change; click Save changes. Cancel the total confirmation, then try again and confirm. | Checks run automatically. A changed total opens a styled confirmation showing current and new totals. Keep editing, the close button, or Escape leaves the saved order unchanged. A blank reason is saved as N/A; an entered note is preserved. New configurations use current prices; unchanged configurations retain saved prices. Unchanged totals save without confirmation. | __________________ |
 | M09 | Change pickup to supported delivery on the same date; enter recipient/address and applicable fee. | Delivery details/fee update; same product/date units are counted once, with no release/re-reserve double count. | __________________ |
 | M10 | Make one edit containing both a valid contact change and an impossible quantity/date change. | Entire transaction fails; contact fields and all other previous state remain unchanged. | __________________ |
 | M11 | Edit an unpaid PCT10 order from PHP 1,500.00 to PHP 900.00 product subtotal. | Discount becomes PHP 0.00; unused promo reservation releases. Original and revised subtotal/discount/fee/total are retained in history. | __________________ |
