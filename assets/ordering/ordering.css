@@ -61,3 +61,9 @@
 @media(max-width:380px){.option-choice{gap:8px}.option-choice-controls{flex-direction:column;gap:3px;align-items:flex-end}}
 
 .product-description{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.order-title{flex-wrap:wrap}
+.order-title>div:first-child{min-width:0;max-width:100%}
+.order-reference-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.order-reference-row h1{min-width:0;overflow-wrap:anywhere}
+.order-copy-button{min-height:44px;font-size:12px;padding:10px 14px;white-space:nowrap}
