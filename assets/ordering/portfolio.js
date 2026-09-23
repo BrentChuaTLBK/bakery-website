@@ -107,4 +107,19 @@ root.addEventListener('click', event => {
   lightbox.showModal();
 });
 lightbox.querySelector('button').addEventListener('click', () => lightbox.close());
+// Dismiss only a gesture that starts and ends on the shaded backdrop.
+// Clicking the photo/caption or dragging out of the image keeps it open.
+let backdropPress = false;
+function onBackdrop(event) {
+  if (event.target !== lightbox) return false;
+  const bounds = lightbox.getBoundingClientRect();
+  return event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom;
+}
+lightbox.addEventListener('pointerdown', event => { backdropPress = onBackdrop(event); });
+lightbox.addEventListener('pointercancel', () => { backdropPress = false; });
+lightbox.addEventListener('click', event => {
+  if (backdropPress && onBackdrop(event)) lightbox.close();
+  backdropPress = false;
+});
+lightbox.addEventListener('close', () => { backdropPress = false; });
 void load(true, true);

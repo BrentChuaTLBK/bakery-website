@@ -39,7 +39,7 @@ function response(action, payload) {
 }
 const browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE_PATH || undefined });
 async function context({ role = 'owner', mobile = false } = {}) {
-  const ctx = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 } });
+  const ctx = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, hasTouch: mobile });
   const mock = `export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{user:{id:'fixture-owner'}}}}),onAuthStateChange:()=>{}};
     export async function api(){return ${JSON.stringify({ ...bootstrap, role })}}
     export async function galleryApi(action,payload){const r=await fetch('/test-gallery',{method:'POST',body:JSON.stringify({action,payload})});return r.json()}
@@ -66,6 +66,27 @@ async function context({ role = 'owner', mobile = false } = {}) {
   });
   ctx.on('page', page => page.on('pageerror', error => errors.push(error.message)));
   return ctx;
+}
+async function checkPhotoDismissal(page, mobile = false) {
+  const trigger = page.locator('[data-photo]').first(), lightbox = page.locator('.portfolio-lightbox');
+  await trigger.click();
+  await lightbox.waitFor({state:'visible'});
+  await lightbox.locator('img').click();
+  assert.equal(await lightbox.isVisible(),true,'Clicking a photo keeps it open');
+  const box = await lightbox.boundingBox(), outside = {x:Math.max(1,box.x/2),y:box.y+20};
+  if (!mobile) {
+    const photo = await lightbox.locator('img').boundingBox();
+    await page.mouse.move(photo.x+photo.width/2,photo.y+photo.height/2);
+    await page.mouse.down(); await page.mouse.move(outside.x,outside.y); await page.mouse.up();
+    assert.equal(await lightbox.isVisible(),true,'A drag beginning on the photo does not dismiss it');
+    await page.mouse.click(outside.x,outside.y);
+  } else await page.touchscreen.tap(outside.x,outside.y);
+  await lightbox.waitFor({state:'hidden'});
+  assert.equal(await trigger.evaluate(element=>document.activeElement===element),true,'Focus returns to the opened photo');
+  await trigger.click(); await lightbox.getByRole('button',{name:'Close photo'}).click();
+  await lightbox.waitFor({state:'hidden'});
+  await trigger.click(); await page.keyboard.press('Escape');
+  await lightbox.waitFor({state:'hidden'});
 }
 try {
   const ctx = await context(), page = await ctx.newPage();
@@ -132,6 +153,7 @@ try {
   assert.equal(await publicPage.locator('.portfolio-grid').getByText('Pokémon', { exact: true }).count(), 0);
   await publicPage.locator('[data-photo="0"]').click(); await publicPage.locator('.portfolio-lightbox').waitFor({ state: 'visible' });
   await publicPage.keyboard.press('Escape');
+  await checkPhotoDismissal(publicPage);
   delayQuery = true;
   await publicPage.locator('.portfolio-controls input').fill('Pikachu'); await publicPage.locator('.portfolio-controls button').click();
   await publicPage.locator('.portfolio-controls input').fill('no matches'); await publicPage.locator('.portfolio-controls button').click();
@@ -142,6 +164,7 @@ try {
   await phone.locator('.portfolio-count').filter({ hasText: '24 of 63' }).waitFor();
   assert(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await phone.screenshot({ path: join(output, 'mobile-gallery.png') });
+  await checkPhotoDismissal(phone, true);
   await phone.goto(`${origin}/manage.html`); await phone.locator('[data-view="galleries"]').click();
   await phone.locator('[data-gallery-count]').filter({ hasText: '24 of 65' }).waitFor();
   assert(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -166,6 +189,7 @@ try {
   await pastryPage.locator('.portfolio-category').first().locator('[data-photo]').first().click();
   assert.equal(await pastryPage.locator('.portfolio-lightbox img').getAttribute('src'), `${origin}/photos/pastry-17.webp`);
   await pastryPage.keyboard.press('Escape');
+  await checkPhotoDismissal(pastryPage);
   await pastryPage.screenshot({ path: join(output, 'pastries-desktop.png') });
   await pastryPage.locator('.portfolio-controls select').selectOption('Nori Chips');
   await pastryPage.locator('.portfolio-count').filter({ hasText: '4 photos' }).waitFor();
@@ -176,6 +200,7 @@ try {
   await phone.locator('.portfolio-count').filter({ hasText: '51 photos' }).waitFor();
   assert(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await phone.screenshot({ path: join(output, 'pastries-mobile.png') });
+  await checkPhotoDismissal(phone, true);
   assert.deepEqual(errors, []);
   console.log('PASS gallery uploads, WebP dimensions/bytes, optional fields, upload queue, edit visibility, idempotent imports, role UI, all search results, retry, stale requests, lightbox, grouped pastries without search, all pastry pages, category filtering and mobile layouts');
 } finally { await browser.close(); }
