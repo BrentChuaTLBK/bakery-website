@@ -50,3 +50,17 @@ browser regression. The fixture blocks external requests and never writes live
 orders or sends email. It checks navigation limits, closed dates, keyboard control,
 selection/clearing and restoration. It uses the same Playwright and Chromium
 environment overrides described above.
+
+## Sales chart and gallery photo dismissal
+
+Run `node tests/ui/sales-chart.mjs` to check sales-bar hover, native mobile taps,
+exact paid sales, zero-sales dates, popup positioning, keyboard focus and Escape,
+date-filter changes and dashboard navigation at 1440px, 390px and 320px.
+Screenshots are written to `test-results/sales-chart`. Financial calculations
+remain covered by `npm run test:analytics`.
+
+Run `node tests/ui/galleries.mjs` to check the gallery flows, including backdrop
+clicks and native touch dismissal on both Custom Orders and Pastries. Clicking
+the photo or dragging from it keeps it open; Close and Escape still work, and
+focus returns to the selected gallery photo. Both browser tests use local
+fixtures, block external requests and use the Playwright/browser overrides above.

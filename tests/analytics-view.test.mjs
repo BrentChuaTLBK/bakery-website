@@ -120,7 +120,7 @@ test('sales trend table and chart tooltip count the same paid orders as sales', 
   assert.equal(metric(html, 'orders'), '7', 'The overall order-count card still includes all orders');
   assert.match(trend, /<th scope="col">Paid orders<\/th>/);
   assert.match(trend, /2026-09-16<\/th><td>2<\/td><td>₱260\.00<\/td>/);
-  assert.match(trend, /title="2026-09-16: ₱260\.00 sales, 2 paid orders"/);
+  assert.match(trend, /data-period="2026-09-16" data-sales="₱260\.00" data-orders="2 paid orders"/);
   assert.match(trend, /aria-label="2026-09-16: ₱260\.00 sales, 2 paid orders"/);
   assert.doesNotMatch(trend, /Orders placed|7 paid orders|7 orders placed/);
 });

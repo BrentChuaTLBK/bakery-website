@@ -11,7 +11,8 @@ import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './produc
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=daily-quantities-1';
 import { quantitySelection, quantitySaveRows, quantityStatus } from './daily-quantities.js?v=daily-quantities-1';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=customer-metrics-1';
-import { renderAnalytics } from './analytics-view.js?v=customer-metrics-1';
+import { renderAnalytics } from './analytics-view.js?v=sales-tooltip-1';
+import { bindSalesChart } from './sales-chart.js?v=sales-tooltip-1';
 import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-2';
 import { mountGalleryManager } from './gallery-manager.js?v=explicit-close-1';
 import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=photo-grip-1';
@@ -40,6 +41,7 @@ let catalogOrder = null;
 let editDraft = null;
 let modalReturnFocus = null;
 let promoStatusTimer = null;
+let clearSalesChart = () => {};
 state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
 const visitorPoller = createVisitorPoller({
   fetchReport: websiteVisitorStats,
@@ -147,9 +149,11 @@ async function refresh() {
   render();
 }
 function render() {
+  clearSalesChart();
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
   const views = { overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  clearSalesChart = bindSalesChart($('#workspace'));
   if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=party-gallery-1')).galleryApi(...args), upload });
   if (['packages', 'dessert'].includes(state.view)) {
     const page = state.view === 'dessert' ? 'dessert' : 'party', service = eventPage(page);
