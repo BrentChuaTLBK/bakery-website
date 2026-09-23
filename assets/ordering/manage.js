@@ -395,7 +395,7 @@ function categoriesDialog() { catalogOrderDialog('categories'); }
 
 function categoryDialog(id) {
   const c = state.categories.find(item => item.id === id) || { name: '', sort_order: 0 };
-  showDialog(c.id ? 'Edit category' : 'Add category', `<form data-form="category" data-id="${esc(c.id || '')}">${formError}${input('name', 'Category name', c.name, 'text', 'required maxlength="100"')}${c.id ? `<button type="button" class="button button-quiet" data-action="delete-category" data-id="${esc(c.id)}" ${ownerLocked()}>Remove category</button><p class="help-text">Products remain in your catalog and become uncategorized.</p>` : ''}${actions(c.id ? 'Save category' : 'Add category')}</form>`);
+  showDialog(c.id ? 'Edit category' : 'Add category', `<form data-form="category" data-id="${esc(c.id || '')}">${formError}${input('name', 'Category name', c.name, 'text', 'required maxlength="100"')}${c.id ? `<button type="button" class="button button-quiet" data-action="delete-category" data-id="${esc(c.id)}" ${ownerLocked()}>Remove category</button><p class="help-text">Products remain in your catalog. Those with no other category become Uncategorized.</p>` : ''}${actions(c.id ? 'Save category' : 'Add category')}</form>`);
 }
 function zoneDialog(id) {
   const z = state.zones.find(zone => zone.id === id) || { name: '', description: '', localities: [], fee_cents: 0, active: true };
@@ -592,7 +592,7 @@ async function onAction(button) {
     case 'reorder-products': if (!ownerLocked()) catalogOrderDialog('products'); break;
     case 'new-category': categoryDialog(); break;
     case 'edit-category': categoryDialog(id); break;
-    case 'delete-category': showDialog('Remove category', `<form data-form="delete-category" data-id="${esc(id)}">${formError}<p class="muted">Remove this category? Its products remain in your catalog and become uncategorized.</p>${actions('Remove category')}</form>`); break;
+    case 'delete-category': showDialog('Remove category', `<form data-form="delete-category" data-id="${esc(id)}">${formError}<p class="muted">Remove this category? Products remain in your catalog. Those with no other category become Uncategorized.</p>${actions('Remove category')}</form>`); break;
     case 'add-group': captureProduct(); productDraft.option_groups.push({ id: uid(), label: '', required_count: 1, choices: [{ id: uid(), label: '', surcharge_cents: 0, active: true }] }); renderProductDialog({ preserveScroll: true, focusSelector: `[name="group_label_${productDraft.option_groups.length - 1}"]` }); break;
     case 'remove-group': captureProduct(); productDraft.option_groups.splice(index, 1); renderProductDialog({ preserveScroll: true, focusSelector: productDraft.option_groups.length ? `[name="group_label_${Math.min(index, productDraft.option_groups.length - 1)}"]` : '[data-action="add-group"]' }); break;
     case 'add-choice': captureProduct(); productDraft.option_groups[index].choices.push({ id: uid(), label: '', surcharge_cents: 0, active: true }); renderProductDialog({ preserveScroll: true, focusSelector: `[name="choice_label_${index}_${productDraft.option_groups[index].choices.length - 1}"]` }); break;
