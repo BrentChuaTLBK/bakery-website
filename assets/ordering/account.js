@@ -1,6 +1,6 @@
 import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js';
 import { newsletterRequest } from './newsletter-client.js';
-import { mountNewsletterPreferences } from './newsletter.js?v=welcome-offer-1';
+import { mountNewsletterPreferences } from './newsletter.js?v=welcome-offer-2';
 import { googleSignInEnabled } from './google-signin.js?v=google-1';
 
 const root = document.getElementById('account-root');

@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 export default async function({db,check,state}) {
   const h=state.harness,{as,api,ids,scalar}=h;
-  const migration=await readFile(new URL('../../supabase/migrations/20260923140252_newsletter_welcome_discount.sql',import.meta.url),'utf8');
+  const migration=(await readFile(new URL('../../supabase/migrations/20260923140252_newsletter_welcome_discount.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('../../supabase/migrations/20260923141944_short_newsletter_welcome_codes.sql',import.meta.url),'utf8'));
   // Earlier suites deliberately replay older definitions. Restore the latest.
   await db.exec(migration);
   await db.exec("update tlb.newsletter_events set occurred_at=clock_timestamp()-interval '2 hours' where event='requested'");
@@ -24,7 +24,7 @@ export default async function({db,check,state}) {
   let subscriber;
   await check('only new addresses receive one email-bound welcome code with fixed terms and an exact 30-day lifetime',async()=>{
     subscriber=await signup();const {email,op,promo,saved}=subscriber;
-    assert.match(promo.code,/^WELCOME-[A-F0-9]{16}$/);
+    assert.match(promo.code,/^[A-HJ-NP-Z2-9]{6}$/);assert.match(promo.code,/[A-Z]/);assert.match(promo.code,/[2-9]/);
     assert.equal(promo.value,5);assert.equal(promo.min_subtotal_cents,30000);assert.equal(promo.cap_cents,10000);
     assert.equal(promo.global_limit,1);assert.equal(promo.per_account_limit,1);
     assert.equal(Date.parse(promo.expires_at)-Date.parse(promo.issued_at),30*86400000);

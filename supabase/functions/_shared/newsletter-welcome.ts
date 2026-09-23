@@ -18,13 +18,15 @@ export function renderNewsletterWelcome(payload: any): { html: string; text: str
   let offerText = "", offerHtml = "";
   if (offer) {
     const expires = new Date(offer.expires_at);
-    if (!/^WELCOME-[A-F0-9]{16}$/.test(offer.code || "") || !Number.isFinite(expires.getTime()) || offer.value !== 5 || offer.min_subtotal_cents !== 30000 || offer.cap_cents !== 10000) {
+    if (!/^(?:[A-HJ-NP-Z2-9]{6}|WELCOME-[A-F0-9]{16})$/.test(offer.code || "") || !Number.isFinite(expires.getTime()) || offer.value !== 5 || offer.min_subtotal_cents !== 30000 || offer.cap_cents !== 10000) {
       throw new HttpError(503, "Newsletter welcome discount is invalid.");
     }
     const expiry = new Intl.DateTimeFormat("en-PH", {timeZone:"Asia/Manila",dateStyle:"long",timeStyle:"short"}).format(expires) + " PHT";
-    const terms = "5% off products and option surcharges. Minimum product subtotal ₱300; maximum discount ₱100. Delivery fees are excluded from both the minimum spend and the discount. Valid for 30 days from signup, one use only. Sign in with the email address receiving this message to use your code. One promo code per order.";
-    offerText = `\n\nYour welcome gift: 5% off\n${offer.code}\n\n${terms}\nExpires: ${expiry}`;
-    offerHtml = `<div style="margin:24px 0;padding:20px;background:#fff8f2;border:1px dashed #bda18d;border-radius:8px"><h2 style="margin:0 0 14px;font-size:20px">Your welcome gift: 5% off</h2><p style="font-size:20px;font-weight:bold;letter-spacing:1px;word-break:break-word">${escape(offer.code)}</p><p style="font-size:14px;line-height:1.6">${escape(terms)}</p><p style="font-size:14px;line-height:1.6;margin-bottom:0"><strong>Expires:</strong> ${escape(expiry)}</p></div>`;
+    const terms = [['Valid for','30 days from signup'],['Minimum products','₱300'],['Maximum discount','₱100'],['Limit','one use only']];
+    const delivery = "Applies to products and option surcharges. Delivery fees are excluded from both the minimum spend and the discount.";
+    const account = "Sign in with the email address receiving this message to use your code. One promo code per order.";
+    offerText = `\n\nYour welcome gift: 5% off\n${offer.code}\n\n${terms.map(([label,value])=>`${label}: ${value}`).join('\n')}\n\n${delivery}\n\n${account}\n\nExpires: ${expiry}`;
+    offerHtml = `<div style="margin:24px 0;padding:20px;background:#fff8f2;border:1px dashed #bda18d;border-radius:8px"><h2 style="margin:0 0 14px;font-size:20px">Your welcome gift: 5% off</h2><p style="font-size:28px;font-weight:bold;letter-spacing:3px;word-break:break-word;margin:16px 0 22px">${escape(offer.code)}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.5">${terms.map(([label,value])=>`<tr><td style="padding:9px 10px 9px 0;color:#70584a;border-bottom:1px solid #eedbd2">${escape(label)}</td><td align="right" style="padding:9px 0;font-weight:bold;border-bottom:1px solid #eedbd2">${escape(value)}</td></tr>`).join('')}</table><p style="font-size:13px;line-height:1.6;margin:18px 0 12px">${escape(delivery)}</p><p style="font-size:13px;line-height:1.6;margin:0 0 18px">${escape(account)}</p><p style="font-size:13px;line-height:1.6;margin-bottom:0"><strong>Expires:</strong><br>${escape(expiry)}</p></div>`;
   }
   const footer = [settings.pickup_address, settings.contact_email, settings.contact_phone].filter(Boolean).join(" · ");
   const text = `${shop}\nWelcome to our kitchen!\n\n${message}${offerText}\n\nExplore the menu:\n${menu}\n\nYou can unsubscribe anytime:\n${unsubscribe}\n\n${footer}`;
