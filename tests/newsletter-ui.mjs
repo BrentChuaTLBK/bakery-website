@@ -78,6 +78,8 @@ try {
   let f = await fixture();
   await f.page.goto(origin + '/shop.html'); await advance(f.page);
   await f.page.locator('#newsletter-dialog').waitFor({state:'visible'});
+  const invitation=await f.page.locator('#newsletter-dialog').textContent();
+  for(const term of ['5%','₱300','₱100','30 days','Delivery fees excluded','same email','newsletter subscribers'])assert(invitation.includes(term),'Invitation includes '+term);
   assert.equal(await f.page.evaluate(() => localStorage.getItem('tlb-newsletter-popup-shown')), 'true', 'Mark shown immediately, before dismissal');
   assert.equal(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Popup fits mobile width');
   await mkdir(join(root,'work'),{recursive:true});

@@ -13,10 +13,22 @@ export function renderNewsletterWelcome(payload: any): { html: string; text: str
   const menu = new URL("/shop.html", site).toString();
   const unsubscribe = new URL("/newsletter.html", site);
   unsubscribe.hash = `unsubscribe=${payload.unsubscribe_token}`;
-  const message = "Thanks for subscribing to the TLB newsletter. You’re on the list! We’ll send occasional news about new treats, seasonal menus, and special offers.";
+  const message = "Thanks for subscribing to the TLB newsletter. You’re on the list! Stay tuned for new treats, seasonal menus, and more discount codes exclusively for our newsletter subscribers.";
+  const offer = payload.welcome_offer;
+  let offerText = "", offerHtml = "";
+  if (offer) {
+    const expires = new Date(offer.expires_at);
+    if (!/^WELCOME-[A-F0-9]{16}$/.test(offer.code || "") || !Number.isFinite(expires.getTime()) || offer.value !== 5 || offer.min_subtotal_cents !== 30000 || offer.cap_cents !== 10000) {
+      throw new HttpError(503, "Newsletter welcome discount is invalid.");
+    }
+    const expiry = new Intl.DateTimeFormat("en-PH", {timeZone:"Asia/Manila",dateStyle:"long",timeStyle:"short"}).format(expires) + " PHT";
+    const terms = "5% off products and option surcharges. Minimum product subtotal ₱300; maximum discount ₱100. Delivery fees are excluded from both the minimum spend and the discount. Valid for 30 days from signup, one use only. Sign in with the email address receiving this message to use your code. One promo code per order.";
+    offerText = `\n\nYour welcome gift: 5% off\n${offer.code}\n\n${terms}\nExpires: ${expiry}`;
+    offerHtml = `<div style="margin:24px 0;padding:20px;background:#fff8f2;border:1px dashed #bda18d;border-radius:8px"><h2 style="margin:0 0 14px;font-size:20px">Your welcome gift: 5% off</h2><p style="font-size:20px;font-weight:bold;letter-spacing:1px;word-break:break-word">${escape(offer.code)}</p><p style="font-size:14px;line-height:1.6">${escape(terms)}</p><p style="font-size:14px;line-height:1.6;margin-bottom:0"><strong>Expires:</strong> ${escape(expiry)}</p></div>`;
+  }
   const footer = [settings.pickup_address, settings.contact_email, settings.contact_phone].filter(Boolean).join(" · ");
-  const text = `${shop}\nWelcome to our kitchen!\n\n${message}\n\nExplore the menu:\n${menu}\n\nYou can unsubscribe anytime:\n${unsubscribe}\n\n${footer}`;
-  const html = `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome to the TLB newsletter</title></head><body style="margin:0;background:#fff8f2;font-family:Arial,sans-serif;color:#342320"><table role="presentation" width="100%" style="padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" style="max-width:560px;background:white;border:1px solid #eedbd2;border-radius:12px"><tr><td style="padding:28px"><p style="color:#af4947;font-weight:bold">${escape(shop)}</p><h1 style="font-size:26px;line-height:1.25">Welcome to our kitchen!</h1><p style="line-height:1.6">${escape(message)}</p><p style="margin:28px 0"><a href="${escape(menu)}" style="background:#af4947;color:#fff;padding:13px 20px;text-decoration:none;border-radius:6px;display:inline-block">Explore the menu</a></p><p style="font-size:13px;line-height:1.6">You can <a href="${escape(unsubscribe.toString())}" style="color:#714029">unsubscribe anytime</a>.</p><p style="font-size:12px;color:#695955;line-height:1.5">${escape(footer)}</p></td></tr></table></td></tr></table></body></html>`;
+  const text = `${shop}\nWelcome to our kitchen!\n\n${message}${offerText}\n\nExplore the menu:\n${menu}\n\nYou can unsubscribe anytime:\n${unsubscribe}\n\n${footer}`;
+  const html = `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome to the TLB newsletter</title></head><body style="margin:0;background:#fff8f2;font-family:Arial,sans-serif;color:#342320"><table role="presentation" width="100%" style="padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" style="max-width:560px;background:white;border:1px solid #eedbd2;border-radius:12px"><tr><td style="padding:28px"><p style="color:#af4947;font-weight:bold">${escape(shop)}</p><h1 style="font-size:26px;line-height:1.25">Welcome to our kitchen!</h1><p style="line-height:1.6">${escape(message)}</p>${offerHtml}<p style="margin:28px 0"><a href="${escape(menu)}" style="background:#af4947;color:#fff;padding:13px 20px;text-decoration:none;border-radius:6px;display:inline-block">Explore the menu</a></p><p style="font-size:13px;line-height:1.6">You can <a href="${escape(unsubscribe.toString())}" style="color:#714029">unsubscribe anytime</a>.</p><p style="font-size:12px;color:#695955;line-height:1.5">${escape(footer)}</p></td></tr></table></td></tr></table></body></html>`;
   return { html, text };
 }
 
