@@ -1,5 +1,7 @@
 import {accountingTotals, monthRange, parseAccountingAmount} from './accounting.js?v=accounting-1';
-import {exportAccounting} from './accounting-export.js?v=accounting-1';
+import {exportAccounting} from './accounting-export.js?v=accounting-filter-1';
+import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=accounting-calendar-1';
+import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
 
 export function mountAccounting(root, {api, role, connected, money, escapeHtml: esc, today, filters, openOrder}) {
   if (!root) return;
@@ -7,12 +9,12 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
   const $ = selector => root.querySelector(selector);
   let report = null, loadId = 0, page = 0, draft = null, categoryDraft = null;
   const opt = (value,text,selected) => `<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(text)}</option>`;
-  const field = (name,label,value='',type='text',attrs='') => `<label class="field">${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
+  const field = (name,label,value='',type='text',attrs='') => ['date','month'].includes(type) ? accountingDatePicker(name,label,value,today,{mode:type}) : `<label class="field">${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
   const selection = (name,label,options) => `<label class="field">${label}<select name="${name}">${options}</select></label>`;
   const error = '<p class="form-error" role="alert"></p>';
   root.innerHTML=`<div class="view-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>Accounting</h1><p>Sales, expenses and delivery costs, together in one place.</p></div><div class="row-actions"><button class="button button-secondary" data-accounting="refresh">Refresh</button><button class="button button-secondary" data-accounting="export" disabled>Export to Excel</button><button class="button" data-accounting="add" disabled>Add entry</button></div></div>
     <form class="panel accounting-filters">${field('month','Choose a month',filters.start.slice(0,7),'month')}${field('start','From date',filters.start,'date','required')}${field('end','Through date',filters.end,'date','required')}<button class="button" type="submit">Apply timeframe</button>${error}</form>
-    <p class="help-text">Website sales use the payment approval date. Later order changes and refunds appear as adjustments on the date of change. All dates use Manila time.</p>
+    <p class="help-text">Only paid, confirmed orders and orders being prepared or already fulfilled are included. Cancelled and refunded orders are excluded entirely, including discounts and delivery costs. All dates use Manila time.</p>
     <p class="notice accounting-message" role="status" hidden></p><section class="panel accounting-editor" hidden></section>
     <div class="accounting-report"><p>Loading accounting…</p></div>
     <section class="panel accounting-categories"><details><summary>Manage categories</summary><p class="help-text">Create separate categories for your manual sales and expenses. Automatic website categories are kept separate.</p><div class="accounting-category-form"></div></details></section>`;
@@ -29,7 +31,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       ${t.missingCosts?`<p class="notice">${t.missingCosts} delivery order${t.missingCosts===1?' needs':'s need'} an actual cost. The overall total will change when these expenses are recorded.</p>`:''}
       ${report.legacy_count?'<p class="notice">Some older orders had no detailed change history. Their current saved amounts were imported on the payment approval date.</p>':''}
       <section class="panel accounting-records"><div class="section-heading"><h2>Accounting entries</h2><span class="badge">${rows.length} entries</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Category / details</th><th>Source</th><th>Sales / income</th><th>Expense</th><th>Actions</th></tr></thead><tbody>${rows.slice(page*50,(page+1)*50).map(e=>{const c=cats.get(e.category_id);return `<tr><td>${esc(e.entry_date)}</td><td><strong>${esc(c?.name)}</strong><small class="accounting-note">${esc(e.note)}</small>${e.reference?`<button class="button button-quiet" data-accounting="order" data-id="${esc(e.order_id)}">${esc(e.reference)}</button>`:''}</td><td>${esc(e.source)}</td><td>${c?.kind==='sale'?money(e.amount_cents):'—'}</td><td>${c?.kind==='expense'?money(e.amount_cents):'—'}</td><td>${e.source==='Manual'?`<button class="button button-quiet" data-accounting="edit" data-id="${esc(e.id)}">Edit</button><button class="button button-quiet" data-accounting="delete" data-id="${esc(e.id)}">Remove</button><button class="button button-quiet" data-accounting="history" data-id="${esc(e.id)}">History</button>`:e.source==='Delivery cost'?'<span class="muted">Edit in order</span>':'<span class="muted">Automatic</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6">No entries in this timeframe.</td></tr>'}</tbody></table></div>
-      ${rows.length>50?`<div class="row-actions accounting-pagination"><button class="button button-secondary" data-accounting="previous" ${page===0?'disabled':''}>Previous</button><span>Page ${page+1} of ${Math.ceil(rows.length/50)}</span><button class="button button-secondary" data-accounting="next" ${(page+1)*50>=rows.length?'disabled':''}>Next</button></div>`:''}<p class="help-text">Excel includes all entries in the selected timeframe, across every page. Negative automatic entries reverse earlier sales, fees or discounts.</p><div class="accounting-history"></div></section>
+      ${rows.length>50?`<div class="row-actions accounting-pagination"><button class="button button-secondary" data-accounting="previous" ${page===0?'disabled':''}>Previous</button><span>Page ${page+1} of ${Math.ceil(rows.length/50)}</span><button class="button button-secondary" data-accounting="next" ${(page+1)*50>=rows.length?'disabled':''}>Next</button></div>`:''}<p class="help-text">Excel includes all entries in the selected timeframe, across every page. Negative automatic entries adjust earlier amounts for included orders.</p><div class="accounting-history"></div></section>
       <section class="panel"><div class="section-heading"><h2>Delivery comparison</h2><span class="badge">${report.deliveries.length} orders</span></div><p class="help-text">Orders paid in this timeframe. Costs are expenses on their cost date. Difference for orders with a recorded cost: <strong>${money(t.deliveryDifference)}</strong>.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Customer fee collected</th><th>Actual delivery cost</th><th>Difference</th></tr></thead><tbody>${report.deliveries.map(d=>`<tr><td><button class="button button-quiet" data-accounting="order" data-id="${esc(d.order_id)}">${esc(d.reference)}</button>${d.refund_label||['cancelled','expired'].includes(d.status)?'<small class="accounting-note">Sales reversed</small>':''}</td><td>${money(d.fee_cents)}</td><td>${d.cost_cents===null?'Not recorded':money(d.cost_cents)}</td><td>${d.cost_cents===null?'—':money(d.fee_cents-d.cost_cents)}</td></tr>`).join('')||'<tr><td colspan="4">No delivery orders in this timeframe.</td></tr>'}</tbody></table></div></section>`;
   }
   function renderCategories(selected='') {
@@ -62,7 +64,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     } catch(e) {if(request===loadId&&root.isConnected){report=null;$('.accounting-report').innerHTML='<p class="notice">Accounting could not load. Please refresh to try again.</p>';message(e.message,true);}}
   }
   root.addEventListener('change',e=>{
-    if(e.target.name==='month'){try{const range=monthRange(e.target.value);$('.accounting-filters [name=start]').value=range.start;$('.accounting-filters [name=end]').value=range.end;}catch(error){message(error.message,true);}}
+    if(e.target.name==='month'){try{const range=monthRange(e.target.value);setAccountingDate($('.accounting-filters'),'start',range.start);setAccountingDate($('.accounting-filters'),'end',range.end);}catch(error){message(error.message,true);}}
     if(e.target.closest('.accounting-entry-form')){if(e.target.name==='kind')updateCategoryOptions();if(e.target.name==='category_id')syncNewCategory();}
     if(e.target.name==='existing')renderCategories(e.target.value);
   });
@@ -76,7 +78,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     try {
       const f=new FormData(form);
       if(form.classList.contains('accounting-filters')) {
-        if(f.get('start')>f.get('end'))throw Error('The end date must be on or after the start date.');
+        if(!isCalendarDate(f.get('start'))||!isCalendarDate(f.get('end'))||f.get('start')>f.get('end'))throw Error('The end date must be on or after the start date.');
         filters.start=f.get('start');filters.end=f.get('end');page=0;message('');await load();
       } else if(form.classList.contains('accounting-category-editor')) {
         await api('accounting_save_category',{id:categoryDraft.id,revision:categoryDraft.revision,name:f.get('name'),kind:categoryDraft.revision?categoryDraft.kind:f.get('kind'),archived:f.has('archived')});
@@ -105,7 +107,13 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     root.dataset.busy='true';button.disabled=true;
     try{
       if(action==='refresh'){message('');await load();}
-      if(action==='export'&&report){await exportAccounting(structuredClone(report));message('Excel file downloaded.');}
+      if(action==='export'&&report){
+        // Recheck order eligibility immediately before export, using the loaded
+        // timeframe rather than any unapplied date-picker edits.
+        const fresh=await api('accounting_report',{start:report.start,end:report.end});
+        if(!root.isConnected)return;
+        report=fresh;renderReport();await exportAccounting(structuredClone(fresh));message('Excel file downloaded.');
+      }
       if(action==='order')await openOrder(button.dataset.id);
       if(action==='delete'){
         const entry=report.entries.find(e=>e.id===button.dataset.id);
@@ -119,16 +127,18 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       }
     }catch(e){message(e.message,true);}finally{root.dataset.busy='false';button.disabled=false;}
   });
+  bindAccountingDates(root);
   load();
 }
 
 export async function mountDeliveryAccounting(root, order, {api, money, escapeHtml:esc, today}) {
   if(!root)return;
   root.innerHTML='<p class="help-text">Loading delivery accounting…</p>';
+  bindAccountingDates(root);
   let saved,revision;
   const fee=order.payment_status==='paid'&&!order.refund_label&&!['cancelled','expired'].includes(order.fulfillment_status)?Number(order.delivery_cents||0):0;
   function render() {
-    root.innerHTML=`<h3>Delivery accounting · owner only</h3><p>Customer delivery fee collected: <strong>${money(fee)}</strong>${order.payment_status!=='paid'?' · Payment not approved yet.':''}</p><form class="delivery-accounting-form"><div class="field-row"><label class="field">Actual delivery cost · PHP<input name="amount" type="number" step="0.01" min="0" max="9999999.99" inputmode="decimal" placeholder="Not recorded" value="${saved?.amount_cents==null?'':(saved.amount_cents/100).toFixed(2)}"><small>Leave blank if unknown. Enter 0 if delivery cost nothing.</small></label><label class="field">Cost date<input name="cost_date" type="date" value="${esc(saved?.cost_date||today)}" required></label></div><label class="field">Notes · optional<input name="note" maxlength="2000" value="${esc(saved?.note||'')}"></label><p class="delivery-difference"></p><p class="form-error" role="alert"></p><div class="row-actions"><button class="button button-secondary" type="submit">Save delivery cost</button><button class="button button-quiet" type="button" data-delivery-refresh>Refresh cost</button></div><p class="delivery-save-status" role="status"></p></form>`;
+    root.innerHTML=`<h3>Delivery accounting · owner only</h3><p>Customer delivery fee collected: <strong>${money(fee)}</strong>${order.payment_status!=='paid'?' · Payment not approved yet.':''}</p><form class="delivery-accounting-form"><div class="field-row"><label class="field">Actual delivery cost · PHP<input name="amount" type="number" step="0.01" min="0" max="9999999.99" inputmode="decimal" placeholder="Not recorded" value="${saved?.amount_cents==null?'':(saved.amount_cents/100).toFixed(2)}"><small>Leave blank if unknown. Enter 0 if delivery cost nothing.</small></label>${accountingDatePicker('cost_date','Cost date',saved?.cost_date||today,today)}</div><label class="field">Notes · optional<input name="note" maxlength="2000" value="${esc(saved?.note||'')}"></label><p class="delivery-difference"></p><p class="form-error" role="alert"></p><div class="row-actions"><button class="button button-secondary" type="submit">Save delivery cost</button><button class="button button-quiet" type="button" data-delivery-refresh>Refresh cost</button></div><p class="delivery-save-status" role="status"></p></form>`;
     compare();
   }
   function compare() {try{const value=parseAccountingAmount(root.querySelector('[name=amount]').value,true);root.querySelector('.delivery-difference').textContent=value===null?'Difference: waiting for actual cost.':`Difference: ${money(fee-value)}${fee-value<0?' · You cover the shortfall.':''}`;}catch{root.querySelector('.delivery-difference').textContent='Enter a valid cost to compare.';}}
@@ -139,7 +149,7 @@ export async function mountDeliveryAccounting(root, order, {api, money, escapeHt
   root.addEventListener('submit',async event=>{
     event.preventDefault();event.stopPropagation();const form=event.target;if(form.dataset.busy==='true'||!form.reportValidity())return;
     form.dataset.busy='true';const button=form.querySelector('[type=submit]');button.disabled=true;form.querySelector('.form-error').textContent='';
-    try{const f=new FormData(form);saved=await api('accounting_save_delivery',{order_id:order.id,order_revision:revision,revision:saved?.revision||0,amount_cents:parseAccountingAmount(f.get('amount'),true),cost_date:f.get('cost_date'),note:f.get('note')});if(root.isConnected)form.querySelector('.delivery-save-status').textContent='Delivery cost saved to accounting.';document.querySelector('#accounting-manager')?.dispatchEvent(new Event('accounting-refresh'));}
+    try{const f=new FormData(form);saved=await api('accounting_save_delivery',{order_id:order.id,order_revision:revision,revision:saved?.revision||0,amount_cents:parseAccountingAmount(f.get('amount'),true),cost_date:f.get('cost_date'),note:f.get('note')});if(root.isConnected)form.querySelector('.delivery-save-status').textContent=order.refund_label||['cancelled','expired'].includes(order.fulfillment_status)?'Delivery cost saved. This order is excluded from accounting.':'Delivery cost saved to accounting.';document.querySelector('#accounting-manager')?.dispatchEvent(new Event('accounting-refresh'));}
     catch(e){form.querySelector('.form-error').textContent=e.message;}
     finally{form.dataset.busy='false';button.disabled=false;}
   });
