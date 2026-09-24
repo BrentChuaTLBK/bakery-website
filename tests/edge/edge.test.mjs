@@ -44,6 +44,26 @@ const payload = event => ({ event_type: event, order: {
   history: [{ action: 'payment_rejected', reason: 'Reference did not match' }],
 }, settings: { site_url: 'https://preview.test', shop_name: 'TLB Kitchen', payment_instructions: 'Test instructions', contact_email: 'help@test.invalid', pickup_address: 'Test location' } });
 
+test('pickup follow-up emails contain the friendly reminder, saved pickup details and private order link', () => {
+  const message=payload('pickup_reminder');
+  message.order.pickup_address='Saved pickup location';
+  message.order.pickup_hours='9 AM–6 PM';
+  message.order.pickup_instructions='Ask for the kitchen\nBring your order number';
+  const result=renderEmail(message);
+  for(const output of [result.html,result.text]) {
+    assert.match(output,/Reminder: your order is ready for pickup/);
+    assert.match(output,/friendly reminder/);
+    assert.match(output,/Saved pickup location/);
+    assert.match(output,/9 AM–6 PM/);
+    assert.match(output,/Ask for the kitchen/);
+    assert.match(output,/TLB-TEST/);
+    assert.match(output,/shop\.html#order=/);
+    assert.doesNotMatch(output,/scheduled for today|Payment instructions:/);
+  }
+  assert.doesNotMatch(result.html,/<script>unsafe/);
+  assert.match(result.html,/Ask for the kitchen<br>Bring your order number/);
+});
+
 test('file contents determine type; forged, unsupported and oversized input is rejected', () => {
   assert.equal(imageType(png).mime, 'image/png');
   for (const invalid of [new TextEncoder().encode('%PDF-1.4'), new TextEncoder().encode('<svg></svg>'), png.slice(0, 12)]) {

@@ -94,6 +94,10 @@ export function renderEmail(payload: any): { html: string; text: string } {
       heading = "Your order is ready for pickup";
       message = "Our team has marked your order ready for pickup. Please follow the pickup instructions below.";
       break;
+    case "pickup_reminder":
+      heading = "Reminder: your order is ready for pickup";
+      message = "Just a friendly reminder that your order is ready and waiting for pickup. Please collect it during our pickup hours, or contact us if you need help arranging collection. We look forward to seeing you!";
+      break;
     case "out_for_delivery":
       heading = "Your order is out for delivery";
       message = "Our team has marked your order out for delivery. An exact arrival time is not guaranteed. Contact us if you have questions.";
