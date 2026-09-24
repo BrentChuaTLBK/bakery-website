@@ -58,6 +58,7 @@
 .analytics-chart-tooltip[hidden]{display:none}
 .analytics-chart-tooltip span,.analytics-chart-tooltip small{display:block;font-size:11px;color:var(--muted)}
 .analytics-chart-tooltip strong{display:block;font-size:21px;font-variant-numeric:tabular-nums;margin:3px 0}
+.pickup-reminder{margin:0 0 22px}.pickup-reminder .row-actions{margin:12px 0}.pickup-reminder .help-text{font-size:11px}
 .analytics-chart-axis{display:flex;justify-content:space-between;gap:14px;font-size:10px;color:var(--muted);padding:10px 0 16px}
 .analytics-numbers{font-size:11px;border-top:1px solid var(--line);padding-top:12px}
 .analytics-numbers summary{cursor:pointer;color:var(--caramel);padding:5px 0}
