@@ -5,7 +5,9 @@ and customers cannot read or write accounting data, including actual courier
 costs. Data stays behind the existing shop API; private tables have RLS enabled
 and no browser or service-role grants.
 
-Choose a month, or enter any **From date / Through date** and apply the timeframe.
+Choose a month, or choose **From date / Through date** in the branded calendars
+and apply the timeframe. The same calendar controls are used for manual-entry
+and delivery-cost dates, with month/year navigation and keyboard support.
 Both endpoints are inclusive and use Asia/Manila dates. A summary shows sales
 and income by category, expenses by category, and income less recorded expenses.
 This is a management record of saved order amounts and manual entries; changes
@@ -16,10 +18,15 @@ in paid order value still need their actual customer settlement handled separate
 - **Website sales:** product subtotal before discounts, on payment approval date.
 - **Discounts:** a separate expense, so the discount is subtracted only once.
 - **Delivery fees:** a separate income category.
-- Later amount changes append their differences on the change date. Cancellation
-  or a full Refund label reverses previously recorded sales, discounts and fees.
-  A cancellation plus a Refund label cannot reverse the same amounts twice.
-  Removing a Refund label restores the amounts only if the order is still eligible.
+- Only paid orders in Confirmed, Preparing, Ready for pickup, Out for delivery or
+  Completed status appear. A Refund label excludes the order regardless of status.
+  Cancelled, expired and unconfirmed orders are excluded entirely: original entries,
+  reversal entries, discounts, delivery fees and actual courier costs. This applies
+  even when the selected timeframe is earlier than the cancellation or refund.
+- Later amount changes for eligible orders append their differences on the change
+  date. Internal audit records remain saved, but excluded orders do not contribute
+  to reports or Excel. Removing a Refund label restores inclusion only if the order
+  is still paid and in an eligible fulfillment status.
 - Existing paid orders are imported from their approval records and saved change
   history. An older order without history uses its current amounts on approval
   date and is disclosed in the dashboard. Reapplying the migration does not import twice.
@@ -33,11 +40,12 @@ Open an order and expand **Delivery accounting**. Enter the actual courier cost,
 its date and an optional note. The comparison shows the customer fee less the
 actual cost, including a shortfall when the shop pays more. A blank cost is
 unknown; zero means no cost. Costs appear as **Delivery costs** expenses on the
-entered cost date. Previously incurred costs remain even if an order is refunded,
-cancelled or switched to pickup. Saving a cost does not alter the customer-facing
-order, payment, fulfillment or stock.
+entered cost date for eligible orders only. Cancelled or refunded orders' costs
+are excluded from accounting, even if already incurred. Their saved cost records
+remain available privately in order details. Saving a cost does not alter the
+customer-facing order, payment, fulfillment or stock.
 
-The comparison lists orders whose payments were approved in the selected range.
+The comparison lists eligible orders whose payments were approved in the selected range.
 Their cost date may be outside that range; only costs dated inside the range
 appear in that range's expense total. Missing costs are counted separately.
 
@@ -57,7 +65,9 @@ overwriting newer ones; retrying a completed save does not duplicate an entry.
 
 **Export to Excel** downloads a real `.xlsx` workbook with the loaded timeframe,
 a Summary worksheet, one worksheet per category, and a Delivery comparison.
-Exports include all matching entries, beyond the dashboard's 50-row pages.
+Exports refresh eligibility before downloading and include all matching entries,
+beyond the dashboard's 50-row pages. Cancelled and refunded orders are excluded
+from every worksheet, summary, expense total and delivery comparison.
 Amounts are numeric PHP values, dates are real dates, and totals use formulas
 with cached results. Category names are made Excel-safe and unique; notes remain
 literal text, including text beginning with `=`. All workbook data is processed

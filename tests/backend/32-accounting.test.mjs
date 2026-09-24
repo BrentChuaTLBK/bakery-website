@@ -67,7 +67,7 @@ export default async function({db,check,state}) {
     const count=await counts(o.id);await h.action('set_refund_label',cancelled,{enabled:true});assert.equal(await counts(o.id),count,'Cancel plus refund cannot reverse twice');
   })();
 
-  await check('delivery costs preserve blank versus zero, shortfall, date, audit and order state through refunds',async()=>{
+  await check('delivery costs preserve blank versus zero and saved records while refunded orders leave accounting',async()=>{
     const {o}=await newOrder();const paid=await h.action('approve_payment',o);
     const before=await h.order(o.id);let cost=await call('get_delivery',{order_id:o.id});assert.equal(cost.cost,null);
     const payload={order_id:o.id,order_revision:before.revision,revision:0,cost_date:today,amount_cents:22550,note:'Courier fixture'};
@@ -83,7 +83,8 @@ export default async function({db,check,state}) {
     assert.equal((await report()).entries.some(e=>e.id===o.id&&e.source==='Delivery cost'),false);
     await call('save_delivery',{...payload,revision:3});
     await h.action('set_refund_label',paid,{enabled:true});
-    assert.equal((await report()).entries.find(e=>e.id===o.id&&e.source==='Delivery cost').amount_cents,22550,'A refund does not erase actual courier spending');
+    assert.equal((await report()).entries.some(e=>e.id===o.id&&e.source==='Delivery cost'),false,'Refunded delivery expenses are excluded');
+    assert.equal((await call('get_delivery',{order_id:o.id})).cost.amount_cents,22550,'Saved cost remains available in the private order record');
     await assert.rejects(call('save_delivery',{...payload,revision:4,amount_cents:10}),/order changed/i);
   })();
 
@@ -103,11 +104,12 @@ export default async function({db,check,state}) {
     await db.query("update tlb.history set at=case when action='approve_payment' then '2024-02-29T16:30:00Z'::timestamptz else '2024-03-03T01:00:00Z'::timestamptz end where order_id=$1 and after_data->>'payment_status'='paid'",[o.id]);
     await db.query('delete from tlb.accounting_ledger where order_id=$1',[o.id]);await db.query('delete from tlb.accounting_order_state where order_id=$1',[o.id]);
     const migration=await readFile(new URL('../../supabase/migrations/20260924180843_owner_accounting.sql',import.meta.url),'utf8');
-    await db.exec(migration);
+    const eligibility=await readFile(new URL('../../supabase/migrations/20260924184817_accounting_eligible_orders.sql',import.meta.url),'utf8');
+    await db.exec(migration);await db.exec(eligibility);
     const dates=(await db.query('select entry_date::text,amount_cents::int from tlb.accounting_ledger where order_id=$1 order by entry_date',[o.id])).rows;
     assert.deepEqual(dates,[{entry_date:'2024-03-01',amount_cents:10000},{entry_date:'2024-03-03',amount_cents:-10000}]);
-    const count=await counts(o.id);await db.exec(migration);assert.equal(await counts(o.id),count);
-    assert.equal((await call('report',{start:'2024-03-01',end:'2024-03-01'})).entries.find(e=>e.order_id===o.id).amount_cents,10000);
-    assert.equal((await call('report',{start:'2024-03-03',end:'2024-03-03'})).entries.find(e=>e.order_id===o.id).amount_cents,-10000);
+    const count=await counts(o.id);await db.exec(migration);await db.exec(eligibility);assert.equal(await counts(o.id),count);
+    assert.equal((await call('report',{start:'2024-03-01',end:'2024-03-01'})).entries.some(e=>e.order_id===o.id),false);
+    assert.equal((await call('report',{start:'2024-03-03',end:'2024-03-03'})).entries.some(e=>e.order_id===o.id),false);
   })();
 }
