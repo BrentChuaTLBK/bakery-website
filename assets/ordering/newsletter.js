@@ -53,7 +53,7 @@ function formMarkup(source, id, email = '') {
   return `<form class="newsletter-form" data-newsletter-form data-source="${source}">
     <label class="newsletter-field" for="${id}-email">Email address<input id="${id}-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="you@example.com" value="${escape(email)}" required></label>
     <div class="newsletter-trap" aria-hidden="true"><label>Leave this field empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
-    <button class="newsletter-button" type="submit">Subscribe & get 5% off</button>
+    <button class="newsletter-button" type="submit">Subscribe & get 5% OFF</button>
     <p class="newsletter-fine">By subscribing, you agree to receive occasional TLB emails about new treats, seasonal menus, and special offers. Unsubscribe anytime.</p>
     <p class="newsletter-status" data-newsletter-status role="status" hidden></p>
   </form>`;
@@ -219,7 +219,7 @@ async function setupShopPopup() {
       dialog.className = 'newsletter-dialog'; dialog.id = 'newsletter-dialog';
       dialog.setAttribute('aria-labelledby', 'newsletter-popup-title');
       dialog.setAttribute('aria-describedby', 'newsletter-popup-copy');
-      dialog.innerHTML = `<button class="newsletter-close" type="button" aria-label="Close newsletter invitation">×</button><img class="newsletter-mark" src="assets/img/brands/Hat.png" alt=""><p class="newsletter-eyebrow">The TLB Newsletter</p><h2 class="newsletter-title" id="newsletter-popup-title">Get <strong>5% off</strong> your next order</h2><p class="newsletter-copy" id="newsletter-popup-copy">New subscribers get a welcome code by email. Stay tuned for more offers exclusively for newsletter subscribers.</p>${formMarkup('shop_popup', 'newsletter-popup', user?.email || '')}<button class="newsletter-button newsletter-button-secondary" type="button" data-newsletter-dismiss>Maybe later</button>`;
+      dialog.innerHTML = `<button class="newsletter-close" type="button" aria-label="Close newsletter invitation">×</button><img class="newsletter-mark" src="assets/img/brands/Hat.png" alt=""><p class="newsletter-eyebrow">The TLB Newsletter</p><h2 class="newsletter-title" id="newsletter-popup-title">Get <strong>5% OFF</strong> your next order</h2><p class="newsletter-copy" id="newsletter-popup-copy">New subscribers get a welcome code by email. Stay tuned for more offers exclusively for newsletter subscribers.</p>${formMarkup('shop_popup', 'newsletter-popup', user?.email || '')}<button class="newsletter-button newsletter-button-secondary" type="button" data-newsletter-dismiss>Maybe later</button>`;
       document.body.append(dialog);
       mountNewsletterForms(dialog);
       dialog.querySelector('.newsletter-close').onclick = () => dialog.close();
