@@ -80,7 +80,7 @@ try {
   await f.page.locator('#newsletter-dialog').waitFor({state:'visible'});
   const invitation=await f.page.locator('#newsletter-dialog').textContent();
   for(const term of ['5%','welcome code by email','newsletter subscribers'])assert(invitation.includes(term),'Invitation includes '+term);
-  assert.equal(await f.page.locator('#newsletter-popup-title strong').textContent(),'5% off');
+  assert.equal(await f.page.locator('#newsletter-popup-title strong').textContent(),'5% OFF');
   assert.equal(await f.page.locator('#newsletter-dialog .newsletter-offer-terms').count(),0);
   assert.equal(await f.page.locator('#newsletter-popup-title strong').evaluate(el=>Number(getComputedStyle(el).fontWeight)>=700),true);
   assert.equal(await f.page.evaluate(() => localStorage.getItem('tlb-newsletter-popup-shown')), 'true', 'Mark shown immediately, before dismissal');
