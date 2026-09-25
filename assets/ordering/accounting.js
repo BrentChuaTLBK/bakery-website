@@ -1,3 +1,5 @@
+export const accountingPaymentMethods = {gcash: 'GCash', cash: 'Cash', bank_transfer: 'Bank Transfer'};
+
 export function accountingTotals(report) {
   const summary = report.summary || [];
   const sales = summary.filter(c => c.kind === 'sale').reduce((n, c) => n + Number(c.amount_cents), 0);

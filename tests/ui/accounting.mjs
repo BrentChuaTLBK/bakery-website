@@ -7,6 +7,7 @@ const root=resolve(import.meta.dirname,'../..'),origin='https://accounting.test'
 const libraryPath=process.env.EXCELJS_TEST_PATH||join(root,'work/exceljs-4.4.0.min.cjs');
 const ExcelJS=require(libraryPath);
 const order={id:'delivery',reference:'TLB-A2B3C4',revision:3,created_at:'2026-09-24T01:00:00Z',fulfillment_date:'2026-09-25',method:'delivery',payment_status:'paid',fulfillment_status:'out_for_delivery',buyer:{name:'Test Customer',email:'customer@example.test',phone:'09171234567'},recipient:{name:'Test Customer'},items:[{name:'Nori',quantity:1,unit_price_cents:100000,line_total_cents:100000}],history:[],subtotal_cents:100000,total_cents:110000,discount_cents:5000,delivery_cents:15000,paid_amount_cents:110000};
+const pickup={...order,id:'pickup',reference:'TLB-P1C2K3',method:'pickup',fulfillment_status:'confirmed',delivery_cents:0,total_cents:95000,paid_amount_cents:95000};
 const cats=[{id:'website',name:'Website sales',kind:'sale',system_key:'website',revision:1},{id:'discount',name:'Discounts',kind:'expense',system_key:'discount',revision:1},{id:'fee',name:'Delivery fees',kind:'sale',system_key:'delivery_fee',revision:1},{id:'cost',name:'Delivery costs',kind:'expense',system_key:'delivery_cost',revision:1},{id:'cakes',name:'Custom cakes',kind:'sale',revision:1}];
 const initial=[{id:'1',category_id:'website',entry_date:'2026-09-24',amount_cents:100000,note:'Payment approved',source:'Website',order_id:'delivery',reference:order.reference},{id:'2',category_id:'discount',entry_date:'2026-09-24',amount_cents:5000,note:'Payment approved',source:'Website',order_id:'delivery'},{id:'3',category_id:'fee',entry_date:'2026-09-24',amount_cents:15000,note:'Payment approved',source:'Website',order_id:'delivery'},{id:'4',category_id:'cakes',entry_date:'2026-09-24',amount_cents:250000,note:'Celebration cake',source:'Manual',revision:1}];
 const client=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=client.slice(client.indexOf('export function money('));
@@ -37,8 +38,8 @@ try{
    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
    if(url.pathname==='/fixture-api'){
     const {action,payload}=route.request().postDataJSON();calls.push({action,payload});let response;
-    if(action==='admin_bootstrap')response={role,products:[],categories:[],orders:[order],inventory:[],zones:[],staff:[],promos:[],settings:{paused:false}};
-    else if(action==='get_order')response=order;
+    if(action==='admin_bootstrap')response={role,products:[],categories:[],orders:[order,pickup],inventory:[],zones:[],staff:[],promos:[],settings:{paused:false}};
+    else if(action==='get_order')response=payload.order_id===pickup.id?pickup:order;
     else if(action==='accounting_report'){
      const all=[...entries,...(cost?.amount_cents!=null?[{id:order.id,category_id:'cost',entry_date:cost.cost_date,amount_cents:cost.amount_cents,note:cost.note,source:'Delivery cost',order_id:order.id,reference:order.reference}]:[])].filter(e=>e.entry_date>=payload.start&&e.entry_date<=payload.end&&(!excludeOrder||e.order_id!==order.id));
      response={...payload,categories,entries:all,summary:categories.filter(c=>!c.archived).map(c=>({...c,amount_cents:all.filter(e=>e.category_id===c.id).reduce((n,e)=>n+e.amount_cents,0),entry_count:all.filter(e=>e.category_id===c.id).length})),deliveries:excludeOrder?[]:[{order_id:order.id,reference:order.reference,approval_date:'2026-09-24',status:order.fulfillment_status,fee_cents:15000,cost_cents:cost?.amount_cents??null,cost_date:cost?.cost_date||null}],legacy_count:0};
@@ -58,7 +59,7 @@ try{
   await page.getByText(role==='owner'?'Sales & income':'A little overview',{exact:true}).waitFor();
   if(role==='staff'){
    assert.equal(await page.locator('[data-view=accounting]').isVisible(),false);assert.equal(calls.some(c=>c.action.startsWith('accounting_')),false);
-   await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order]').click();assert.equal(await page.locator('.delivery-accounting').count(),0);
+   await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order]').first().click();assert.equal(await page.locator('.delivery-accounting').count(),0);
   }else{
    await pickDate(page.locator('.accounting-filters'),'start','2026-09-01');await pickDate(page.locator('.accounting-filters'),'end','2026-09-30');await page.locator('.accounting-filters [type=submit]').click();
    await page.locator('.accounting-net').getByText('₱3,600.00',{exact:true}).waitFor();
@@ -74,8 +75,20 @@ try{
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'No horizontal page overflow');
    await page.locator('[data-accounting=add]').click();
    const form=page.locator('.accounting-entry-form');await pickDate(form,'entry_date','2026-09-25');await form.locator('[name=kind]').selectOption('expense');await form.locator('[name=amount]').fill('250.25');await form.locator('[name=category_id]').selectOption('__new');await form.locator('[name=new_category]').fill('Ingredients');await form.locator('[name=note]').fill('Flour and butter');
+   await form.locator('[name=client_name]').fill('Alice <Baker>');await form.locator('[name=payment_method]').selectOption('gcash');
+   if(width>500)for(const selectors of [['.accounting-date-picker>summary','[name=kind]','[name=amount]'],['[name=category_id]','[name=client_name]','[name=payment_method]']]){
+    const boxes=await form.evaluate((form,selectors)=>selectors.map(selector=>{const box=form.querySelector(selector).getBoundingClientRect();return {y:box.y,height:box.height};}),selectors);
+    assert.ok(boxes.every(box=>Math.abs(box.y-boxes[0].y)<1&&Math.abs(box.height-boxes[0].height)<1),'Entry controls have aligned tops and matching heights: '+JSON.stringify(boxes));
+   }
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'New entry fields fit on mobile');
+   await page.locator('.accounting-editor').screenshot({path:join(output,`entry-${width}.png`)});
    await form.locator('[type=submit]').click();await form.dispatchEvent('submit');await page.getByText('Entry saved.',{exact:true}).waitFor();
    assert.equal(calls.filter(c=>c.action==='accounting_save_entry').length,1,'Duplicate save blocked');
+   const entryRow=page.locator('.accounting-records tr').filter({hasText:'Flour and butter'});
+   await entryRow.getByText('Client: Alice <Baker>',{exact:true}).waitFor();assert.equal(await entryRow.locator('baker').count(),0,'Client name remains plain text');
+   await entryRow.locator('[data-accounting=edit]').click();assert.equal(await form.locator('[name=client_name]').inputValue(),'Alice <Baker>');assert.equal(await form.locator('[name=payment_method]').inputValue(),'gcash');
+   await form.locator('[name=payment_method]').selectOption('bank_transfer');await form.locator('[type=submit]').click();await page.locator('.accounting-editor').waitFor({state:'hidden'});
+   await entryRow.getByText('Payment: Bank Transfer',{exact:true}).waitFor();
    await page.locator('.accounting-net').getByText('₱3,349.75',{exact:true}).waitFor();
    const deliveryRow=page.locator('.accounting-report table tr').filter({hasText:order.reference}).last();await deliveryRow.locator('[data-accounting=order]').click();
    await page.locator('.delivery-accounting > summary').click();await page.locator('.delivery-accounting-form').waitFor();
@@ -88,8 +101,12 @@ try{
    const downloadPromise=page.waitForEvent('download');await page.locator('[data-accounting=export]').click();const download=await downloadPromise;
    const file=join(output,download.suggestedFilename());await download.saveAs(file);
    const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(file));assert.equal(workbook.worksheets.length,8);assert.equal(workbook.getWorksheet('Summary').getCell('E12').value.result,2249.75);
+   assert.equal(workbook.getWorksheet('Ingredients').getCell('D6').value,'Alice <Baker>');assert.equal(workbook.getWorksheet('Ingredients').getCell('E6').value,'Bank Transfer');
    await pickDate(page.locator('.accounting-filters'),'month','2024-02');assert.equal(await page.locator('.accounting-filters [name=end]').inputValue(),'2024-02-29');
    await pickDate(page.locator('.accounting-filters'),'start','2026-09-26');await pickDate(page.locator('.accounting-filters'),'end','2026-09-25');await page.locator('.accounting-filters [type=submit]').click();await page.getByText('The end date must be on or after the start date.',{exact:true}).waitFor();
+   await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order][data-id=pickup]').click();await page.locator('#admin-dialog').waitFor();
+   assert.equal(await page.locator('.delivery-accounting').count(),0,'Pickup orders have no delivery accounting section');
+   assert.equal(calls.some(c=>c.action==='accounting_get_delivery'&&c.payload.order_id==='pickup'),false,'Pickup details never request courier accounting');
   }
   assert.deepEqual(errors,[]);console.log(`PASS accounting ${width}px ${role}: permissions, summary, categories, manual entries, delivery cost, timeframe and real Excel download`);await ctx.close();
  }

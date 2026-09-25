@@ -52,20 +52,26 @@ const monthLabel = value => `${MONTHS[Number(value.slice(5, 7)) - 1]} ${value.sl
 
 function calendarView(name, month, selected, today, focusDate, disabled, options = {}) {
   const selectedSet = new Set(selected);
+  const closures = options.mode === 'closures';
+  const closedLabel = name === 'nonproduction_dates' ? 'No production' : 'Closed';
   const cells = calendarMonthDays(month);
   const tabDate = focusDate?.startsWith(month) ? focusDate : today.startsWith(month) ? today : `${month}-01`;
   const rows = [];
   for (let index = 0; index < cells.length; index += 7) {
-    rows.push(`<tr>${cells.slice(index, index + 7).map(date => date ? `<td><button type="button" class="calendar-day" data-calendar-date="${date}" aria-label="${dateLabel(date)}" aria-pressed="${selectedSet.has(date)}" ${date === today ? 'aria-current="date"' : ''} tabindex="${date === tabDate ? 0 : -1}" ${disabled || (options.minDate && date < options.minDate) ? 'disabled' : ''}>${Number(date.slice(8))}</button></td>` : '<td></td>').join('')}</tr>`);
+    rows.push(`<tr>${cells.slice(index, index + 7).map(date => date ? `<td><button type="button" class="calendar-day" data-calendar-date="${date}" aria-label="${dateLabel(date)}${closures && selectedSet.has(date) ? `, ${closedLabel.toLowerCase()}` : ''}" aria-pressed="${selectedSet.has(date)}" ${date === today ? 'aria-current="date"' : ''} tabindex="${date === tabDate ? 0 : -1}" ${disabled || (options.minDate && date < options.minDate) ? 'disabled' : ''}>${Number(date.slice(8))}</button></td>` : '<td></td>').join('')}</tr>`);
   }
-  return `<div class="calendar-toolbar"><button type="button" class="calendar-nav" data-calendar-move="-1" aria-label="Previous month">‹</button><strong id="calendar-${escape(name)}-month" aria-live="polite">${monthLabel(month)}</strong><button type="button" class="calendar-nav" data-calendar-move="1" aria-label="Next month">›</button></div><table class="calendar-month" aria-labelledby="calendar-${escape(name)}-title calendar-${escape(name)}-month"><thead><tr>${WEEKDAYS.map(day => `<th scope="col">${day}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table><div class="calendar-footer"><span><span class="calendar-selected-key" aria-hidden="true">✓</span> ${escape(options.selectionLabel || (name === 'nonproduction_dates' ? 'Selected non-production dates' : 'Selected dates are closed'))}</span><button type="button" class="calendar-today" data-calendar-today>Current month</button></div><details class="calendar-selection" ${selected.length > 0 && selected.length <= 6 ? 'open' : ''}><summary>${selected.length} selected date${selected.length === 1 ? '' : 's'}</summary>${selected.length ? `<div class="calendar-date-list">${selected.map(date => `<button type="button" data-calendar-remove="${date}" aria-label="Remove ${dateLabel(date)}" ${disabled ? 'disabled' : ''}>${dateLabel(date)} <span aria-hidden="true">×</span></button>`).join('')}</div>` : '<p>No additional dates selected.</p>'}</details>`;
+  const key = closures ? `<span class="calendar-closed-key" aria-hidden="true">15</span> Crossed out = ${closedLabel.toLowerCase()}` : `<span class="calendar-selected-key" aria-hidden="true">✓</span> ${escape(options.selectionLabel || (name === 'nonproduction_dates' ? 'Selected non-production dates' : 'Selected dates are closed'))}`;
+  const selection = closures ? '' : `<details class="calendar-selection" ${selected.length > 0 && selected.length <= 6 ? 'open' : ''}><summary>${selected.length} selected date${selected.length === 1 ? '' : 's'}</summary>${selected.length ? `<div class="calendar-date-list">${selected.map(date => `<button type="button" data-calendar-remove="${date}" aria-label="Remove ${dateLabel(date)}" ${disabled ? 'disabled' : ''}>${dateLabel(date)} <span aria-hidden="true">×</span></button>`).join('')}</div>` : '<p>No additional dates selected.</p>'}</details>`;
+  return `<div class="calendar-toolbar"><button type="button" class="calendar-nav" data-calendar-move="-1" aria-label="Previous month">‹</button><strong id="calendar-${escape(name)}-month" aria-live="polite">${monthLabel(month)}</strong><button type="button" class="calendar-nav" data-calendar-move="1" aria-label="Next month">›</button></div><table class="calendar-month" aria-labelledby="calendar-${escape(name)}-title calendar-${escape(name)}-month"><thead><tr>${WEEKDAYS.map(day => `<th scope="col">${day}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table><div class="calendar-footer"><span>${key}</span><button type="button" class="calendar-today" data-calendar-today>Current month</button></div>${selection}`;
 }
 
 export function dateCalendar(name, title, values, hint, today, disabled = false, options = {}) {
   if (!isCalendarDate(today)) throw new Error('Invalid current calendar date');
   const selected = calendarDates(values);
   const month = (options.minDate && selected[0] ? selected[0] : today).slice(0, 7);
-  return `<fieldset class="date-calendar" data-date-calendar data-month="${month}" data-today="${today}" data-disabled="${disabled}" data-save-label="${escape(options.saveLabel || 'Save shop settings')}" data-selection-label="${escape(options.selectionLabel || '')}" data-min-date="${escape(options.minDate || '')}"><legend id="calendar-${escape(name)}-title">${escape(title)}</legend><p class="calendar-hint">${escape(hint)} Select a date to mark it; select it again to remove it. Click ${escape(options.saveLabel || 'Save shop settings')} when finished.</p><textarea name="${escape(name)}" hidden>${selected.join('\n')}</textarea><div data-calendar-view>${calendarView(name, month, selected, today, today, disabled, options)}</div><p class="sr-only" aria-live="polite" data-calendar-status></p></fieldset>`;
+  const closures = options.mode === 'closures';
+  const instruction = closures ? 'Click a date to cross it out; click again to undo.' : 'Select a date to mark it; select it again to remove it.';
+  return `<fieldset class="date-calendar${closures ? ' calendar-closures' : ''}" data-date-calendar data-calendar-mode="${closures ? 'closures' : 'selection'}" data-month="${month}" data-today="${today}" data-disabled="${disabled}" data-save-label="${escape(options.saveLabel || 'Save shop settings')}" data-selection-label="${escape(options.selectionLabel || '')}" data-min-date="${escape(options.minDate || '')}"><legend id="calendar-${escape(name)}-title">${escape(title)}</legend><p class="calendar-hint">${escape(hint)} ${instruction} Click ${escape(options.saveLabel || 'Save shop settings')} when finished.</p><textarea name="${escape(name)}" hidden>${selected.join('\n')}</textarea><div data-calendar-view>${calendarView(name, month, selected, today, today, disabled, options)}</div><p class="sr-only" aria-live="polite" data-calendar-status></p></fieldset>`;
 }
 
 // Delegation is bound once; replacing one calendar never re-renders its form.
@@ -78,7 +84,7 @@ export function bindDateCalendars(root) {
       field.value = dates.join('\n');
       field.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    calendar.querySelector('[data-calendar-view]').innerHTML = calendarView(field.name, calendar.dataset.month, dates, calendar.dataset.today, focusDate, calendar.dataset.disabled === 'true', { selectionLabel: calendar.dataset.selectionLabel, minDate: calendar.dataset.minDate });
+    calendar.querySelector('[data-calendar-view]').innerHTML = calendarView(field.name, calendar.dataset.month, dates, calendar.dataset.today, focusDate, calendar.dataset.disabled === 'true', { mode: calendar.dataset.calendarMode, selectionLabel: calendar.dataset.selectionLabel, minDate: calendar.dataset.minDate });
     if (focusDate) calendar.querySelector(`[data-calendar-date="${focusDate}"]`)?.focus();
     else if (focusSelector) calendar.querySelector(focusSelector)?.focus();
   };
@@ -98,7 +104,9 @@ export function bindDateCalendars(root) {
       const date = button.dataset.calendarDate || button.dataset.calendarRemove;
       const dates = toggleCalendarDate(selected, date);
       render(calendar, { selected: dates, ...(button.dataset.calendarDate ? { focusDate: date } : { focusSelector: '.calendar-selection summary' }) });
-      calendar.querySelector('[data-calendar-status]').textContent = `${dateLabel(date)} ${dates.includes(date) ? 'selected' : 'removed'}. ${dates.length} dates selected. ${calendar.dataset.saveLabel} to apply.`;
+      calendar.querySelector('[data-calendar-status]').textContent = calendar.dataset.calendarMode === 'closures'
+        ? `${dateLabel(date)} ${dates.includes(date) ? (field.name === 'nonproduction_dates' ? 'crossed out: no production' : 'crossed out: closed') : 'uncrossed: date exception removed'}. ${calendar.dataset.saveLabel} to apply.`
+        : `${dateLabel(date)} ${dates.includes(date) ? 'selected' : 'removed'}. ${dates.length} dates selected. ${calendar.dataset.saveLabel} to apply.`;
     }
   });
   root.addEventListener('keydown', event => {

@@ -27,6 +27,11 @@
 .date-calendar button:focus-visible,.date-calendar summary:focus-visible{outline:2px solid #764b25;outline-offset:2px}
 .calendar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted);flex-wrap:wrap;margin:11px 0}
 .calendar-selected-key{background:var(--caramel);color:#fff;border-radius:3px;padding:1px 3px;margin-right:3px}
+.manage-page .calendar-closures .calendar-day[aria-pressed="true"]{background:#f5e9df;color:#805437;font-weight:400}
+.manage-page .calendar-closures .calendar-day[aria-pressed="true"]:hover{background:#ecd9ca}
+.calendar-closed-key{display:inline-grid;place-items:center;position:relative;width:24px;height:24px;margin-right:5px;border-radius:5px;background:#f5e9df;color:#805437;vertical-align:middle}
+.manage-page .calendar-closures .calendar-day[aria-pressed="true"]:after,.calendar-closed-key:after{content:'';position:absolute;top:50%;left:50%;right:auto;bottom:auto;width:26px;height:1.5px;background:currentColor;transform:translate(-50%,-50%) rotate(-45deg);pointer-events:none}
+.calendar-closed-key:after{width:20px}
 .manage-page .calendar-today{border:0;background:transparent;color:var(--caramel);text-decoration:underline;cursor:pointer;padding:5px 0;font-size:10px}
 .calendar-selection{border-top:1px solid var(--line);padding-top:12px;font-size:11px;color:var(--muted)}
 .calendar-selection summary{cursor:pointer;color:var(--caramel);line-height:1.5}

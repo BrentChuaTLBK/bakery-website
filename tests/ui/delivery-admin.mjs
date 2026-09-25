@@ -15,6 +15,7 @@ const root = resolve(import.meta.dirname, '../..');
 const today = dateInManila();
 const nextMonth = shiftCalendarMonth(today.slice(0, 7), 1);
 const nextDate = `${nextMonth}-05`;
+const savedClosures = [...new Set(['2030-12-25', ...Array.from({ length: 36 }, (_, n) => `${shiftCalendarMonth(today.slice(0, 7), n)}-15`), ...['02', '07', '14', '21', '28'].map(day => `${today.slice(0, 7)}-${day}`)])].sort();
 const fixtureKey = 'tlb-delivery-admin-fixture';
 const description = 'If one Lalamove motorcycle is not enough,\nwe will contact you to arrange delivery.\n\n<img src=x onerror=alert(1)>';
 const fixtures = {
@@ -22,7 +23,7 @@ const fixtures = {
   products: [{ id: 'cake', name: 'Cake', description: 'Local fixture', category_id: null, price_cents: 13000, min_quantity: 1, lead_days: 1, active: true, photos: [], option_groups: [], sort_order: 0 }],
   zones: [{ id: 'qc', name: 'Quezon City', localities: ['Quezon City / Sample Barangay'], fee_cents: 10000, active: true }],
   categories: [], inventory: [], promos: [], orders: [], email_status: [],
-  settings: { paused: true, shop_name: 'Local fixture', contact_email: 'owner@example.test', contact_phone: '09170000000', pickup_address: 'Fixture address', payment_instructions: 'No real payments', site_url: 'https://example.test', production_weekdays: [1, 2, 3, 4, 5, 6], fulfillment_weekdays: [0, 1, 2, 3, 4, 5, 6], nonproduction_dates: ['2024-02-29'], blocked_dates: ['2030-12-25'], pickup_blocked_dates: ['2030-12-24'], delivery_blocked_dates: [], delivery_window: '9 AM–6 PM', reminder_time: '08:00', reminders_enabled: false },
+  settings: { paused: true, shop_name: 'Local fixture', contact_email: 'owner@example.test', contact_phone: '09170000000', pickup_address: 'Fixture address', payment_instructions: 'No real payments', site_url: 'https://example.test', production_weekdays: [1, 2, 3, 4, 5, 6], fulfillment_weekdays: [0, 1, 2, 3, 4, 5, 6], nonproduction_dates: ['2024-02-29'], blocked_dates: savedClosures, pickup_blocked_dates: ['2030-12-24'], delivery_blocked_dates: [], delivery_window: '9 AM–6 PM', reminder_time: '08:00', reminders_enabled: false },
 };
 const realClient = await readFile(join(root, 'assets/ordering/client.js'), 'utf8');
 const helpers = realClient.slice(realClient.indexOf('export function money('));
@@ -68,7 +69,7 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
   browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE_PATH || undefined, headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, hasTouch: true, serviceWorkers: 'block' });
   const forbidden = [];
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
@@ -81,11 +82,29 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', dialog => { errors.push('Unexpected browser dialog: ' + dialog.message()); dialog.dismiss(); });
   const calendar = name => page.locator(`[data-date-calendar]:has(textarea[name="${name}"])`);
+  const visitMonth = async (name, date) => {
+    const picker = calendar(name);
+    let current = await picker.getAttribute('data-month');
+    const target = date.slice(0, 7);
+    const years = Number(target.slice(0, 4)) - Number(current.slice(0, 4));
+    await picker.locator('[data-calendar-date]').first().focus();
+    for (let i = 0; i < Math.abs(years); i++) await page.keyboard.press(years < 0 ? 'Shift+PageUp' : 'Shift+PageDown');
+    current = await picker.getAttribute('data-month');
+    const months = Number(target.slice(5)) - Number(current.slice(5));
+    for (let i = 0; i < Math.abs(months); i++) await picker.locator(`[data-calendar-move="${months < 0 ? -1 : 1}"]`).click();
+    assert.equal(await picker.getAttribute('data-month'), target);
+  };
   const saved = () => page.evaluate(key => JSON.parse(localStorage.getItem(key)), fixtureKey);
   const openSettings = async () => { await page.locator('[data-view="settings"]').first().click(); await calendar('blocked_dates').waitFor(); };
   await page.goto(origin + '/manage.html', { waitUntil: 'networkidle' });
   await openSettings();
   assert.equal(await page.locator('[data-date-calendar]').count(), 3);
+  assert.equal(await page.locator('.calendar-closures').count(), 3);
+  assert.equal(await page.locator('.calendar-selection, .calendar-date-list, [data-calendar-remove]').count(), 0, 'No growing list of saved dates');
+  const crossed = calendar('blocked_dates').locator(`[data-calendar-date="${today.slice(0, 7)}-15"]`);
+  assert.equal(await crossed.getAttribute('aria-pressed'), 'true', 'Existing closures are crossed out immediately');
+  assert.equal(await crossed.evaluate(node => getComputedStyle(node, '::after').content), '""', 'Crossed date uses a slash, not a selection dot');
+  assert.match(await crossed.getAttribute('aria-label'), /closed/);
   for (const name of ['nonproduction_dates', 'blocked_dates', 'delivery_blocked_dates']) assert.equal(await page.locator(`textarea[name="${name}"]`).isVisible(), false);
   await page.locator('[name="shop_name"]').fill('Unsaved kitchen name');
   await page.locator('[name="pickup_instructions"]').fill('Keep this unsaved instruction.\nSecond line.');
@@ -103,23 +122,39 @@ try {
   assert.equal(keyboardDate.slice(0, 7), nextMonth);
   await page.keyboard.press('Space');
   assert.equal(await page.locator(':focus').getAttribute('aria-pressed'), 'true');
-  await calendar('nonproduction_dates').locator('[data-calendar-remove="2024-02-29"]').click();
+  await visitMonth('nonproduction_dates', '2024-02-29');
+  await calendar('nonproduction_dates').locator('[data-calendar-date="2024-02-29"]').click();
+  assert.equal(await calendar('nonproduction_dates').locator('[data-calendar-date="2024-02-29"]').getAttribute('aria-pressed'), 'false', 'Clicking a crossed date uncrosses it');
   await page.locator('[data-form="settings"] button[type="submit"]').click();
   await page.waitForFunction(key => Boolean(localStorage.getItem(key)), fixtureKey);
   let data = await saved();
   assert.deepEqual(data.settings.nonproduction_dates, [today]);
-  assert.deepEqual(data.settings.blocked_dates, [nextDate, '2030-12-25'].sort());
+  assert.deepEqual(data.settings.blocked_dates, [...savedClosures, nextDate].sort());
   assert.deepEqual(data.settings.delivery_blocked_dates, [keyboardDate]);
   assert.deepEqual(data.settings.pickup_blocked_dates, ['2030-12-24'], 'Unexposed settings must be preserved');
+  assert.deepEqual(data.settings.production_weekdays, fixtures.settings.production_weekdays, 'Recurring weekdays remain unchanged');
   assert.equal(data.settings.shop_name, 'Unsaved kitchen name');
   await page.reload({ waitUntil: 'networkidle' });
   await openSettings();
   assert.equal(await calendar('nonproduction_dates').locator(`[data-calendar-date="${today}"]`).getAttribute('aria-pressed'), 'true');
-  await calendar('delivery_blocked_dates').locator(`[data-calendar-remove="${keyboardDate}"]`).click();
+  await visitMonth('delivery_blocked_dates', keyboardDate);
+  assert.equal(await calendar('delivery_blocked_dates').locator(`[data-calendar-date="${keyboardDate}"]`).getAttribute('aria-pressed'), 'true');
+  await calendar('delivery_blocked_dates').locator(`[data-calendar-date="${keyboardDate}"]`).click();
+  await visitMonth('blocked_dates', nextDate);
+  await calendar('blocked_dates').locator(`[data-calendar-date="${nextDate}"]`).click();
   await page.locator('[data-form="settings"] button[type="submit"]').click();
   await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).settings.delivery_blocked_dates.length === 0, fixtureKey);
+  assert.deepEqual((await saved()).settings.blocked_dates, savedClosures, 'Uncrossing one fulfillment date preserves every other closure');
+  if (process.env.UI_SCREENSHOT_DIR) {
+    await mkdir(process.env.UI_SCREENSHOT_DIR, { recursive: true });
+    await calendar('blocked_dates').screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, 'calendar-desktop.png') });
+  }
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.locator('[data-date-calendar]').evaluateAll(nodes => nodes.some(node => node.scrollWidth > node.clientWidth + 1)), false, 'Calendars fit on a mobile screen');
+  await calendar('delivery_blocked_dates').locator(`[data-calendar-date="${today}"]`).tap();
+  assert.equal(await calendar('delivery_blocked_dates').locator(`[data-calendar-date="${today}"]`).getAttribute('aria-pressed'), 'true');
+  await calendar('delivery_blocked_dates').locator(`[data-calendar-date="${today}"]`).tap();
+  assert.equal(await calendar('delivery_blocked_dates').locator(`[data-calendar-date="${today}"]`).getAttribute('aria-pressed'), 'false', 'Mobile taps can cross and uncross dates');
   if (process.env.UI_SCREENSHOT_DIR) {
     await mkdir(process.env.UI_SCREENSHOT_DIR, { recursive: true });
     await calendar('blocked_dates').screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, 'calendar-mobile.png') });

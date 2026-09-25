@@ -1,4 +1,4 @@
-import {accountingSheetName, accountingTotals} from './accounting.js?v=accounting-1';
+import {accountingSheetName, accountingTotals, accountingPaymentMethods} from './accounting.js?v=accounting-entry-details-1';
 
 let library;
 async function excelLibrary() {
@@ -48,25 +48,25 @@ export function buildAccountingWorkbook(report, ExcelJS) {
   const groups = report.summary.slice().sort((a,b) => (a.kind === 'sale' ? 0 : 1) - (b.kind === 'sale' ? 0 : 1) || a.name.localeCompare(b.name));
   for (const group of groups) {
     const name = accountingSheetName(group.name, used), sheet = wb.addWorksheet(name);
-    header(sheet, group.name, ['Date','Source','Order ID','Description','Sales / income','Expenses','Net'], [15,18,20,60,22,22,22]);
+    header(sheet, group.name, ['Date','Source','Order ID','Client name','Payment method','Description','Sales / income','Expenses','Net'], [15,18,20,28,20,60,22,22,22]);
     const entries = report.entries.filter(e => e.category_id === group.id);
     for (const e of entries) {
-      const r = sheet.addRow([date(e.entry_date),e.source,e.reference || '',e.note || '',group.kind === 'sale' ? e.amount_cents / 100 : 0,group.kind === 'expense' ? e.amount_cents / 100 : 0]);
-      r.getCell(1).numFmt = 'mmm d, yyyy'; r.getCell(4).alignment = {wrapText: true, vertical: 'top'};
-      r.height = Math.min(150, 21 * Math.max(1, Math.ceil(String(e.note || '').length / 58)));
-      r.getCell(7).value = {formula:`E${r.number}-F${r.number}`,result:(group.kind === 'sale' ? 1 : -1) * e.amount_cents / 100};
+      const r = sheet.addRow([date(e.entry_date),e.source,e.reference || '',e.client_name || '',accountingPaymentMethods[e.payment_method] || (e.source==='Manual'?'Not recorded':''),e.note || '',group.kind === 'sale' ? e.amount_cents / 100 : 0,group.kind === 'expense' ? e.amount_cents / 100 : 0]);
+      r.getCell(1).numFmt = 'mmm d, yyyy'; for (const col of [4,6]) r.getCell(col).alignment = {wrapText: true, vertical: 'top'};
+      r.height = Math.min(150, 21 * Math.max(1, Math.ceil(String(e.note || '').length / 58), Math.ceil(String(e.client_name || '').length / 26)));
+      r.getCell(9).value = {formula:`G${r.number}-H${r.number}`,result:(group.kind === 'sale' ? 1 : -1) * e.amount_cents / 100};
     }
     if (!entries.length) sheet.addRow([null,'No entries in this timeframe']);
     const last = sheet.lastRow.number;
-    sheet.autoFilter = {from: 'A5', to: `G${last}`};
+    sheet.autoFilter = {from: 'A5', to: `I${last}`};
     const total = sheet.addRow(['Total']);
-    for (const [col, value] of [['E',group.kind === 'sale' ? group.amount_cents / 100 : 0],['F',group.kind === 'expense' ? group.amount_cents / 100 : 0]])
+    for (const [col, value] of [['G',group.kind === 'sale' ? group.amount_cents / 100 : 0],['H',group.kind === 'expense' ? group.amount_cents / 100 : 0]])
       sheet.getCell(`${col}${total.number}`).value = {formula:`SUM(${col}6:${col}${last})`, result: value};
-    sheet.getCell(`G${total.number}`).value = {formula:`E${total.number}-F${total.number}`, result:(group.kind === 'sale' ? 1 : -1) * group.amount_cents / 100};
-    for (const col of [5,6,7]) sheet.getColumn(col).numFmt = currency;
+    sheet.getCell(`I${total.number}`).value = {formula:`G${total.number}-H${total.number}`, result:(group.kind === 'sale' ? 1 : -1) * group.amount_cents / 100};
+    for (const col of [7,8,9]) sheet.getColumn(col).numFmt = currency;
     totalStyle(total);
     const row = summary.addRow([group.name,group.kind === 'sale' ? 'Sales / income' : 'Expense']);
-    for (const [col, source] of [[3,'E'],[4,'F'],[5,'G']]) row.getCell(col).value = {formula:`${quoted(name)}!${source}${total.number}`,result:sheet.getCell(`${source}${total.number}`).value.result};
+    for (const [col, source] of [[3,'G'],[4,'H'],[5,'I']]) row.getCell(col).value = {formula:`${quoted(name)}!${source}${total.number}`,result:sheet.getCell(`${source}${total.number}`).value.result};
   }
   const end = summary.lastRow.number, totals = accountingTotals(report), total = summary.addRow(['Overall total']);
   for (const [col,key] of [['C','sales'],['D','expenses'],['E','net']]) summary.getCell(`${col}${total.number}`).value = {formula:end>=6?`SUM(${col}6:${col}${end})`:'0',result:totals[key]/100};

@@ -36,7 +36,8 @@ fulfillment changes and repeated payment approvals cannot duplicate income.
 
 ## Delivery costs
 
-Open an order and expand **Delivery accounting**. Enter the actual courier cost,
+Open a delivery order and expand **Delivery accounting**. Pickup orders do not
+show this section or load courier-cost data. Enter the actual courier cost,
 its date and an optional note. The comparison shows the customer fee less the
 actual cost, including a shortfall when the shop pays more. A blank cost is
 unknown; zero means no cost. Costs appear as **Delivery costs** expenses on the
@@ -51,7 +52,13 @@ appear in that range's expense total. Missing costs are counted separately.
 
 ## Manual entries and categories
 
-Use **Add entry** for date, sales/expense type, amount, category and optional notes.
+Use **Add entry** for date, sales/expense type, amount, category, optional client
+name, payment method and notes. Payment choices are **GCash**, **Cash** and
+**Bank Transfer**; blank or older entries show **Not recorded**. Client names
+and payment methods appear in the entry details, edit form and change history.
+These fields stay owner-only. Clearing either field removes its saved value;
+an older browser tab that omits the field preserves any value already saved.
+Client names allow up to 160 characters and are displayed as plain text.
 Create a category directly in that form, or use **Manage categories** to create,
 rename and archive manual categories. Custom cakes, Pastries and Nori sales
 categories are provided initially. Automatic categories cannot be renamed or
@@ -68,6 +75,7 @@ a Summary worksheet, one worksheet per category, and a Delivery comparison.
 Exports refresh eligibility before downloading and include all matching entries,
 beyond the dashboard's 50-row pages. Cancelled and refunded orders are excluded
 from every worksheet, summary, expense total and delivery comparison.
+Category worksheets include separate Client name and Payment method columns.
 Amounts are numeric PHP values, dates are real dates, and totals use formulas
 with cached results. Category names are made Excel-safe and unique; notes remain
 literal text, including text beginning with `=`. All workbook data is processed
