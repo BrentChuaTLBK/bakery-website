@@ -145,7 +145,7 @@ export async function mountNewsletterPreferences(container, email) {
 function renderLanding() {
   if (!landing) return;
   if (!linkToken || !linkAction) {
-    landing.innerHTML = `<p class="newsletter-eyebrow">The TLB Newsletter</p><h1>Get <strong>5% off</strong> your next order</h1><p>New subscribers get a welcome code by email. Stay tuned for more offers exclusively for newsletter subscribers.</p>${formMarkup('homepage', 'newsletter-page')}<p class="newsletter-fine">Already subscribed? Use the unsubscribe link in any newsletter, or <a href="account.html">manage your account preferences</a>.</p>`;
+    landing.innerHTML = `<p class="newsletter-eyebrow">The TLB Newsletter</p><h1>Get <strong>5% OFF</strong> your next order</h1><p>New subscribers get a welcome code by email. Stay tuned for more offers exclusively for newsletter subscribers.</p>${formMarkup('homepage', 'newsletter-page')}<p class="newsletter-fine">Already subscribed? Use the unsubscribe link in any newsletter, or <a href="account.html">manage your account preferences</a>.</p>`;
     mountNewsletterForms(landing); return;
   }
   const confirming = linkAction === 'confirm';
