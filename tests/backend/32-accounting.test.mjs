@@ -105,10 +105,11 @@ export default async function({db,check,state}) {
     await db.query('delete from tlb.accounting_ledger where order_id=$1',[o.id]);await db.query('delete from tlb.accounting_order_state where order_id=$1',[o.id]);
     const migration=await readFile(new URL('../../supabase/migrations/20260924180843_owner_accounting.sql',import.meta.url),'utf8');
     const eligibility=await readFile(new URL('../../supabase/migrations/20260924184817_accounting_eligible_orders.sql',import.meta.url),'utf8');
-    await db.exec(migration);await db.exec(eligibility);
+    const details=await readFile(new URL('../../supabase/migrations/20260925051534_accounting_client_names.sql',import.meta.url),'utf8');
+    await db.exec(migration);await db.exec(eligibility);await db.exec(details);
     const dates=(await db.query('select entry_date::text,amount_cents::int from tlb.accounting_ledger where order_id=$1 order by entry_date',[o.id])).rows;
     assert.deepEqual(dates,[{entry_date:'2024-03-01',amount_cents:10000},{entry_date:'2024-03-03',amount_cents:-10000}]);
-    const count=await counts(o.id);await db.exec(migration);await db.exec(eligibility);assert.equal(await counts(o.id),count);
+    const count=await counts(o.id);await db.exec(migration);await db.exec(eligibility);await db.exec(details);assert.equal(await counts(o.id),count);
     assert.equal((await call('report',{start:'2024-03-01',end:'2024-03-01'})).entries.some(e=>e.order_id===o.id),false);
     assert.equal((await call('report',{start:'2024-03-03',end:'2024-03-03'})).entries.some(e=>e.order_id===o.id),false);
   })();

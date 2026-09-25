@@ -69,3 +69,16 @@ test('calendar markup retains all saved dates, identifies selected days and esca
   assert.match(readonly, /data-calendar-date="2026-09-15"[^>]*disabled/);
   assert.match(readonly, /data-calendar-remove="2026-09-15"[^>]*disabled/);
 });
+
+test('closure calendars keep all saved exceptions without rendering a growing date list', () => {
+  const dates = Array.from({ length: 120 }, (_, index) => `${shiftCalendarMonth('2026-09', index)}-15`);
+  for (const name of ['blocked_dates', 'delivery_blocked_dates', 'nonproduction_dates']) {
+    const markup = dateCalendar(name, 'Schedule', dates, '', '2026-09-15', false, { mode: 'closures' });
+    assert.match(markup, /calendar-closures/);
+    assert.doesNotMatch(markup, /calendar-selection|calendar-date-list|data-calendar-remove/);
+    assert.match(markup, new RegExp(dates.at(-1)), 'Distant closures are preserved in the saved field');
+    assert.match(markup, /data-calendar-date="2026-09-15"[^>]*aria-pressed="true"/);
+    assert.equal((markup.match(/data-calendar-date=/g) || []).length, 30, 'Only the displayed month creates date buttons');
+    assert.match(markup, name === 'nonproduction_dates' ? /Crossed out = no production/ : /Crossed out = closed/);
+  }
+});

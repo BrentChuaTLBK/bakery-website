@@ -11,6 +11,8 @@ export const fixture={start:'2026-09-01',end:'2026-09-25',generated_at:'2026-09-
  deliveries:[{order_id:'delivery',reference:'TLB-A2B3C4',approval_date:'2026-09-22',fee_cents:15000,cost_cents:22550,cost_date:'2026-09-23',status:'completed',refund_label:false},{order_id:'missing',reference:'TLB-Z9Y8X7',approval_date:'2026-09-24',fee_cents:0,cost_cents:null,cost_date:null,status:'confirmed',refund_label:false}]
 };
 fixture.summary=fixture.categories.map(c=>({...c,amount_cents:fixture.entries.filter(e=>e.category_id===c.id).reduce((s,e)=>s+e.amount_cents,0),entry_count:fixture.entries.filter(e=>e.category_id===c.id).length}));
+fixture.entries.find(e=>e.id==='4').client_name='=A1';
+fixture.entries.find(e=>e.id==='4').payment_method='gcash';
 
 test('net subtracts each expense once and missing delivery costs stay unknown',()=>{
  assert.deepEqual(accountingTotals(fixture),{sales:365000,expenses:52575,net:312425,deliveryDifference:-7550,missingCosts:1});
@@ -34,8 +36,10 @@ test('real XLSX roundtrip keeps category sheets, formulas, currency, dates and h
  assert.equal(String.fromCharCode(...bytes.slice(0,2)),'PK');
  const saved=new ExcelJS.Workbook();await saved.xlsx.load(bytes);
  assert.equal(saved.worksheets.length,fixture.categories.length+2);
- const expense=saved.getWorksheet('Ingredients');assert.equal(expense.getCell('D6').value,fixture.entries.at(-1).note);assert.equal(expense.getCell('D6').type,3);
- assert.equal(expense.getCell('F6').value,250.25);assert.ok(expense.getCell('A6').value instanceof Date);
+ const expense=saved.getWorksheet('Ingredients');assert.equal(expense.getCell('F6').value,fixture.entries.at(-1).note);assert.equal(expense.getCell('F6').type,3);
+ assert.equal(expense.getCell('H6').value,250.25);assert.ok(expense.getCell('A6').value instanceof Date);
+ const cake=saved.getWorksheet('Custom cakes');assert.equal(cake.getCell('D5').value,'Client name');assert.equal(cake.getCell('D6').value,'=A1');assert.equal(cake.getCell('D6').type,3);assert.equal(cake.getCell('E6').value,'GCash');assert.equal(cake.getCell('I6').value.formula,'G6-H6');
+ assert.equal(expense.getCell('E6').value,'Not recorded');
  const summary=saved.getWorksheet('Summary');const total=summary.getRow(12);assert.equal(total.getCell(1).value,'Overall total');
  assert.equal(total.getCell(5).value.result,3124.25);assert.equal(total.getCell(5).value.formula,'SUM(E6:E11)');
  const delivery=saved.getWorksheet('Delivery comparison');assert.equal(delivery.getCell('F6').value.result,-75.5);assert.equal(delivery.getCell('E7').value,'Not recorded');assert.equal(delivery.getCell('F7').value,null);
