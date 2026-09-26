@@ -1,5 +1,12 @@
 import { HttpError } from "./server.ts";
 import { renderNewsletterWelcome } from "./newsletter-welcome.ts";
+import { renderBrandedEmail } from "./emails-branded.ts";
+
+export function renderEmail(payload: any): {html: string; text: string} {
+  const legacy = renderLegacyEmail(payload);
+  // Keep the exact original request body for existing provider retry keys.
+  return payload?.email_design_version === 2 ? renderBrandedEmail(payload, legacy.text) : legacy;
+}
 
 const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const money = (value: unknown) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(Number(value || 0) / 100);
@@ -34,7 +41,7 @@ function renderReviewEmail(order: any, settings: any, site: URL): { html: string
   return { html, text };
 }
 
-export function renderEmail(payload: any): { html: string; text: string } {
+function renderLegacyEmail(payload: any): { html: string; text: string } {
   if (payload?.event_type === "newsletter_welcome") return renderNewsletterWelcome(payload);
   const order = payload?.order;
   const settings = { ...payload?.settings };

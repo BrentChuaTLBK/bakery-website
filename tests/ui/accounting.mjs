@@ -83,12 +83,20 @@ try{
    }
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'New entry fields fit on mobile');
    await page.locator('.accounting-editor').screenshot({path:join(output,`entry-${width}.png`)});
-   await form.locator('[type=submit]').click();await form.dispatchEvent('submit');await page.getByText('Entry saved.',{exact:true}).waitFor();
+   await form.locator('[type=submit]').scrollIntoViewIfNeeded();const entryScroll=await page.evaluate(()=>scrollY);
+   await form.locator('[type=submit]').click();await form.dispatchEvent('submit');await page.getByText('Entry saved. Ready for the next entry.',{exact:true}).waitFor();
+   assert.equal(await page.locator('.accounting-editor').isVisible(),true,'Form stays open after adding');
+   assert.equal(await form.locator('[name=amount]').inputValue(),'');assert.equal(await form.locator('[name=client_name]').inputValue(),'');assert.equal(await form.locator('[name=note]').inputValue(),'');
+   assert.equal(await form.locator('[name=kind]').inputValue(),'expense');assert.equal(await form.locator('[name=payment_method]').inputValue(),'gcash');
+   assert.notEqual(await form.locator('[name=category_id]').inputValue(),'__new');assert.equal(await page.evaluate(()=>document.activeElement.name),'amount');
+   assert.ok(Math.abs((await page.evaluate(()=>scrollY))-entryScroll)<3,'Saving preserves scroll position');
    assert.equal(calls.filter(c=>c.action==='accounting_save_entry').length,1,'Duplicate save blocked');
    const entryRow=page.locator('.accounting-records tr').filter({hasText:'Flour and butter'});
-   await entryRow.getByText('Client: Alice <Baker>',{exact:true}).waitFor();assert.equal(await entryRow.locator('baker').count(),0,'Client name remains plain text');
+   await entryRow.getByText('Supplier: Alice <Baker>',{exact:true}).waitFor();assert.equal(await entryRow.locator('baker').count(),0,'Supplier name remains plain text');
+   assert.equal(await form.locator('[name=client_name]').evaluate(el=>el.closest('label').textContent),'Supplier · optional');
    await entryRow.locator('[data-accounting=edit]').click();assert.equal(await form.locator('[name=kind]').inputValue(),'expense','Entry type survives editing');assert.equal(await form.locator('[name=client_name]').inputValue(),'Alice <Baker>');assert.equal(await form.locator('[name=payment_method]').inputValue(),'gcash');
-   await form.locator('[name=payment_method]').selectOption('bank_transfer');await form.locator('[type=submit]').click();await page.locator('.accounting-editor').waitFor({state:'hidden'});
+   await form.locator('[name=payment_method]').selectOption('bank_transfer');await form.locator('[type=submit]').click();await page.getByText('Changes saved.',{exact:true}).waitFor();
+   assert.equal(await page.locator('.accounting-editor').isVisible(),true,'Editing also keeps the form open');
    await entryRow.getByText('Payment: Bank Transfer',{exact:true}).waitFor();
    await page.locator('.accounting-net').getByText('₱3,349.75',{exact:true}).waitFor();
    const deliveryRow=page.locator('.accounting-report table tr').filter({hasText:order.reference}).last();await deliveryRow.locator('[data-accounting=order]').click();
@@ -102,7 +110,13 @@ try{
    const downloadPromise=page.waitForEvent('download');await page.locator('[data-accounting=export]').click();const download=await downloadPromise;
    const file=join(output,download.suggestedFilename());await download.saveAs(file);
    const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(file));assert.equal(workbook.worksheets.length,8);assert.equal(workbook.getWorksheet('Summary').getCell('D12').value.result,2249.75);
-   assert.equal(workbook.getWorksheet('Ingredients').getCell('D13').value,'Alice <Baker>');assert.equal(workbook.getWorksheet('Ingredients').getCell('E13').value,'Bank Transfer');
+   assert.equal(workbook.getWorksheet('Ingredients').getCell('D12').value,'Supplier');assert.equal(workbook.getWorksheet('Ingredients').getCell('D13').value,'Alice <Baker>');assert.equal(workbook.getWorksheet('Ingredients').getCell('E13').value,'Bank Transfer');
+   await page.locator('[data-accounting=add]').click();await form.locator('[name=category_id]').selectOption('cakes');await form.locator('[name=payment_method]').selectOption('cash');
+   assert.equal(await form.locator('[name=client_name]').evaluate(el=>el.closest('label').textContent),'Client name · optional');
+   await form.locator('[name=kind]').selectOption('expense');assert.equal(await form.locator('[name=client_name]').evaluate(el=>el.closest('label').textContent),'Supplier · optional');
+   const previousSaves=calls.filter(c=>c.action==='accounting_save_entry').length;
+   for(const amount of ['12.34','56.78']){await form.locator('[name=amount]').fill(amount);await form.locator('[type=submit]').click();await page.waitForFunction(()=>document.querySelector('#accounting-manager')?.dataset.busy!=='true'&&document.querySelector('.accounting-entry-form [name=amount]').value==='');}
+   const repeats=calls.filter(c=>c.action==='accounting_save_entry').slice(previousSaves);assert.equal(repeats.length,2);assert.notEqual(repeats[0].payload.id,repeats[1].payload.id);assert.deepEqual(repeats.map(c=>c.payload.amount_cents),[1234,5678]);assert.ok(repeats.every(c=>c.payload.category_id==='cakes'&&c.payload.payment_method==='cash'&&c.payload.kind==='expense'));
    await pickDate(page.locator('.accounting-filters'),'month','2024-02');assert.equal(await page.locator('.accounting-filters [name=end]').inputValue(),'2024-02-29');
    await pickDate(page.locator('.accounting-filters'),'start','2026-09-26');await pickDate(page.locator('.accounting-filters'),'end','2026-09-25');await page.locator('.accounting-filters [type=submit]').click();await page.getByText('The end date must be on or after the start date.',{exact:true}).waitFor();
    await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order][data-id=pickup]').click();await page.locator('#admin-dialog').waitFor();

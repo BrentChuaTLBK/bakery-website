@@ -1,5 +1,5 @@
 import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
-import {exportAccounting} from './accounting-export.js?v=shared-categories-1';
+import {exportAccounting} from './accounting-export.js?v=continuous-entry-1';
 import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=accounting-calendar-1';
 import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
 
@@ -30,7 +30,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       <section class="panel accounting-net"><div><span class="eyebrow">Overall total</span><h2>Income less expenses</h2><p>Based on the entries recorded for ${esc(report.start)} to ${esc(report.end)}.</p></div><strong>${money(t.net)}</strong></section>
       ${t.missingCosts?`<p class="notice">${t.missingCosts} delivery order${t.missingCosts===1?' needs':'s need'} an actual cost. The overall total will change when these expenses are recorded.</p>`:''}
       ${report.legacy_count?'<p class="notice">Some older orders had no detailed change history. Their current saved amounts were imported on the payment approval date.</p>':''}
-      <section class="panel accounting-records"><div class="section-heading"><h2>Accounting entries</h2><span class="badge">${rows.length} entries</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Category / details</th><th>Source</th><th>Sales / income</th><th>Expense</th><th>Actions</th></tr></thead><tbody>${rows.slice(page*50,(page+1)*50).map(e=>{const c=cats.get(e.category_id);return `<tr><td>${esc(e.entry_date)}</td><td><strong>${esc(c?.name)}</strong><small class="accounting-note">${esc(e.note)}</small>${e.client_name?`<small class="accounting-note">Client: ${esc(e.client_name)}</small>`:''}${e.source==='Manual'?`<small>Payment: ${esc(accountingPaymentMethods[e.payment_method]||'Not recorded')}</small>`:''}${e.reference?`<button class="button button-quiet" data-accounting="order" data-id="${esc(e.order_id)}">${esc(e.reference)}</button>`:''}</td><td>${esc(e.source)}</td><td>${e.kind==='sale'?money(e.amount_cents):'—'}</td><td>${e.kind==='expense'?money(e.amount_cents):'—'}</td><td>${e.source==='Manual'?`<button class="button button-quiet" data-accounting="edit" data-id="${esc(e.id)}">Edit</button><button class="button button-quiet" data-accounting="delete" data-id="${esc(e.id)}">Remove</button><button class="button button-quiet" data-accounting="history" data-id="${esc(e.id)}">History</button>`:e.source==='Delivery cost'?'<span class="muted">Edit in order</span>':'<span class="muted">Automatic</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6">No entries in this timeframe.</td></tr>'}</tbody></table></div>
+      <section class="panel accounting-records"><div class="section-heading"><h2>Accounting entries</h2><span class="badge">${rows.length} entries</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Category / details</th><th>Source</th><th>Sales / income</th><th>Expense</th><th>Actions</th></tr></thead><tbody>${rows.slice(page*50,(page+1)*50).map(e=>{const c=cats.get(e.category_id);return `<tr><td>${esc(e.entry_date)}</td><td><strong>${esc(c?.name)}</strong><small class="accounting-note">${esc(e.note)}</small>${e.client_name?`<small class="accounting-note">${e.kind==='expense'?'Supplier':'Client'}: ${esc(e.client_name)}</small>`:''}${e.source==='Manual'?`<small>Payment: ${esc(accountingPaymentMethods[e.payment_method]||'Not recorded')}</small>`:''}${e.reference?`<button class="button button-quiet" data-accounting="order" data-id="${esc(e.order_id)}">${esc(e.reference)}</button>`:''}</td><td>${esc(e.source)}</td><td>${e.kind==='sale'?money(e.amount_cents):'—'}</td><td>${e.kind==='expense'?money(e.amount_cents):'—'}</td><td>${e.source==='Manual'?`<button class="button button-quiet" data-accounting="edit" data-id="${esc(e.id)}">Edit</button><button class="button button-quiet" data-accounting="delete" data-id="${esc(e.id)}">Remove</button><button class="button button-quiet" data-accounting="history" data-id="${esc(e.id)}">History</button>`:e.source==='Delivery cost'?'<span class="muted">Edit in order</span>':'<span class="muted">Automatic</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6">No entries in this timeframe.</td></tr>'}</tbody></table></div>
       ${rows.length>50?`<div class="row-actions accounting-pagination"><button class="button button-secondary" data-accounting="previous" ${page===0?'disabled':''}>Previous</button><span>Page ${page+1} of ${Math.ceil(rows.length/50)}</span><button class="button button-secondary" data-accounting="next" ${(page+1)*50>=rows.length?'disabled':''}>Next</button></div>`:''}<p class="help-text">Excel includes all entries in the selected timeframe, across every page. Negative automatic entries adjust earlier amounts for included orders.</p><div class="accounting-history"></div></section>
       <section class="panel"><div class="section-heading"><h2>Delivery comparison</h2><span class="badge">${report.deliveries.length} orders</span></div><p class="help-text">Orders paid in this timeframe. Costs are expenses on their cost date. Difference for orders with a recorded cost: <strong>${money(t.deliveryDifference)}</strong>.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Customer fee collected</th><th>Actual delivery cost</th><th>Difference</th></tr></thead><tbody>${report.deliveries.map(d=>`<tr><td><button class="button button-quiet" data-accounting="order" data-id="${esc(d.order_id)}">${esc(d.reference)}</button>${d.refund_label||['cancelled','expired'].includes(d.status)?'<small class="accounting-note">Sales reversed</small>':''}</td><td>${money(d.fee_cents)}</td><td>${d.cost_cents===null?'Not recorded':money(d.cost_cents)}</td><td>${d.cost_cents===null?'—':money(d.fee_cents-d.cost_cents)}</td></tr>`).join('')||'<tr><td colspan="4">No delivery orders in this timeframe.</td></tr>'}</tbody></table></div></section>`;
   }
@@ -43,8 +43,9 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     draft=entry?{...entry}:{id:crypto.randomUUID(),revision:0,entry_date:today,kind:'sale',category_id:'',note:'',client_name:'',payment_method:'',amount_cents:null};
     const panel=$('.accounting-editor');panel.hidden=false;
     panel.innerHTML=`<div class="section-heading"><h2>${entry?'Edit entry':'Add manual entry'}</h2><button class="button button-quiet" data-accounting="cancel-entry">Close</button></div><form class="accounting-entry-form"><div class="field-row three">${field('entry_date','Date',draft.entry_date,'date','required')}${selection('kind','Type',opt('sale','Sales / income',draft.kind)+opt('expense','Expense',draft.kind))}${field('amount','Amount · PHP',draft.amount_cents===null?'':(draft.amount_cents/100).toFixed(2),'number','required min="0.01" max="9999999.99" step="0.01" inputmode="decimal"')}</div><div class="field-row three"><div>${selection('category_id','Category','')}<div class="accounting-new-category" hidden>${field('new_category','New category name','','text','maxlength="80"')}</div></div>${field('client_name','Client name · optional',draft.client_name||'','text','maxlength="160" autocomplete="off"')}${selection('payment_method','Payment method · optional',opt('','Not recorded',draft.payment_method||'')+Object.entries(accountingPaymentMethods).map(([value,name])=>opt(value,name,draft.payment_method)).join(''))}</div><label class="field">Notes / reference · optional<textarea name="note" maxlength="2000">${esc(draft.note)}</textarea></label>${error}<button class="button" type="submit">Save entry</button></form>`;
-    updateCategoryOptions(draft.category_id); panel.scrollIntoView({behavior:'smooth',block:'start'});
+    updateCategoryOptions(draft.category_id); updateNameLabel(); panel.scrollIntoView({behavior:'smooth',block:'start'});
   }
+  function updateNameLabel(){const form=$('.accounting-entry-form');if(form)form.elements.client_name.closest('label').firstChild.textContent=form.elements.kind.value==='expense'?'Supplier · optional':'Client name · optional';}
   function updateCategoryOptions(selected='') {
     const form=$('.accounting-entry-form');if(!form)return;
     form.elements.category_id.innerHTML=opt('','Choose a category',selected)+report.categories.filter(c=>!c.system_key&&(!c.archived||c.id===draft?.category_id)).map(c=>opt(c.id,c.name,selected)).join('')+opt('__new','+ Create a category',selected);
@@ -65,6 +66,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
   root.addEventListener('change',e=>{
     if(e.target.name==='month'){try{const range=monthRange(e.target.value);setAccountingDate($('.accounting-filters'),'start',range.start);setAccountingDate($('.accounting-filters'),'end',range.end);}catch(error){message(error.message,true);}}
     if(e.target.closest('.accounting-entry-form')&&e.target.name==='category_id')syncNewCategory();
+    if(e.target.closest('.accounting-entry-form')&&e.target.name==='kind')updateNameLabel();
     if(e.target.name==='existing')renderCategories(e.target.value);
   });
   root.addEventListener('accounting-refresh',()=>load());
@@ -89,8 +91,20 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
           const created=await api('accounting_save_category',{id:draft.new_category_id,revision:0,name:f.get('new_category')});
           report.categories.push(created);category=created.id;updateCategoryOptions(category);
         }
-        await api('accounting_save_entry',{id:draft.id,revision:draft.revision,entry_date:f.get('entry_date'),kind:f.get('kind'),category_id:category,amount_cents:parseAccountingAmount(f.get('amount')),note:f.get('note'),client_name:f.get('client_name').trim(),payment_method:f.get('payment_method')});
-        draft=null;$('.accounting-editor').hidden=true;root.dataset.dirty='false';await load();message('Entry saved.');
+        const adding=draft.revision===0,position={top:window.scrollY,left:window.scrollX};
+        const saved=await api('accounting_save_entry',{id:draft.id,revision:draft.revision,entry_date:f.get('entry_date'),kind:f.get('kind'),category_id:category,amount_cents:parseAccountingAmount(f.get('amount')),note:f.get('note'),client_name:f.get('client_name').trim(),payment_method:f.get('payment_method')});
+        if(adding){
+          // Keep the same form and context for rapid entry. A fresh ID prevents
+          // the next record from overwriting this one; failed retries keep theirs.
+          draft={id:crypto.randomUUID(),revision:0,entry_date:f.get('entry_date'),kind:f.get('kind'),category_id:category,payment_method:f.get('payment_method'),amount_cents:null,client_name:'',note:''};
+          for(const name of ['amount','client_name','note','new_category'])form.elements[name].value='';
+        }else draft={...draft,...saved,category_id:category,revision:saved.revision};
+        root.dataset.dirty='false';await load();
+        let status=form.querySelector('[data-entry-status]');
+        if(!status){status=document.createElement('p');status.dataset.entryStatus='';status.className='help-text';status.setAttribute('role','status');form.append(status);}
+        status.textContent=adding?'Entry saved. Ready for the next entry.':'Changes saved.';
+        if(adding)form.elements.amount.focus({preventScroll:true});
+        window.scrollTo({...position,behavior:'instant'});
       }
     } catch(e) {errorBox.textContent=e.message;}
     finally{root.dataset.busy='false';submit.disabled=false;}
@@ -123,7 +137,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       }
       if(action==='history'){
         const rows=await api('accounting_history',{id:button.dataset.id});
-        $('.accounting-history').innerHTML=`<h3>Entry history</h3><ol class="history">${rows.map(r=>`<li>${esc(new Date(r.at).toLocaleString('en-PH',{timeZone:'Asia/Manila'}))} · ${r.action==='accounting_delete_entry'?'Removed':'Saved'}<p>${esc(r.after.entry_date)} · ${money(r.after.amount_cents)} · ${esc(r.after.note)}</p>${r.after.client_name?`<p>Client: ${esc(r.after.client_name)}</p>`:''}<p>Payment: ${esc(accountingPaymentMethods[r.after.payment_method]||'Not recorded')}</p></li>`).join('')}</ol>`;
+        $('.accounting-history').innerHTML=`<h3>Entry history</h3><ol class="history">${rows.map(r=>`<li>${esc(new Date(r.at).toLocaleString('en-PH',{timeZone:'Asia/Manila'}))} · ${r.action==='accounting_delete_entry'?'Removed':'Saved'}<p>${esc(r.after.entry_date)} · ${money(r.after.amount_cents)} · ${esc(r.after.note)}</p>${r.after.client_name?`<p>${r.after.kind==='expense'?'Supplier':'Client'}: ${esc(r.after.client_name)}</p>`:''}<p>Payment: ${esc(accountingPaymentMethods[r.after.payment_method]||'Not recorded')}</p></li>`).join('')}</ol>`;
       }
     }catch(e){message(e.message,true);}finally{root.dataset.busy='false';button.disabled=false;}
   });

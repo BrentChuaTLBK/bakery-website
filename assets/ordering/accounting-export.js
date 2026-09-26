@@ -67,7 +67,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
       const first=titleRow+2,last=first+rows.length-1,totalRow=last+1;
       sheet.addTable({name:`Accounting_${kind}_${index+1}`,ref:`A${titleRow+1}`,headerRow:true,totalsRow:true,
         style:{theme:'TableStyleLight9',showRowStripes:true},
-        columns:columns.map((name,i)=>({name,filterButton:true,...(i===0?{totalsRowLabel:`Total ${title.toLowerCase()}`}:{})})),rows});
+        columns:columns.map((name,i)=>({name:i===3&&kind==='expense'?'Supplier':name,filterButton:true,...(i===0?{totalsRowLabel:`Total ${title.toLowerCase()}`}:{})})),rows});
       sheet.getRow(titleRow+1).height=25;
       sheet.getRow(titleRow+1).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF764B25'}};cell.font={bold:true,color:{argb:'FFFFFFFF'}};});
       for(let row=first;row<=last;row++) {
