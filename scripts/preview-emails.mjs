@@ -15,6 +15,12 @@ for(const event of ['order_submitted','payment_approved','payment_rejected','ord
  const payload={email_design_version:2,event_type:event,order:{...order,...(delivery?{method:'delivery',recipient:{name:'Sample customer',phone:'Sample phone'},address:{line1:'Sample delivery address',locality:'Quezon City'},delivery_cents:15000,total_cents:201500+13500}:{}),reason:'Requested by the customer'},settings,product_photos:photos};
  const rendered=renderEmail(payload);await save(event,rendered.html);await writeFile(join(out,event+'.txt'),rendered.text);
 }
+// Courier homepages demonstrate the optional button without inventing a parcel.
+for(const [name,event,tracking] of [['out_for_delivery_tracking','out_for_delivery','https://www.lalamove.com/en-ph/'],['delivery_tracking_updated','delivery_tracking_updated','https://www.grab.com/ph/'],['delivery_tracking_unavailable','delivery_tracking_updated',null]]){
+ const rendered=renderEmail({email_design_version:2,event_type:event,order:{...order,method:'delivery',delivery_tracking_url:tracking,recipient:{name:'Sample customer'},address:{line1:'Sample delivery address',locality:'Quezon City'},delivery_cents:15000,total_cents:215000},settings,product_photos:photos});
+ const notice=emailPanel(paragraph('Design preview only. The courier button opens an official homepage; this is not a real delivery tracking link.'),'#f4ded2');
+ await save(name,rendered.html.replace('</h1>','</h1>'+notice));await writeFile(join(out,name+'.txt'),'Design preview only. No actual parcel.\n\n'+rendered.text);
+}
 for(const welcome_offer of [null,{code:'7K4M9Q',value:5,min_subtotal_cents:30000,cap_cents:10000,expires_at:'2026-10-26T04:00:00Z'}]){
  const payload={email_design_version:2,event_type:'newsletter_welcome',unsubscribe_token:'a'.repeat(64),settings,welcome_offer};const rendered=renderEmail(payload);await save(welcome_offer?'newsletter_offer':'newsletter_welcome',rendered.html);
 }
