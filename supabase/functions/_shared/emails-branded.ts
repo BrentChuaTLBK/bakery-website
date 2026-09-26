@@ -15,6 +15,13 @@ export function emailProductPhoto(value:unknown,site:string):string {
  if(u.origin===s.origin&&u.pathname.startsWith('/assets/img/'))return url;
  return '';
 }
+// Couriers issue share links on different hosts. Validate the URL itself rather
+// than guessing a domain list, and never include credentials or unsafe markup.
+export function emailDeliveryTrackingUrl(value:unknown):string {
+ if(typeof value!=='string'||!/^https:\/\//i.test(value)||value.length>2048||/[\s\u0000-\u001f\u007f"'<>\\]/u.test(value))return '';
+ const url=httpsUrl(value);if(!url||!new URL(url).hostname)return '';
+ return url;
+}
 function products(order:any,photos:any[],site:string):string {
  const items=Array.isArray(order.items)?order.items:[];
  return sectionTitle('Products ordered')+(items.length?items.map((item:any,i:number)=>{
@@ -44,6 +51,10 @@ function newsletter(payload:any,text:string):{html:string;text:string} {
 export function renderBrandedEmail(payload:any,text:string):{html:string;text:string} {
  if(payload.event_type==='newsletter_welcome')return newsletter(payload,text);
  const o=payload.order,s={...payload.settings},review=payload.event_type==='order_review_required';
+ const activeDelivery=o.method==='delivery'&&!review&&!o.refund_label
+  &&!['cancelled','expired','completed','refunded'].includes(o.fulfillment_status)
+  &&!['order_cancelled','order_expired','payment_rejected'].includes(payload.event_type);
+ const tracking=activeDelivery?emailDeliveryTrackingUrl(o.delivery_tracking_url):'';
  for(const key of ['payment_instructions','pickup_address','pickup_hours','pickup_instructions','delivery_window','contact_email','contact_phone'])if(o[key]!=null)s[key]=o[key];
  const site=new URL(s.site_url);site.search='';site.hash='';site.pathname=site.pathname.replace(/\/$/,'')+'/';
  const url=new URL(review?'manage.html':'shop.html',site);if(!review)url.hash=new URLSearchParams({order:o.id,token:o.access_token}).toString();
@@ -58,6 +69,7 @@ export function renderBrandedEmail(payload:any,text:string):{html:string;text:st
   ready_for_pickup:['Your order is ready for pickup','A little deliciousness is ready for you. Our team has marked your order ready for pickup. Please follow the collection details below.'],
   pickup_reminder:['A friendly pickup reminder','Your order is ready and waiting for pickup. Please collect it during our pickup hours, or contact us if you need help arranging collection.'],
   out_for_delivery:['Your order is out for delivery','Our team has marked your order out for delivery. An exact arrival time is not guaranteed. Contact us if you have questions.'],
+  delivery_tracking_updated:['Your delivery tracking link was updated',tracking?'Your courier tracking link has changed. Use the new link below to follow your delivery. Your order page always shows the latest saved link.':'Courier tracking is temporarily unavailable. Open your order page for the latest delivery details, or contact us if you need help.'],
   order_review_required:['An order is ready for review','A customer submitted payment proof. Sign in with your staff or owner account to review it before approving or rejecting payment.'],
  };
  const [title,message]=copy[payload.event_type]||['Your order has been updated','Open your secure order page to review the current details and history. For an order already paid, payment remains recorded and our team handles any difference directly with you.'];
@@ -70,6 +82,11 @@ export function renderBrandedEmail(payload:any,text:string):{html:string;text:st
  if(review)fulfillment+=paragraph(`Customer: ${o.buyer_name||'See the order in the dashboard'}`);
  else if(pickup)fulfillment+=paragraph(s.pickup_address||'See your order page for the pickup address.')+(s.pickup_hours?paragraph('Opening hours: '+s.pickup_hours):'')+(s.pickup_instructions?paragraph(s.pickup_instructions):'');
  else fulfillment+=paragraph([o.recipient?.name,o.recipient?.phone,o.address?.line1,o.address?.line2,o.address?.locality,o.address?.postal_code].filter(Boolean).join('\n'))+paragraph('Delivery window: '+(s.delivery_window||'See your order page')+'. Arrival can be anytime within this window; no exact time is guaranteed.')+(o.delivery_zone_name?paragraph('Delivery zone: '+o.delivery_zone_name):'')+(o.delivery_zone_description?paragraph(o.delivery_zone_description):'');
+ if(tracking)fulfillment+=emailButton('Track delivery',tracking);
+ // Keep every existing payload without tracking byte-identical for provider
+ // retries. The legacy renderer remains unchanged, including v1 payloads.
+ if(payload.event_type==='delivery_tracking_updated')text=text.replace('\nYour order has been updated\nOrder reference:',`\n${title}\nOrder reference:`).replace('Our team updated your order. Open the secure order page to review the current details and history. For an order already paid, payment remains recorded and our team handles any difference directly with you.',message);
+ if(tracking)text+=`\n\nTrack delivery:\n${tracking}`;
  const button=emailButton(review?'Open orders for review':'View your order',url.toString());
  const body=paragraph(message)+`<p style="margin:0 0 6px;color:#764b25;font-size:14px">Order <strong style="letter-spacing:1px">${esc(o.reference)}</strong></p>`+button+`<div style="height:24px;line-height:24px">&nbsp;</div>`+alert+emailColumns(products(o,payload.product_photos||[],site.toString())+emailPanel(totals(o)),emailPanel(fulfillment,'#e8ede2'),55);
  const footer=review?paragraph('You received this notification because your account is assigned a Staff or Owner role. The dashboard shows the current order status.'):paragraph('Keep your order link private; it grants access to this order.')+paragraph('For changes, cancellations, or payment concerns, contact us using the details below or on your order page.')+contactHtml(s);
