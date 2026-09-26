@@ -5,3 +5,8 @@
 @media(max-width:500px){.accounting-date-picker .accounting-calendar{width:100%;max-width:none;padding:10px}.accounting-date-picker>summary{font-size:12px}}
 .accounting-date-picker{margin-top:0}.accounting-date-picker>summary{height:44px;padding:10px 11px;line-height:20px}
 .manage-page :is(.accounting-entry-form,.accounting-category-editor,.delivery-accounting-form,.accounting-filters) .field>:is(input:not([type=hidden]),select){height:44px;line-height:20px}
+.accounting-date-picker .accounting-calendar{width:min(330px,calc(100vw - 32px));max-width:calc(100vw - 32px)}
+.accounting-date-picker>summary[aria-invalid="true"]{border-color:#a44b42}
+.accounting-calendar-error{background:#fff0ec;color:#953b2d;border-radius:6px;padding:12px;font-size:12px;line-height:1.6;margin:12px 0}.accounting-calendar-error[hidden]{display:none}
+.accounting-calendar .calendar-day:disabled{opacity:.35;cursor:not-allowed}
+.accounting-datetime-field{min-width:0}.accounting-datetime-field>.accounting-date-field{margin-bottom:8px}.accounting-datetime-time{display:grid;grid-template-columns:1fr 1fr;gap:10px}.accounting-datetime-time .field{min-width:0;margin-bottom:0}

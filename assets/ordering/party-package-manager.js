@@ -1,5 +1,6 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { packageCard, packagePrice, packageEscape as esc, packageInclusions } from './party-packages-view.js?v=dessert-bar-1';
+import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 
 export function mountPartyPackageManager(root, { role, connected, api, cartApi, page = 'party' }) {
   const service = eventPage(page);
@@ -46,7 +47,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     finally { lock(false); }
   }
   async function deletePackage(item) {
-    if (!item || !confirm(`Delete “${item.name}”?\n\nThis removes the package from your dashboard and the ${service.pageName} page. This cannot be undone.`)) return;
+    if (!item || !await confirmDialog(`Delete “${item.name}”?\n\nThis removes the package from your dashboard and the ${service.pageName} page. This cannot be undone.`, { title: 'Delete package?', confirmLabel: 'Delete package', cancelLabel: 'Keep package', danger: true }) || !root.isConnected || busy) return;
     const index = items.findIndex(p => p.id === item.id);
     let deleted = false;
     lock(true); message(`Deleting “${item.name}”…`);
@@ -100,8 +101,9 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     $('[data-party-fields]').innerHTML = `<p class="muted">Add, edit, remove, or move items to set the order customers see on your ${service.pageName} page.</p><div data-party-features>${cart.items.map(label => featureRow({ label })).join('')}</div><button class="button button-secondary" type="button" data-feature-add>Add item</button>`;
     $('[data-party-error]').textContent = ''; preview(); syncFeatureButtons(); dialog.showModal(); dialog.scrollTop = 0; (form.querySelector('input') || $('[data-feature-add]')).focus();
   }
-  function close() {
-    if (busy || (dirty && !confirm('Discard your unsaved package changes?'))) return;
+  async function close() {
+    if (busy || (dirty && !await confirmDialog('Discard your unsaved package changes?', { title: 'Discard package changes?', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', danger: true, parentDialog: dialog }))) return;
+    if (!root.isConnected || busy) return;
     markDirty(false); dialog.close(); returnFocus?.focus();
   }
   dialog.addEventListener('cancel', event => event.preventDefault());
@@ -115,7 +117,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     else if (target.hasAttribute('data-party-refresh')) void load();
     else if (target.hasAttribute('data-party-edit')) edit(items.find(p => p.id === target.dataset.partyEdit));
     else if (target.hasAttribute('data-party-delete')) void deletePackage(items.find(p => p.id === target.dataset.partyDelete));
-    else if (target.hasAttribute('data-party-close')) close();
+    else if (target.hasAttribute('data-party-close')) void close();
     else if (target.matches('[data-feature-add],[data-feature-remove],[data-feature-up],[data-feature-down]')) {
       const row = target.closest('[data-party-feature]');
       if (target.hasAttribute('data-feature-add')) { $('[data-party-features]').insertAdjacentHTML('beforeend', featureRow({ label: '', detail: '' })); $('[data-party-features]').lastElementChild.querySelector('input').focus(); }

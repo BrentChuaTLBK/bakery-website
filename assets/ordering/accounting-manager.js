@@ -1,7 +1,8 @@
 import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
 import {exportAccounting} from './accounting-export.js?v=continuous-entry-1';
-import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=accounting-calendar-1';
+import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=branded-calendars-1';
 import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
+import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
 
 export function mountAccounting(root, {api, role, connected, money, escapeHtml: esc, today, filters, openOrder}) {
   if (!root) return;
@@ -131,7 +132,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       if(action==='order')await openOrder(button.dataset.id);
       if(action==='delete'){
         const entry=report.entries.find(e=>e.id===button.dataset.id);
-        if(confirm('Remove this manual accounting entry? Its change history will be kept.')){
+        if(await confirmDialog('Remove this manual accounting entry? Its change history will be kept.',{title:'Remove accounting entry?',confirmLabel:'Remove entry',cancelLabel:'Keep entry',danger:true})&&root.isConnected){
           await api('accounting_delete_entry',{id:entry.id,revision:entry.revision});await load();message('Entry removed.');
         }
       }

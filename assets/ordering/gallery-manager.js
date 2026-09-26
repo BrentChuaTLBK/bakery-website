@@ -1,5 +1,6 @@
 import { parseGalleryExport, safePhotoUrl } from './gallery-import.js';
 import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js';
+import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 
 const names = { 'custom-orders': 'Custom Orders', pastries: 'Pastries' };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -147,11 +148,11 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
       } else if (button.dataset.galleryEdit) await edit(items.find(p => p.id === button.dataset.galleryEdit));
       else if (button.dataset.galleryDelete) {
         const item = items.find(p => p.id === button.dataset.galleryDelete);
-        if (!confirm(`Remove this ${item.category} photo from the gallery?`)) return;
+        if (!await confirmDialog(`Remove this ${item.category} photo from the gallery?`, { title: 'Remove gallery photo?', confirmLabel: 'Remove photo', cancelLabel: 'Keep photo', danger: true }) || !root.isConnected || busy) return;
         lock(true); await api('delete', { gallery, id: item.id, revision: item.revision }); await load(); message('Photo removed.');
       } else if (button.hasAttribute('data-gallery-more')) await load(false);
       else if (button.hasAttribute('data-gallery-publish')) {
-        if (!confirm(`Use these ${names[gallery]} photos on the website? Check the imported images and categories first.`)) return;
+        if (!await confirmDialog(`Use these ${names[gallery]} photos on the website? Check the imported images and categories first.`, { title: 'Publish this gallery?', confirmLabel: 'Use gallery', cancelLabel: 'Keep reviewing' }) || !root.isConnected || busy) return;
         lock(true); await api('set_enabled', { gallery, enabled: true, revision }); await load();
       } else if (button.hasAttribute('data-gallery-cancel-import')) { imported = null; $('[data-gallery-import-preview]').innerHTML = ''; }
       else if (button.hasAttribute('data-gallery-confirm-import') && imported) {

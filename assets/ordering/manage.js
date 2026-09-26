@@ -1,5 +1,6 @@
+import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
-import { mountAcademy } from './academy-manager.js?v=academy-1';
+import { mountAcademy } from './academy-manager.js?v=branded-dialogs-1';
 import { renderNewsletterPromos } from './newsletter-promos.js?v=welcome-offer-2';
 import { prepareProductImage, productImageAccept } from './product-image.js?v=webp-1';
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=academy-1';
@@ -11,20 +12,21 @@ import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?
 import { printOrderSlips } from './order-slips.js?v=academy-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
+import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
 import { quantitySelection, quantitySaveRows, quantityStatus } from './daily-quantities.js?v=daily-quantities-1';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=customer-metrics-1';
-import { renderAnalytics } from './analytics-view.js?v=sales-tooltip-1';
+import { renderAnalytics } from './analytics-view.js?v=branded-calendars-1';
 import { bindSalesChart } from './sales-chart.js?v=sales-tooltip-1';
 import { renderPickupReminder } from './pickup-reminder.js?v=pickup-reminder-1';
-import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=continuous-entry-1';
+import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=branded-dialogs-1';
 import { monthRange } from './accounting.js?v=accounting-1';
 import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-2';
-import { mountGalleryManager } from './gallery-manager.js?v=explicit-close-1';
-import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=photo-grip-1';
+import { mountGalleryManager } from './gallery-manager.js?v=branded-dialogs-1';
+import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=branded-dialogs-1';
 import { orderedCatalogProducts, productCategoryIds } from './catalog-ordering.js?v=multi-category-1';
-import { mountCatalogOrder } from './catalog-order.js?v=multi-category-1';
+import { mountCatalogOrder } from './catalog-order.js?v=branded-dialogs-1';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
-import { mountPartyPackageManager } from './party-package-manager.js?v=explicit-close-1';
+import { mountPartyPackageManager } from './party-package-manager.js?v=branded-dialogs-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -71,6 +73,8 @@ window.addEventListener('beforeunload', event => {
   if (catalogOrder?.dirty || catalogOrder?.busy || ['#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
 });
 bindDateCalendars($('#workspace'));
+bindAccountingDates($('#workspace'));
+bindAccountingDates(modal);
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
 const badge = value => `<span class="badge ${esc(value)}${value === 'refunded' ? ' refund' : ''}">${esc(label(value))}</span>`;
 const humanDate = value => value ? formatDate(value) : '—';
@@ -85,7 +89,10 @@ const locked = () => !state.connected ? 'disabled title="Connect the backend bef
 const ownerLocked = () => !state.connected || state.role !== 'owner' ? 'disabled' : '';
 const option = (value, text, selected) => `<option value="${esc(value)}" ${String(selected) === String(value) ? 'selected' : ''}>${esc(text)}</option>`;
 const options = (values, selected, first = 'All') => `${first === null ? '' : option('', first, selected)}${values.map(v => option(v, label(v), selected)).join('')}`;
-const input = (name, text, value = '', type = 'text', attrs = '', hint = '') => `<label class="field">${esc(text)}<input name="${esc(name)}" type="${type}" value="${esc(value ?? '')}" ${attrs}>${hint ? `<small>${esc(hint)}</small>` : ''}</label>`;
+const input = (name, text, value = '', type = 'text', attrs = '', hint = '') => type === 'date'
+  ? accountingDatePicker(name, text, value, manilaDate(), { optional: !attrs.includes('required'), attrs })
+  : type === 'datetime-local' ? accountingDateTimePicker(name, text, value, manilaDate(), { optional: !attrs.includes('required'), attrs })
+  : `<label class="field">${esc(text)}<input name="${esc(name)}" type="${type}" value="${esc(value ?? '')}" ${attrs}>${hint ? `<small>${esc(hint)}</small>` : ''}</label>`;
 const textarea = (name, text, value = '', hint = '', attrs = '') => `<label class="field">${esc(text)}<textarea name="${esc(name)}" ${attrs}>${esc(value ?? '')}</textarea>${hint ? `<small>${esc(hint)}</small>` : ''}</label>`;
 const select = (name, text, markup, attrs = '') => `<label class="field">${esc(text)}<select name="${esc(name)}" ${attrs}>${markup}</select></label>`;
 function socialFields(buyer) {
@@ -118,7 +125,8 @@ function setupNotice() {
   return `<div class="notice"><strong>Draft dashboard · backend setup pending.</strong> You can explore the layout and forms. Saving, accounts, uploads, orders, and email delivery become available after the setup steps are completed. <a href="docs/SETUP.md" target="_blank" rel="noopener">Open setup guide</a></div>`;
 }
 function showDialog(title, content, { preserveScroll = false, focusSelector } = {}) {
-  if (catalogOrder && !catalogOrder.canLeave()) return false;
+  // Actions await the discard decision before replacing a catalog editor.
+  if (catalogOrder?.dirty || catalogOrder?.busy) return false;
   catalogOrder?.destroy(); catalogOrder = null;
   clearPhotoDrag();
   const scrollTop = preserveScroll && modal.open ? modal.scrollTop : 0;
@@ -137,7 +145,14 @@ function showDialog(title, content, { preserveScroll = false, focusSelector } = 
   });
   return true;
 }
-function closeDialog() { if (catalogOrder && !catalogOrder.canLeave()) return; catalogOrder?.destroy(); catalogOrder = null; clearPhotoDrag(); modal.close(); modalReturnFocus?.focus?.(); }
+async function leaveCatalogEditor() {
+  const editor = catalogOrder;
+  if (!editor) return true;
+  if (!await editor.canLeave() || catalogOrder !== editor) return false;
+  editor.destroy(); catalogOrder = null;
+  return true;
+}
+async function closeDialog() { if (!await leaveCatalogEditor()) return; clearPhotoDrag(); modal.close(); modalReturnFocus?.focus?.({ preventScroll: true }); }
 // Editor dismissal is explicit: backdrop taps and Escape must not discard work.
 modal.addEventListener('cancel', event => event.preventDefault());
 $('#dialog-close').addEventListener('click', closeDialog);
@@ -605,10 +620,11 @@ async function onAction(button) {
   const action = button.dataset.action;
   const id = button.dataset.id;
   const index = Number(button.dataset.index);
+  if (catalogOrder && action !== 'close-dialog' && !await leaveCatalogEditor()) return;
   switch (action) {
     case 'unlimit-quantity': state.inventoryDrafts[id] = ''; updateInventoryProducts(); $(`[data-quantity-id="${CSS.escape(id)}"]`)?.focus(); break;
     case 'reset-quantities': state.inventoryDrafts = {}; updateInventoryProducts(); break;
-    case 'close-dialog': closeDialog(); break;
+    case 'close-dialog': await closeDialog(); break;
     case 'refresh': await Promise.all([refresh(), visitorPoller.refresh()]); toast('Dashboard refreshed.'); break;
     case 'upcoming': state.filters.upcoming = true; state.view = 'orders'; render(); break;
     case 'clear-filters': state.filters = { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }; state.printSelection.clear(); render(); break;
@@ -716,14 +732,14 @@ function exportOrders() {
 document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]');
   if(view && $('#academy-manager')?.dataset.busy==='true'){toast('Please wait for the Academy update to finish.');return;}
-  if(view && $('#academy-manager')?.dataset.dirty==='true'&&!confirm('Discard unsaved Academy changes?'))return;
+  if(view && $('#academy-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved Academy changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if (view && $('#accounting-manager')?.dataset.busy === 'true') { toast('Please wait for the accounting update to finish.'); return; }
-  if (view && $('#accounting-manager')?.dataset.dirty === 'true' && !confirm('Discard your unsaved accounting changes?')) return;
+  if (view && $('#accounting-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved accounting entry will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
   if (view && $('#gallery-manager')?.dataset.busy === 'true') { toast('Please wait for the gallery operation to finish.'); return; }
   if (view && $('#party-cart-photo-manager')?.dataset.busy === 'true') { toast('Please wait for the photo operation to finish.'); return; }
-  if (view && $('#party-cart-photo-manager')?.dataset.dirty === 'true' && !confirm('Discard your unsaved photo changes?')) return;
+  if (view && $('#party-cart-photo-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved photo changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
   if (view && $('#party-package-manager')?.dataset.busy === 'true') { toast('Please wait for the package operation to finish.'); return; }
-  if (view && $('#party-package-manager')?.dataset.dirty === 'true' && !confirm('Discard your unsaved package changes?')) return;
+  if (view && $('#party-package-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved package changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
   if (view) { state.view = view.dataset.view; render(); if (state.view === 'analytics' && state.connected) { try { await refresh(); } catch (error) { toast('Analytics could not refresh. The last loaded figures are shown. ' + error.message, 'error'); } } if (state.view === 'team' && state.connected && state.role === 'owner') { try { await loadTeam(); } catch (error) { toast(error.message, 'error'); } } return; }
   const button = event.target.closest('[data-action]');
   if (!button) return;
