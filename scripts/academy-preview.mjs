@@ -22,6 +22,7 @@ if(!(await db.query("select to_regclass('tlb.academy_classes') as existing")).ro
 // Reapply this idempotent draft migration when restarting the local preview.
 // Existing local class content and images are retained by ON CONFLICT clauses.
 await db.exec(await readFile(join(root,'supabase/migrations/20260926023820_academy_content.sql'),'utf8'));
+await db.exec(await readFile(join(root,'supabase/migrations/20260926062118_academy_album_capacity.sql'),'utf8'));
 let queue=Promise.resolve();
 function access(user,fn){const result=queue.then(()=>db.transaction(async tx=>{await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",[user||'',JSON.stringify({sub:user,role:user?'authenticated':'anon'})]);await tx.exec('set local role '+(user?'authenticated':'anon'));return fn(tx);}));queue=result.catch(()=>{});return result;}
 const original=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=original.slice(original.indexOf('export function money('));

@@ -1,13 +1,15 @@
-// Real HEIC decoding; only the pinned decoder CDN may make external requests.
+// Real HEIC decoding uses the pinned local decoder. All external requests fail.
 // Catalog, authentication and uploaded files remain local fixtures.
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve, extname } from 'node:path';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_ROOT ? join(process.env.PLAYWRIGHT_PACKAGE_ROOT, 'playwright') : 'playwright');
 const root = resolve(import.meta.dirname, '../..');
+const output = join(root, 'test-results/product-heic');
+await mkdir(output, {recursive:true});
 assert(process.env.HEIC_TEST_FILE, 'Set HEIC_TEST_FILE to a real HEIC fixture.');
 const heic = await readFile(process.env.HEIC_TEST_FILE);
 const origin = 'https://product-heic.test';
@@ -25,15 +27,17 @@ export async function upload(file,options){
  return {url:'https://product-heic.test/photo.svg'}
 }
 export async function websiteVisitorStats(){return {}}
+export async function academyApi(){throw Error('Unexpected Academy request')}
+export async function academyUpload(){throw Error('Unexpected Academy upload')}
+export async function academySignedUrls(){throw Error('Unexpected Academy photo request')}
 ${client.slice(client.indexOf('export function money('))}`;
 const browser = await chromium.launch({headless: true, executablePath: process.env.BROWSER_EXECUTABLE_PATH || undefined});
 const errors = [], checks = [];
 try {
   for (const mobile of [false, true]) {
-    const context = await browser.newContext({viewport: {width: mobile ? 390 : 1280, height: 900}, isMobile: mobile, hasTouch: mobile});
+    const context = await browser.newContext({viewport: {width: mobile ? 390 : 1280, height: 900}, isMobile: mobile, hasTouch: mobile, serviceWorkers:'block'});
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
-      if (url.hostname === 'esm.sh') return route.continue();
       if (url.origin !== origin) return route.abort();
       if (url.pathname === '/photo.svg') return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="purple"/></svg>'});
       if (url.pathname === '/assets/ordering/client.js') return route.fulfill({contentType: 'text/javascript', body: mock});
@@ -44,6 +48,7 @@ try {
     const page = await context.newPage();
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${origin}/manage.html`, {waitUntil: 'networkidle'});
+    if(errors.length){await page.screenshot({path:join(output,`initialization-error-${mobile?'mobile':'desktop'}.png`)});assert.deepEqual(errors,[],'Dashboard modules must initialize without missing client exports');}
     await page.locator('[data-view="products"]').first().click();
     await page.locator('[data-action="edit-product"]').first().click();
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -58,6 +63,7 @@ try {
     assert(await page.locator('[data-form="product"] button[type="submit"]').isDisabled());
     await page.evaluate(() => { window.holdUpload = false; window.finishUpload(); });
     await page.waitForFunction(() => document.querySelectorAll('.photo-tile').length === 1);
+    await page.locator('#product-photo-order').screenshot({path:join(output,`converted-photo-${mobile?'mobile':'desktop'}.png`)});
     const uploaded = await page.evaluate(() => window.uploaded[0]);
     assert.equal(uploaded.type, 'image/webp');
     assert.equal(uploaded.name, 'iPhone.webp');
@@ -116,5 +122,6 @@ try {
     await context.close();
   }
   assert.deepEqual(errors, []);
+  await writeFile(join(output,'report.json'),JSON.stringify({checks,errors},null,2));
   console.log(JSON.stringify({checks, errors}));
 } finally { await browser.close(); }
