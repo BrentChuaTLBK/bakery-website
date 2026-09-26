@@ -1,4 +1,4 @@
-import { escapeHtml as esc, money, formatDate } from './client.js?v=visitors-1';
+import { escapeHtml as esc, money, formatDate } from './client.js?v=academy-1';
 
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
 const text = value => String(value ?? '').trim();

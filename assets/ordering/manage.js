@@ -1,12 +1,13 @@
+import { mountAcademy } from './academy-manager.js?v=academy-1';
 import { renderNewsletterPromos } from './newsletter-promos.js?v=welcome-offer-2';
 import { prepareProductImage, productImageAccept } from './product-image.js?v=webp-1';
-import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=party-gallery-1';
+import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=academy-1';
 import { prepareOrderSave, normalizeOrderEditReason } from './order-edit-save.js?v=custom-confirmation-1';
 import { confirmOrderTotalChange } from './order-edit-confirmation.js?v=custom-confirmation-1';
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=cancelled-review-1';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
-import { printOrderSlips } from './order-slips.js?v=batch-slips-1';
+import { printOrderSlips } from './order-slips.js?v=academy-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
 import { quantitySelection, quantitySaveRows, quantityStatus } from './daily-quantities.js?v=daily-quantities-1';
@@ -36,6 +37,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const state = { view: location.hash === '#dessert' ? 'dessert' : location.hash === '#packages' ? 'packages' : 'overview', role: null, connected: false, products: [], categories: [], inventory: [], promos: [], zones: [], orders: [], settings: {}, staff: [], filters: { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }, inventoryDates: [manilaDate()], inventoryDrafts: {} };
 state.productFilters = { search: '', status: '', category: '' };
 state.accountingFilter = monthRange(manilaDate().slice(0, 7));
+if (location.hash === '#academy') state.view = 'academy';
 if (location.hash === '#accounting') state.view = 'accounting';
 state.promoFilter = '';
 state.printSelection = new Set();
@@ -65,7 +67,7 @@ window.addEventListener('pageshow', syncPromoStatuses);
 window.addEventListener('pagehide', () => clearTimeout(promoStatusTimer));
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
-  if (catalogOrder?.dirty || catalogOrder?.busy || ['#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
+  if (catalogOrder?.dirty || catalogOrder?.busy || ['#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
 });
 bindDateCalendars($('#workspace'));
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
@@ -155,18 +157,22 @@ async function refresh() {
 }
 function render() {
   clearSalesChart();
+  const academyLink = $('[data-view=academy]');
+  if(academyLink) academyLink.style.display=state.connected&&state.role==='owner'?'':'none';
+  if(state.view==='academy'&&state.role!=='owner')state.view='overview';
   const accountingLink = $('[data-view="accounting"]');
   if (accountingLink) accountingLink.style.display = state.connected && state.role === 'owner' ? '' : 'none';
   if (state.view === 'accounting' && state.connected && state.role !== 'owner') state.view = 'overview';
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
-  const views = { accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
+  const views = { academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  if (state.view === 'academy') mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
   clearSalesChart = bindSalesChart($('#workspace'));
-  if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=party-gallery-1')).galleryApi(...args), upload });
+  if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=academy-1')).galleryApi(...args), upload });
   if (['packages', 'dessert'].includes(state.view)) {
     const page = state.view === 'dessert' ? 'dessert' : 'party', service = eventPage(page);
-    const invoke = name => async (...args) => (await import('./client.js?v=dessert-bar-1'))[name](...args);
+    const invoke = name => async (...args) => (await import('./client.js?v=academy-1'))[name](...args);
     mountPartyPackageManager($('#party-package-manager'), { role: state.role, connected: state.connected, page, api: invoke(service.packagesClient), cartApi: invoke(service.itemsClient) });
     mountPartyCartPhotos($('#party-cart-photo-manager'), { role: state.role, connected: state.connected, page, api: invoke(service.photosClient), upload });
   }
@@ -702,6 +708,8 @@ function exportOrders() {
 
 document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]');
+  if(view && $('#academy-manager')?.dataset.busy==='true'){toast('Please wait for the Academy update to finish.');return;}
+  if(view && $('#academy-manager')?.dataset.dirty==='true'&&!confirm('Discard unsaved Academy changes?'))return;
   if (view && $('#accounting-manager')?.dataset.busy === 'true') { toast('Please wait for the accounting update to finish.'); return; }
   if (view && $('#accounting-manager')?.dataset.dirty === 'true' && !confirm('Discard your unsaved accounting changes?')) return;
   if (view && $('#gallery-manager')?.dataset.busy === 'true') { toast('Please wait for the gallery operation to finish.'); return; }

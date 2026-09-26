@@ -116,6 +116,25 @@ export async function galleryApi(action, payload = {}) {
   return data;
 }
 
+export async function academyApi(action, payload = {}) {
+  const client = await connection();
+  const {data,error} = await client.rpc('academy_api',{p_action:action,p_payload:payload});
+  if(error)throw new Error(error.message || 'Academy could not complete that request.');
+  return data;
+}
+export async function academyUpload(file,id) {
+  if(file.type!=='image/webp'||file.size>5*1024*1024)throw new Error('Choose a converted WebP image up to 5 MB.');
+  const client=await connection();
+  const {error}=await client.storage.from('academy-photos').upload(id+'.webp',file,{contentType:'image/webp',upsert:false});
+  if(error)throw new Error(error.message || 'Photo upload failed.');
+}
+export async function academySignedUrls(paths) {
+  const client=await connection();
+  const {data,error}=await client.storage.from('academy-photos').createSignedUrls(paths,300);
+  if(error)throw new Error(error.message || 'Academy photos could not load.');
+  return data;
+}
+
 export async function partyPackagesApi(action, payload = {}) {
   const client = await connection();
   const { data, error } = await client.rpc('party_packages_api', { p_action: action, p_payload: payload });
