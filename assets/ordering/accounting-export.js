@@ -1,4 +1,4 @@
-import {accountingSheetName, accountingTotals, accountingPaymentMethods} from './accounting.js?v=accounting-entry-details-1';
+import {accountingSheetName, accountingTotals, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
 
 let library;
 async function excelLibrary() {
@@ -26,7 +26,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
   wb.calcProperties.fullCalcOnLoad = true;
   const summary = wb.addWorksheet('Summary'), used = new Set(['summary', 'delivery comparison']);
   function header(sheet, title, columns, widths) {
-    sheet.views = [{state: 'frozen', ySplit: 5}];
+    sheet.views = [{state: 'frozen', ySplit: 5, showGridLines: false}];
     sheet.properties.defaultRowHeight = 21;
     sheet.columns = widths.map(width => ({width}));
     sheet.mergeCells(1, 1, 1, columns.length); sheet.getCell('A1').value = title;
@@ -34,7 +34,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
     sheet.getRow(1).height = 36;
     sheet.mergeCells(2, 1, 2, columns.length); sheet.getCell('A2').value = `${report.start} to ${report.end} · PHP · Asia/Manila`;
     sheet.mergeCells(3, 1, 3, columns.length);
-    sheet.getCell('A3').value = 'Paid confirmed / fulfilled orders only. Cancelled and refunded orders, discounts and courier costs are excluded.';
+    sheet.getCell('A3').value = 'Paid confirmed / fulfilled orders only. Cancelled and refunded orders are excluded in full, including their discounts and courier costs.';
     sheet.getCell('A3').alignment = {wrapText: true, vertical: 'middle'}; sheet.getRow(3).height = 32;
     sheet.getRow(5).values = columns;
     sheet.getRow(5).eachCell(cell => {cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FF764B25'}}; cell.font = {bold: true, color: {argb: 'FFFFFFFF'}};});
@@ -44,37 +44,54 @@ export function buildAccountingWorkbook(report, ExcelJS) {
   function totalStyle(row) {
     row.eachCell(cell => {cell.font = {bold: true};cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb:'FFF1E6D6'}};});
   }
-  header(summary, 'TLB · Accounting summary', ['Category','Type','Sales / income','Expenses','Net'], [34,15,22,22,22]);
-  const groups = report.summary.slice().sort((a,b) => (a.kind === 'sale' ? 0 : 1) - (b.kind === 'sale' ? 0 : 1) || a.name.localeCompare(b.name));
-  for (const group of groups) {
+  header(summary, 'TLB · Accounting summary', ['Category','Sales / income','Expenses','Net'], [36,24,24,24]);
+  const groups = report.summary.slice().sort((a,b) => a.name.localeCompare(b.name));
+  for (const [index, group] of groups.entries()) {
     const name = accountingSheetName(group.name, used), sheet = wb.addWorksheet(name);
-    header(sheet, group.name, ['Date','Source','Order ID','Client name','Payment method','Description','Sales / income','Expenses','Net'], [15,18,20,28,20,60,22,22,22]);
-    const entries = report.entries.filter(e => e.category_id === group.id);
-    for (const e of entries) {
-      const r = sheet.addRow([date(e.entry_date),e.source,e.reference || '',e.client_name || '',accountingPaymentMethods[e.payment_method] || (e.source==='Manual'?'Not recorded':''),e.note || '',group.kind === 'sale' ? e.amount_cents / 100 : 0,group.kind === 'expense' ? e.amount_cents / 100 : 0]);
-      r.getCell(1).numFmt = 'mmm d, yyyy'; for (const col of [4,6]) r.getCell(col).alignment = {wrapText: true, vertical: 'top'};
-      r.height = Math.min(150, 21 * Math.max(1, Math.ceil(String(e.note || '').length / 58), Math.ceil(String(e.client_name || '').length / 26)));
-      r.getCell(9).value = {formula:`G${r.number}-H${r.number}`,result:(group.kind === 'sale' ? 1 : -1) * e.amount_cents / 100};
+    const columns=['Date','Source','Order ID','Client name','Payment method','Description','Amount'];
+    header(sheet, group.name, columns, [17,19,22,28,23,60,24]);
+    sheet.views = [{state:'frozen',ySplit:6,showGridLines:false}];
+    sheet.pageSetup.printTitlesRow='1:3';
+    const subtotal = {};
+    let titleRow = 5;
+    for (const [kind, title, amountKey] of [['sale','Sales / income','sales_cents'],['expense','Expenses','expense_cents']]) {
+      sheet.getRow(titleRow).values=[];
+      sheet.mergeCells(titleRow,1,titleRow,7);
+      const titleCell=sheet.getCell(titleRow,1);titleCell.value=title;
+      titleCell.font={name:'Calibri',bold:true,size:14,color:{argb:'FF764B25'}};
+      titleCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF1E6D6'}};
+      sheet.getRow(titleRow).height=30;
+      const entries=report.entries.filter(e=>e.category_id===group.id&&e.kind===kind);
+      const rows=entries.map(e=>[date(e.entry_date),e.source,e.reference||null,e.client_name||null,accountingPaymentMethods[e.payment_method]||(e.source==='Manual'?'Not recorded':null),e.note||null,e.amount_cents/100]);
+      if(!rows.length)rows.push([null,'No entries in this timeframe',null,null,null,null,null]);
+      const first=titleRow+2,last=first+rows.length-1,totalRow=last+1;
+      sheet.addTable({name:`Accounting_${kind}_${index+1}`,ref:`A${titleRow+1}`,headerRow:true,totalsRow:true,
+        style:{theme:'TableStyleLight9',showRowStripes:true},
+        columns:columns.map((name,i)=>({name,filterButton:true,...(i===0?{totalsRowLabel:`Total ${title.toLowerCase()}`}:{})})),rows});
+      sheet.getRow(titleRow+1).height=25;
+      sheet.getRow(titleRow+1).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF764B25'}};cell.font={bold:true,color:{argb:'FFFFFFFF'}};});
+      for(let row=first;row<=last;row++) {
+        const r=sheet.getRow(row);r.getCell(1).numFmt='mmm d, yyyy';
+        for(const col of [2,4,6])r.getCell(col).alignment={wrapText:true,vertical:'top'};
+        r.height=Math.min(210,21*Math.max(1,...[2,4,6].map(col=>String(r.getCell(col).value||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/(col===6?58:26))),0))));
+      }
+      sheet.getCell(`G${totalRow}`).value={formula:`SUM(G${first}:G${last})`,result:group[amountKey]/100};
+      totalStyle(sheet.getRow(totalRow));sheet.getRow(totalRow).height=27;
+      subtotal[kind]=totalRow;titleRow=totalRow+3;
     }
-    if (!entries.length) sheet.addRow([null,'No entries in this timeframe']);
-    const last = sheet.lastRow.number;
-    sheet.autoFilter = {from: 'A5', to: `I${last}`};
-    const total = sheet.addRow(['Total']);
-    for (const [col, value] of [['G',group.kind === 'sale' ? group.amount_cents / 100 : 0],['H',group.kind === 'expense' ? group.amount_cents / 100 : 0]])
-      sheet.getCell(`${col}${total.number}`).value = {formula:`SUM(${col}6:${col}${last})`, result: value};
-    sheet.getCell(`I${total.number}`).value = {formula:`G${total.number}-H${total.number}`, result:(group.kind === 'sale' ? 1 : -1) * group.amount_cents / 100};
-    for (const col of [7,8,9]) sheet.getColumn(col).numFmt = currency;
-    totalStyle(total);
-    const row = summary.addRow([group.name,group.kind === 'sale' ? 'Sales / income' : 'Expense']);
-    for (const [col, source] of [[3,'G'],[4,'H'],[5,'I']]) row.getCell(col).value = {formula:`${quoted(name)}!${source}${total.number}`,result:sheet.getCell(`${source}${total.number}`).value.result};
+    sheet.getColumn(7).numFmt=currency;
+    const row = summary.addRow([group.name]);
+    row.getCell(2).value={formula:`${quoted(name)}!G${subtotal.sale}`,result:group.sales_cents/100};
+    row.getCell(3).value={formula:`${quoted(name)}!G${subtotal.expense}`,result:group.expense_cents/100};
+    row.getCell(4).value={formula:`B${row.number}-C${row.number}`,result:(group.sales_cents-group.expense_cents)/100};
   }
   const end = summary.lastRow.number, totals = accountingTotals(report), total = summary.addRow(['Overall total']);
-  for (const [col,key] of [['C','sales'],['D','expenses'],['E','net']]) summary.getCell(`${col}${total.number}`).value = {formula:end>=6?`SUM(${col}6:${col}${end})`:'0',result:totals[key]/100};
-  totalStyle(total); for (const c of [3,4,5]) summary.getColumn(c).numFmt = currency;
+  for (const [col,key] of [['B','sales'],['C','expenses'],['D','net']]) summary.getCell(`${col}${total.number}`).value = {formula:end>=6?`SUM(${col}6:${col}${end})`:'0',result:totals[key]/100};
+  totalStyle(total); for (const c of [2,3,4]) summary.getColumn(c).numFmt = currency;
   summary.addRow([]);
-  summary.addRow(['Delivery costs not recorded', totals.missingCosts]);
+  summary.addRow(['Delivery costs not recorded', totals.missingCosts]).getCell(2).numFmt='0';
   summary.addRow(['Net = recorded income less recorded expenses. Missing costs are not treated as free delivery.']);
-  summary.mergeCells(summary.lastRow.number,1,summary.lastRow.number,5);
+  summary.mergeCells(summary.lastRow.number,1,summary.lastRow.number,4);
   summary.lastRow.getCell(1).alignment = {wrapText:true}; summary.lastRow.height=32;
   const delivery = wb.addWorksheet('Delivery comparison');
   header(delivery, 'Delivery fee comparison', ['Approval date','Order ID','Order status','Fee collected','Actual cost','Difference','Cost date'], [17,20,24,22,22,22,17]);

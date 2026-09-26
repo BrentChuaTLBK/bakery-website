@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 export default async function({db,check,state}) {
   const h=state.harness,{api,ids,scalar}=h;
   const today=await h.day(0), range={start:today,end:today};
-  const call=(action,payload={},user=ids.owner)=>api('accounting_'+action,payload,user);
+  const call=(action,payload={},user=ids.owner)=>api('accounting_'+action,{...payload,report_version:2},user);
   const report=()=>call('report',range);
   const balance=async id=>(await db.query('select c.system_key,sum(l.amount_cents)::int as amount from tlb.accounting_ledger l join tlb.accounting_categories c on c.id=l.category_id where l.order_id=$1 group by c.system_key',[id])).rows;
   const counts=async id=>scalar('select count(*)::int from tlb.accounting_ledger where order_id=$1',[id]);
@@ -31,12 +31,12 @@ export default async function({db,check,state}) {
     assert.equal((await call('history',{id:e.id})).length,1);
     await assert.rejects(call('save_entry',{...payload,amount_cents:222}),/changed/i);
     const updated=await call('save_entry',{...payload,revision:1,amount_cents:23456});assert.equal(updated.revision,2);
-    let r=await report();assert.equal(r.summary.find(c=>c.id===cat.id).amount_cents,23456);
+    let r=await report();assert.equal(r.summary.find(c=>c.id===cat.id).sales_cents,23456);
     const removed=await call('delete_entry',{id:e.id,revision:2});assert.ok(removed.deleted_at);
     await call('delete_entry',{id:e.id,revision:2});assert.equal((await call('history',{id:e.id})).length,3);
     assert.equal((await report()).entries.some(row=>row.id===e.id),false);
     await assert.rejects(call('save_entry',{...payload,revision:3}),/removed/i);
-    await assert.rejects(call('save_category',{...cat,kind:'expense'}),/cannot change/i);
+    assert.equal((await call('save_category',{...cat,kind:'expense'})).id,cat.id,'Category is shared; type is chosen per entry');
     const system=(await report()).categories.find(c=>c.system_key==='website');
     await assert.rejects(call('save_category',{...system,name:'Override'}),/Automatic/i);
     await assert.rejects(call('save_entry',{...payload,id:randomUUID(),category_id:system.id}),/manual category/i);
@@ -90,10 +90,10 @@ export default async function({db,check,state}) {
 
   await check('accounting arbitrary ranges are inclusive and report includes more than 1000 entries',async()=>{
     const cat=await call('save_category',{id:randomUUID(),revision:0,name:'Bulk '+randomUUID(),kind:'expense'});
-    await db.query("insert into tlb.accounting_entries(id,entry_date,category_id,amount_cents,note) select gen_random_uuid(),'2024-02-29'::date,$1,101,'Bulk fixture' from generate_series(1,1005)",[cat.id]);
+    await db.query("insert into tlb.accounting_entries(id,entry_date,category_id,amount_cents,note,kind) select gen_random_uuid(),'2024-02-29'::date,$1,101,'Bulk fixture','expense' from generate_series(1,1005)",[cat.id]);
     let r=await call('report',{start:'2024-02-29',end:'2024-02-29'});
     assert.equal(r.entries.filter(e=>e.category_id===cat.id).length,1005);
-    assert.equal(r.summary.find(c=>c.id===cat.id).amount_cents,101505);
+    assert.equal(r.summary.find(c=>c.id===cat.id).expense_cents,101505);
     r=await call('report',{start:'2024-03-01',end:'2024-03-01'});assert.equal(r.entries.some(e=>e.category_id===cat.id),false);
   })();
 
@@ -104,12 +104,12 @@ export default async function({db,check,state}) {
     await db.query("update tlb.history set at=case when action='approve_payment' then '2024-02-29T16:30:00Z'::timestamptz else '2024-03-03T01:00:00Z'::timestamptz end where order_id=$1 and after_data->>'payment_status'='paid'",[o.id]);
     await db.query('delete from tlb.accounting_ledger where order_id=$1',[o.id]);await db.query('delete from tlb.accounting_order_state where order_id=$1',[o.id]);
     const migration=await readFile(new URL('../../supabase/migrations/20260924180843_owner_accounting.sql',import.meta.url),'utf8');
-    const eligibility=await readFile(new URL('../../supabase/migrations/20260924184817_accounting_eligible_orders.sql',import.meta.url),'utf8');
-    const details=await readFile(new URL('../../supabase/migrations/20260925051534_accounting_client_names.sql',import.meta.url),'utf8');
-    await db.exec(migration);await db.exec(eligibility);await db.exec(details);
+    // Replay the historical import itself, without downgrading today's schema/API.
+    const backfill=migration.slice(migration.indexOf('do $$ declare o record;'),migration.indexOf('create or replace function tlb.accounting_order_changed'));
+    await db.exec(backfill);
     const dates=(await db.query('select entry_date::text,amount_cents::int from tlb.accounting_ledger where order_id=$1 order by entry_date',[o.id])).rows;
     assert.deepEqual(dates,[{entry_date:'2024-03-01',amount_cents:10000},{entry_date:'2024-03-03',amount_cents:-10000}]);
-    const count=await counts(o.id);await db.exec(migration);await db.exec(eligibility);await db.exec(details);assert.equal(await counts(o.id),count);
+    const count=await counts(o.id);await db.exec(backfill);assert.equal(await counts(o.id),count);
     assert.equal((await call('report',{start:'2024-03-01',end:'2024-03-01'})).entries.some(e=>e.order_id===o.id),false);
     assert.equal((await call('report',{start:'2024-03-03',end:'2024-03-03'})).entries.some(e=>e.order_id===o.id),false);
   })();

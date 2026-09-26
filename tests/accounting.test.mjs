@@ -10,7 +10,8 @@ export const fixture={start:'2026-09-01',end:'2026-09-25',generated_at:'2026-09-
  entries:[{id:'1',category_id:'website',entry_date:'2026-09-22',amount_cents:100000,note:'Payment approved',source:'Website',order_id:'delivery',reference:'TLB-A2B3C4'},{id:'2',category_id:'discount',entry_date:'2026-09-22',amount_cents:5000,note:'Payment approved',source:'Website'},{id:'3',category_id:'fee',entry_date:'2026-09-22',amount_cents:15000,note:'Payment approved',source:'Website'},{id:'delivery',category_id:'cost',entry_date:'2026-09-23',amount_cents:22550,note:'Courier',source:'Delivery cost',order_id:'delivery',reference:'TLB-A2B3C4',revision:1},{id:'4',category_id:'cakes',entry_date:'2026-09-23',amount_cents:250000,note:'Celebration cake',source:'Manual',revision:1},{id:'5',category_id:'ingredients',entry_date:'2026-09-24',amount_cents:25025,note:'=HYPERLINK("https://example.test","literal")',source:'Manual',revision:1}],
  deliveries:[{order_id:'delivery',reference:'TLB-A2B3C4',approval_date:'2026-09-22',fee_cents:15000,cost_cents:22550,cost_date:'2026-09-23',status:'completed',refund_label:false},{order_id:'missing',reference:'TLB-Z9Y8X7',approval_date:'2026-09-24',fee_cents:0,cost_cents:null,cost_date:null,status:'confirmed',refund_label:false}]
 };
-fixture.summary=fixture.categories.map(c=>({...c,amount_cents:fixture.entries.filter(e=>e.category_id===c.id).reduce((s,e)=>s+e.amount_cents,0),entry_count:fixture.entries.filter(e=>e.category_id===c.id).length}));
+fixture.entries.forEach(e=>e.kind=fixture.categories.find(c=>c.id===e.category_id).kind);
+fixture.summary=fixture.categories.map(c=>({id:c.id,name:c.name,sales_cents:fixture.entries.filter(e=>e.category_id===c.id&&e.kind==='sale').reduce((s,e)=>s+e.amount_cents,0),expense_cents:fixture.entries.filter(e=>e.category_id===c.id&&e.kind==='expense').reduce((s,e)=>s+e.amount_cents,0)}));
 fixture.entries.find(e=>e.id==='4').client_name='=A1';
 fixture.entries.find(e=>e.id==='4').payment_method='gcash';
 
@@ -36,12 +37,25 @@ test('real XLSX roundtrip keeps category sheets, formulas, currency, dates and h
  assert.equal(String.fromCharCode(...bytes.slice(0,2)),'PK');
  const saved=new ExcelJS.Workbook();await saved.xlsx.load(bytes);
  assert.equal(saved.worksheets.length,fixture.categories.length+2);
- const expense=saved.getWorksheet('Ingredients');assert.equal(expense.getCell('F6').value,fixture.entries.at(-1).note);assert.equal(expense.getCell('F6').type,3);
- assert.equal(expense.getCell('H6').value,250.25);assert.ok(expense.getCell('A6').value instanceof Date);
- const cake=saved.getWorksheet('Custom cakes');assert.equal(cake.getCell('D5').value,'Client name');assert.equal(cake.getCell('D6').value,'=A1');assert.equal(cake.getCell('D6').type,3);assert.equal(cake.getCell('E6').value,'GCash');assert.equal(cake.getCell('I6').value.formula,'G6-H6');
- assert.equal(expense.getCell('E6').value,'Not recorded');
+ const expense=saved.getWorksheet('Ingredients');assert.equal(expense.getCell('F13').value,fixture.entries.at(-1).note);assert.equal(expense.getCell('F13').type,3);
+ assert.equal(expense.getCell('G13').value,250.25);assert.ok(expense.getCell('A13').value instanceof Date);
+ const cake=saved.getWorksheet('Custom cakes');assert.equal(cake.getCell('D6').value,'Client name');assert.equal(cake.getCell('D7').value,'=A1');assert.equal(cake.getCell('D7').type,3);assert.equal(cake.getCell('E7').value,'GCash');assert.equal(cake.getCell('G8').value.formula,'SUM(G7:G7)');assert.equal(cake.columnCount,7);assert.equal(Object.keys(cake.tables).length,2);
+ assert.equal(expense.getCell('E13').value,'Not recorded');
  const summary=saved.getWorksheet('Summary');const total=summary.getRow(12);assert.equal(total.getCell(1).value,'Overall total');
- assert.equal(total.getCell(5).value.result,3124.25);assert.equal(total.getCell(5).value.formula,'SUM(E6:E11)');
+ assert.equal(total.getCell(4).value.result,3124.25);assert.equal(total.getCell(4).value.formula,'SUM(D6:D11)');
  const delivery=saved.getWorksheet('Delivery comparison');assert.equal(delivery.getCell('F6').value.result,-75.5);assert.equal(delivery.getCell('E7').value,'Not recorded');assert.equal(delivery.getCell('F7').value,null);
  for(const sheet of saved.worksheets)assert.equal(sheet.views[0].state,'frozen');
+});
+
+test('a shared category exports two independently filterable tables and one summary row',async()=>{
+ const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
+ const report=structuredClone(fixture);report.entries.push({id:'mixed',category_id:'cakes',entry_date:'2026-09-24',kind:'expense',amount_cents:12525,note:'Ingredients for cakes',source:'Manual'});
+ report.summary.find(c=>c.id==='cakes').expense_cents=12525;
+ const wb=buildAccountingWorkbook(report,ExcelJS),sheet=wb.getWorksheet('Custom cakes'),summary=wb.getWorksheet('Summary');
+ assert.equal(Object.keys(sheet.tables).length,2);assert.equal(sheet.getCell('A5').value,'Sales / income');assert.equal(sheet.getCell('A11').value,'Expenses');
+ assert.equal(sheet.getCell('G7').value,2500);assert.equal(sheet.getCell('G13').value,125.25);
+ assert.equal(sheet.getCell('G8').value.result,2500);assert.equal(sheet.getCell('G14').value.result,125.25);
+ const rows=[];summary.eachRow(row=>{if(row.getCell(1).value==='Custom cakes')rows.push(row);});assert.equal(rows.length,1);
+ assert.equal(rows[0].getCell(2).value.result,2500);assert.equal(rows[0].getCell(3).value.result,125.25);assert.equal(rows[0].getCell(4).value.result,2374.75);
+ sheet.eachRow(row=>row.eachCell(cell=>assert.notEqual(cell.value,'Net')));
 });
