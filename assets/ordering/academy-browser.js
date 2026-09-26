@@ -1,5 +1,5 @@
 import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,instagramUrl,missingContent} from './academy-model.js';
-import {academyPhoto,bindAcademyInteractions} from './academy-view.js';
+import {academyPhoto,bindAcademyInteractions} from './academy-view.js?v=compact-albums-1';
 import {academyApi,academyImages} from './academy-client.js';
 
 export function albumBrowser(data,images,{preview=false,slug='',batchId=''}={}) {
@@ -9,7 +9,10 @@ export function albumBrowser(data,images,{preview=false,slug='',batchId=''}={}) 
  const c=selected?.content,batches=c?.batches.filter(b=>preview||b.photos.length)||[],batch=batches.find(b=>b.id===batchId)||batches[0];
  const thumbnail=(r)=>academyPhoto(r.content.thumbnail,images,r.content.title,{placeholder:preview||r.content.allow_photo_placeholders===true});
  const browser=`<aside class="academy-sidebar"><details class="academy-picker"><summary><span class="academy-picker-current">${selected?thumbnail(selected):''}<span><small>Our class albums</small><strong>${esc(c?.title||'Choose a class')}</strong></span><span aria-hidden="true">⌄</span></span><span class="academy-desktop-heading"><small class="academy-eyebrow">TLB Academy archive</small><span>Our class albums.</span></span></summary><nav class="academy-class-list" aria-label="Academy classes">${classes.map(r=>`<a href="${esc(classLink({...r.content,id:r.id},preview))}" data-academy-class="${esc(r.content.slug)}" ${r.id===selected?.id?'aria-current="page"':''}>${thumbnail(r)}<span><strong>${esc(r.content.title)}</strong><small>${r.id===featured?.id?'Featured · ':''}${esc(r.content.category_label||'Past class')}</small></span></a>`).join('')||'<p>Class stories coming soon.</p>'}</nav></details></aside>`;
- const photos=(items,key,label)=>`<div class="academy-photo-grid">${items.map((p,i)=>`<figure><button type="button" class="academy-photo-open" data-academy-gallery="${esc(key)}" data-photo-index="${i}" aria-label="Enlarge ${esc(p.alt||label)}">${academyPhoto(p,images,label)}</button>${p.caption?`<figcaption>${plain(p.caption)}</figcaption>`:''}</figure>`).join('')}</div>`;
+ const photos=(items,key,label)=>{
+  const album=key.startsWith('batch-'),pageSize=24;
+  return `${album?`<p class="academy-album-hint">${items.length} photos · Tap a photo to enlarge and swipe through the album.</p>`:''}<div class="academy-photo-grid${album?' academy-thumbnail-grid':''}" ${album?`data-academy-thumbnails="${esc(key)}"`:''}>${items.map((p,i)=>`<figure ${album&&i>=pageSize?'hidden':''}><button type="button" class="academy-photo-open" data-academy-gallery="${esc(key)}" data-photo-index="${i}" aria-label="Enlarge ${esc(p.alt||label)} · photo ${i+1} of ${items.length}">${academyPhoto(p,images,label)}</button>${!album&&p.caption?`<figcaption>${plain(p.caption)}</figcaption>`:''}</figure>`).join('')}</div>${album&&items.length>pageSize?`<div class="academy-album-more"><span data-academy-visible-count aria-live="polite">Showing ${pageSize} of ${items.length}</span><button type="button" class="academy-button" data-academy-more="${esc(key)}">Show more photos</button></div>`:''}`;
+ };
  const details=c?[['Instructor',c.instructor],['Location',c.location],['Age group',c.age_group],['Duration',c.duration],['Dates',c.date_text]].filter(([,v])=>v):[];
  const creations=c?.creations.filter(x=>preview||x.photos.length)||[],videos=c?.videos.filter(v=>!v.batch_id||v.batch_id===batch?.id)||[];
  const link=enquiryUrl(s.enquiry_url);
