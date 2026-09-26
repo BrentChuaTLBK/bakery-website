@@ -34,7 +34,7 @@ async function context({role='owner',mobile=false,reducedMotion='no-preference'}
     export async function partyCartItemsApi(){return {items:['Cookie A La Mode','Nori Chips Cups'],revision:1}};
     export async function partyCartPhotosApi(action,payload){const r=await fetch('/test-photos',{method:'POST',body:JSON.stringify({action,payload})});const d=await r.json();if(!r.ok)throw Error(d.message);return d};
     export async function upload(file){const image=await createImageBitmap(file),header=[...new Uint8Array(await file.arrayBuffer())].slice(0,12);const r=await fetch('/test-upload',{method:'POST',body:JSON.stringify({name:file.name,type:file.type,size:file.size,header,width:image.width,height:image.height})});image.close();return r.json()};
-    export async function websiteVisitorStats(){return {}};${helpers}`;
+    export async function websiteVisitorStats(){return {}};export async function academyApi(){throw Error('Unexpected Academy request')} export async function academyUpload(){throw Error('Unexpected Academy upload')} export async function academySignedUrls(){throw Error('Unexpected Academy photos')};${helpers}`;
   await ctx.route('**/*',async route=>{
     const u=new URL(route.request().url());
     if(u.pathname==='/test-upload'){
@@ -61,7 +61,7 @@ async function context({role='owner',mobile=false,reducedMotion='no-preference'}
       if(/\.(jpg|webp)$/.test(u.pathname))return route.fulfill({contentType:'image/png',body:photoPng});return route.fulfill({status:404,body:'Not found'});
     }
   });
-  ctx.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));return ctx;
+  ctx.on('page',p=>{p.on('pageerror',e=>errors.push(e.message));p.on('dialog',dialog=>{errors.push('Unexpected native dialog: '+dialog.message());return dialog.dismiss();});});return ctx;
 }
 async function frozenPage(ctx){const p=await ctx.newPage();await p.clock.install({time:new Date('2026-09-21T00:00:00Z')});await p.clock.pauseAt(new Date('2026-09-21T00:00:01Z'));return p;}
 const count=p=>p.locator('[data-cart-count]').innerText();
@@ -125,15 +125,15 @@ try{
   await slowPage.locator('[data-cart-step="1"]').click();await slowPage.locator('[data-cart-image-error]:not([hidden])').waitFor();await slowPage.locator('[data-cart-step="1"]').click();await slowPage.locator(`[data-cart-featured][src="${seed[0].photo_url}"]:not([hidden])`).waitFor();
   data=originalData;await slowPage.close();await motionPage.close();
   console.log('PASS 600ms forward/backward and enlarged-photo slides, rapid-click latest selection, slow-image race, decode failure recovery, and reduced-motion instant changes.');
-  const admin=await ctx.newPage();let accept=true;admin.on('dialog',d=>accept?d.accept():d.dismiss());await admin.goto(origin+'/manage.html#packages');await admin.locator('[data-cart-photo-caption]').first().waitFor();assert.equal(await admin.locator('.cart-photo-card').count(),17);
+  const admin=await ctx.newPage();await admin.goto(origin+'/manage.html#packages');await admin.locator('[data-cart-photo-caption]').first().waitFor();assert.equal(await admin.locator('.cart-photo-card').count(),17);
   await admin.locator('#party-cart-photo-manager h2').evaluate(el=>el.scrollIntoView({block:'start'}));await admin.screenshot({path:join(output,'admin-desktop.png')});
   const original=await admin.locator('[data-photo-move] img').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src')));
   await drag(admin,1,0);assert.equal(await admin.locator('[data-photo-move="0"] img').getAttribute('src'),original[1]);
   await admin.locator('[data-photo-move="0"]').press('ArrowRight');assert.equal(await admin.locator('[data-photo-move="0"] img').getAttribute('src'),original[0]);
   await admin.locator('[data-cart-photo-caption="0"]').fill('Updated <img src=x onerror=alert(1)> caption');await admin.locator('[data-cart-photo-visible="1"]').uncheck();
-  accept=false;await admin.locator('[data-cart-photo-remove="2"]').click();assert.equal(await admin.locator('.cart-photo-card').count(),17);
-  await admin.locator('[data-view="overview"]').click();assert.equal(await admin.locator('.cart-photo-card').count(),17);accept=true;
-  await admin.locator('[data-cart-photo-remove="2"]').click();assert.equal(await admin.locator('.cart-photo-card').count(),16);
+  await admin.locator('[data-cart-photo-remove="2"]').click();const removePrompt=admin.getByRole('dialog',{name:'Remove slideshow photo?',exact:true});await removePrompt.getByRole('button',{name:'Keep photo',exact:true}).click();await removePrompt.waitFor({state:'hidden'});assert.equal(await admin.locator('.cart-photo-card').count(),17);
+  await admin.locator('[data-view="overview"]').click();await admin.getByRole('dialog',{name:'Discard your changes?',exact:true}).getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await admin.locator('.cart-photo-card').count(),17);
+  await admin.locator('[data-cart-photo-remove="2"]').click();await removePrompt.getByRole('button',{name:'Remove photo',exact:true}).click();await removePrompt.waitFor({state:'hidden'});assert.equal(await admin.locator('.cart-photo-card').count(),16);
   const png=await admin.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=2400;canvas.height=1200;canvas.getContext('2d').fillRect(0,0,2400,1200);return canvas.toDataURL('image/png').split(',')[1];});
   let release;holdUpload=new Promise(r=>{release=r;});await admin.locator('[data-cart-photo-upload]').setInputFiles({name:'large-party.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
   await admin.locator('[data-cart-photo-message]').filter({hasText:'Converting and uploading'}).waitFor();assert(await admin.locator('[data-cart-photo-save]').isDisabled());
@@ -145,11 +145,12 @@ try{
   await admin.locator('[data-cart-photo-save]').click();await admin.locator('[data-cart-photo-message]').filter({hasText:'Saved.'}).waitFor();const saves=calls.filter(c=>c.action==='save');assert.equal(saves[0].payload.operation_id,saves[1].payload.operation_id);
   await admin.reload();await admin.locator('[data-cart-photo-caption]').first().waitFor();assert.match(await admin.locator('[data-cart-photo-caption="0"]').inputValue(),/Updated/);assert.equal(await admin.locator('[data-cart-photo-visible="1"]').isChecked(),false);
   await admin.locator('[data-cart-photo-replace="0"]').setInputFiles({name:'replacement.png',mimeType:'image/png',buffer:photoPng});await admin.locator('[data-cart-photo-message]').filter({hasText:'1 photo ready'}).waitFor();assert.equal(await admin.locator('.cart-photo-card').count(),17);
-  await admin.locator('[data-cart-photo-reset]').click();assert.equal(await admin.locator('[data-photo-move="0"] img').getAttribute('src'),original[0]);
+  await admin.locator('[data-cart-photo-reset]').click();const resetPrompt=admin.getByRole('dialog',{name:'Discard photo changes?',exact:true});await resetPrompt.getByRole('button',{name:'Keep editing',exact:true}).click();await resetPrompt.waitFor({state:'hidden'});assert.notEqual(await admin.locator('[data-photo-move="0"] img').getAttribute('src'),original[0],'Cancel reset retains the replacement');
+  await admin.locator('[data-cart-photo-reset]').click();await resetPrompt.getByRole('button',{name:'Discard changes',exact:true}).click();await resetPrompt.waitFor({state:'hidden'});assert.equal(await admin.locator('[data-photo-move="0"] img').getAttribute('src'),original[0]);
   await admin.locator('[data-cart-photo-upload]').setInputFiles({name:'bad.jpg',mimeType:'image/jpeg',buffer:Buffer.from('not an image')});await admin.locator('[data-cart-photo-message]').filter({hasText:'could not be opened'}).waitFor();assert.equal(await admin.locator('.cart-photo-card').count(),17);
   await page.reload();await page.locator('[data-cart-thumb]').first().waitFor();assert.equal(await page.locator('[data-cart-thumb]').count(),16);assert.equal(await page.locator('[data-cart-caption] img').count(),0);assert.match(await page.locator('[data-cart-caption]').innerText(),/Updated <img/);
-  const mobile=await context({mobile:true}),phone=await mobile.newPage();phone.on('dialog',d=>d.accept());await phone.goto(origin+'/manage.html#packages');await phone.locator('[data-cart-photo-caption]').first().waitFor();await drag(phone,1,0,true);assert.equal(await phone.locator('[data-photo-move="0"] img').getAttribute('src'),data.items[1].photo_url);assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await phone.locator('[data-cart-photo-caption="0"]').fill('Draft caption');await phone.screenshot({path:join(output,'admin-mobile.png')});await phone.locator('[data-cart-photo-reset]').click();
+  const mobile=await context({mobile:true}),phone=await mobile.newPage();await phone.goto(origin+'/manage.html#packages');await phone.locator('[data-cart-photo-caption]').first().waitFor();await drag(phone,1,0,true);assert.equal(await phone.locator('[data-photo-move="0"] img').getAttribute('src'),data.items[1].photo_url);assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await phone.locator('[data-cart-photo-caption="0"]').fill('Draft caption');await phone.screenshot({path:join(output,'admin-mobile.png')});await phone.locator('[data-cart-photo-reset]').click();await phone.getByRole('dialog',{name:'Discard photo changes?',exact:true}).getByRole('button',{name:'Discard changes',exact:true}).click();
   await phone.clock.install({time:new Date('2026-09-21T00:00:00Z')});await phone.clock.pauseAt(new Date('2026-09-21T00:00:01Z'));await phone.goto(origin+'/partycarts.html');await phone.locator('[data-cart-thumb]').first().waitFor();assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await phone.screenshot({path:join(output,'public-mobile.png'),fullPage:true});await phone.locator('[data-cart-step="1"]').tap();assert.equal(await count(phone),'2 / 16');await phone.clock.runFor(3000);assert.equal(await count(phone),'3 / 16');
   // Real touch timestamps and animation frames: keep these gesture checks
   // separate from the virtual-clock autoplay checks above.

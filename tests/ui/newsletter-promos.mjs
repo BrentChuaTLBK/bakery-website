@@ -10,7 +10,8 @@ const welcomes=[base,{...base,expires_at:'2026-09-01T06:00:00Z'},{...base,reserv
 const data={role:'owner',products:[],categories:[],orders:[],inventory:[],zones:[],staff:[],email_status:[],settings:{paused:false},newsletter_promos:welcomes,promos:[...welcomes,{...base,id:'regular',code:'MANUAL10',value:10,usage_count:0,redeemed_count:0,reserved_count:0}]};
 const client=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=client.slice(client.indexOf('export function money('));
 const mock=`export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{user:{id:'owner'}}}}),onAuthStateChange:()=>{}};
-export async function api(action){if(action==='admin_bootstrap')return {...${JSON.stringify(data)},role:window.testRole||'owner'};throw Error('Unexpected '+action)}
+export async function api(action,payload){if(action==='admin_bootstrap')return {...${JSON.stringify(data)},role:window.testRole||'owner'};if(action==='save_promo'){window.savedPromo=payload.promo;return payload.promo}throw Error('Unexpected '+action)}
+export async function academyApi(){throw Error('Unexpected Academy request')} export async function academyUpload(){throw Error('Unexpected Academy upload')} export async function academySignedUrls(){throw Error('Unexpected Academy photos')}
 export async function upload(){throw Error('Unexpected upload')} export async function websiteVisitorStats(){return {}};${helpers}`;
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.woff2':'font/woff2'};
 const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined,headless:true});
@@ -41,7 +42,19 @@ try{
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     await page.clock.fastForward(61000);
     assert.equal(await metric('Active').textContent(),'1');assert.equal(await metric('Expired unused').textContent(),'2');
+    await page.locator('[data-action="edit-promo"][data-id="regular"]').click();
+    const expiry=page.locator('.accounting-date-picker:has([name="expires_at__date"])');
+    await expiry.locator('summary').click();
+    await expiry.locator('[data-date-year]').fill('2027');await expiry.locator('[data-date-year]').press('Tab');
+    await expiry.locator('[data-date-month]').selectOption('02');await expiry.locator('[data-date-value="2027-02-12"]').click();
+    await page.locator('[data-datetime-hour]').selectOption('21');await page.locator('[data-datetime-minute]').selectOption('05');
+    assert.equal(await page.locator('[name="expires_at"]').inputValue(),'2027-02-12T21:05');
+    assert.equal(await page.locator('input[type="datetime-local"],input[type="date"]').count(),0);
+    await page.getByRole('button',{name:'Save promo code',exact:true}).click();
+    await page.waitForFunction(()=>Boolean(window.savedPromo));
+    assert.equal(await page.evaluate(()=>window.savedPromo.expires_at),'2027-02-12T13:05:00.000Z');
+    await page.locator('#admin-dialog').waitFor({state:'hidden'});
     assert.deepEqual(errors,[]);await context.close();
-    console.log('PASS '+width+'px: regular/welcome separation, subscriber rows, analytics, expiry updates and mobile fit.');
+    console.log('PASS '+width+'px: regular/welcome separation, subscriber analytics, expiry updates, branded expiry date/time saves in Manila time and mobile fit.');
   }
 }finally{await browser.close()}

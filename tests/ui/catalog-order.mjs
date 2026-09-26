@@ -18,7 +18,9 @@ if(action==='reorder_catalog'){const before=data[payload.kind];data[payload.kind
 if(action==='reorder_product_categories'){for(const group of payload.groups)group.ids.forEach((id,i)=>{const item=data.products.find(x=>x.id===id);if(group.category_id)item.category_sort_orders={...(item.category_sort_orders||{}),[group.category_id]:i+1};else item.sort_order=i+1;});localStorage.setItem('catalog',JSON.stringify(data));return {items:data.products};}
 if(action==='save_category'||action==='save_product'){if(payload.preserve_order!==true)throw Error('Missing preserve_order');const kind=action==='save_category'?'categories':'products',item=payload.category||payload.product,existing=data[kind].find(x=>x.id===item.id);const saved={...item,id:item.id||'new-item',sort_order:existing?.sort_order??Math.max(0,...data[kind].map(x=>x.sort_order))+1};if(existing)Object.assign(existing,saved);else data[kind].push(saved);localStorage.setItem('catalog',JSON.stringify(data));return saved;}
 throw Error('Unexpected '+action);}
-export async function upload(){} export async function websiteVisitorStats(){return {}};${helpers}`;
+export async function upload(){} export async function websiteVisitorStats(){return {}};
+export async function academyApi(){throw Error('Unexpected Academy request')} export async function academyUpload(){throw Error('Unexpected Academy upload')} export async function academySignedUrls(){throw Error('Unexpected Academy photos')}
+${helpers}`;
 const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE_PATH}),errors=[];
 async function context(mobile=false) {
  const ctx=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1400,height:1000},isMobile:mobile,hasTouch:mobile});
@@ -41,7 +43,7 @@ async function drag(page,from,to,touch=false,cancel=false,group=0){
  else{await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:12});if(cancel)await page.keyboard.press('Escape');await page.mouse.up();}
 }
 try{
- const ctx=await context(),page=await ctx.newPage();let accept=false;page.on('dialog',d=>accept?d.accept():d.dismiss());await menu(page);
+ const ctx=await context(),page=await ctx.newPage();page.on('dialog',d=>{errors.push('Unexpected native dialog: '+d.type());d.dismiss();});await menu(page);
  await page.locator('[data-product-filter="search"]').fill('Ube');assert.equal(await page.locator('.product-card').count(),1);
  await page.locator('[data-action="reorder-products"]').click();assert.deepEqual(await ids(page),['p0','p1','p2','p3','p4','p5','p6']);
  const first=await page.locator('[data-order-group="0"] [data-order-handle="0"]').boundingBox(),other=await page.locator('[data-order-group="1"] [data-order-item="0"]').boundingBox();await page.mouse.move(first.x+20,first.y+20);await page.mouse.down();await page.mouse.move(other.x+20,other.y+20,{steps:10});await page.mouse.up();assert.deepEqual(await ids(page),['p0','p1','p2','p3','p4','p5','p6']);
@@ -49,7 +51,7 @@ try{
  await page.locator('[data-order-group="0"] [data-order-handle="2"]').press('Home');assert.deepEqual(await ids(page),['p0','p1','p2','p3','p4','p5','p6']);
  await drag(page,0,2,false,true);assert.deepEqual(await ids(page),['p0','p1','p2','p3','p4','p5','p6']);
  await page.locator('[data-order-group="0"] [data-order-handle="0"]').press('End');assert.deepEqual(await ids(page),['p1','p2','p3','p0','p4','p5','p6']);
- await page.locator('#dialog-close').click();assert(await page.locator('#admin-dialog').isVisible());
+ await page.locator('#dialog-close').click();await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert(await page.locator('#admin-dialog').isVisible());
  await page.keyboard.press('Escape');assert(await page.locator('#admin-dialog').isVisible());
  await page.screenshot({path:join(output,'products-desktop.png')});
  await page.evaluate(()=>window.failOrder=true);await page.locator('[data-order-save]').click();await page.locator('[data-order-status]').filter({hasText:'Connection lost'}).waitFor();assert.deepEqual(await ids(page),['p1','p2','p3','p0','p4','p5','p6']);
@@ -58,7 +60,7 @@ try{
  const calls=await page.evaluate(()=>window.calls.filter(x=>x.action==='reorder_product_categories'));assert.deepEqual(calls[0].payload,calls[1].payload);assert.equal(calls.length,2);
  await page.locator('#dialog-close').click();await menu(page);await page.locator('[data-action="reorder-products"]').click();assert.deepEqual(await ids(page),['p1','p2','p3','p0','p4','p5','p6']);await page.locator('#dialog-close').click();
  await page.locator('[data-action="categories"]').click();await drag(page,2,0);assert.deepEqual(await ids(page),['snack','cake','cookie']);
- await page.locator('[data-action="edit-category"]').first().click();assert(await page.locator('#catalog-order-editor').isVisible()); // Decline discarding unsaved order.
+ await page.locator('[data-action="edit-category"]').first().click();await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert(await page.locator('#catalog-order-editor').isVisible()); // Decline discarding unsaved order.
  await page.locator('[data-order-save]').click();await page.locator('[data-order-status]').filter({hasText:'Order saved.'}).waitFor();
  await page.screenshot({path:join(output,'categories-desktop.png')});
  await page.locator('#dialog-close').click();await page.locator('[data-action="reorder-products"]').click();assert.deepEqual(await page.locator('.catalog-order-group>h3').allTextContents(),['Snacks','Cakes','Cookies','Uncategorized']);assert.deepEqual(await ids(page),['p5','p1','p2','p3','p0','p4','p6']);assert(await page.locator('[data-order-group="0"] [data-order-handle]').isDisabled());await page.locator('#dialog-close').click();await page.locator('[data-action="categories"]').click();

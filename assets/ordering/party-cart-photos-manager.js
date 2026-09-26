@@ -2,6 +2,7 @@ import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js';
 import { bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { packageEscape as esc } from './party-packages-view.js';
+import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 
 export function mountPartyCartPhotos(root, { role, connected, api, upload, page = 'party' }) {
   const service = eventPage(page);
@@ -25,7 +26,8 @@ export function mountPartyCartPhotos(root, { role, connected, api, upload, page 
     controls();
   }
   async function load() {
-    if (dirty && !confirm('Discard your unsaved photo changes and load the saved photos?')) return;
+    if (dirty && !await confirmDialog('Discard your unsaved photo changes and load the saved photos?', { title: 'Reload saved photos?', confirmLabel: 'Discard and reload', cancelLabel: 'Keep editing', danger: true })) return;
+    if (!root.isConnected || busy) return;
     busy = true; controls(); message('Loading party cart photos...');
     try {
       const data = await api('admin_get'); if (!root.isConnected) return;
@@ -72,12 +74,12 @@ export function mountPartyCartPhotos(root, { role, connected, api, upload, page 
     const button = event.target.closest('button'); if (!button || busy) return;
     if (button.hasAttribute('data-cart-photo-refresh')) { await load(); return; }
     if (button.hasAttribute('data-cart-photo-reset')) {
-      if (!confirm('Discard your unsaved photo changes?')) return;
+      if (!await confirmDialog('Discard your unsaved photo changes?', { title: 'Discard photo changes?', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', danger: true }) || !root.isConnected || busy) return;
       items = structuredClone(saved); dirty = false; paint(); message('Saved photos restored.'); return;
     }
     if (button.hasAttribute('data-cart-photo-remove')) {
       const index = Number(button.dataset.cartPhotoRemove);
-      if (!confirm(`Remove photo ${index + 1}${items[index].caption ? ` (${items[index].caption})` : ''} from the slideshow? Click Save photos to apply this change.`)) return;
+      if (!await confirmDialog(`Remove photo ${index + 1}${items[index].caption ? ` (${items[index].caption})` : ''} from the slideshow? Click Save photos to apply this change.`, { title: 'Remove slideshow photo?', confirmLabel: 'Remove photo', cancelLabel: 'Keep photo', danger: true }) || !root.isConnected || busy) return;
       items.splice(index, 1); changed(); paint(); message('Photo removed from this draft. Save photos to publish.'); return;
     }
     if (!button.hasAttribute('data-cart-photo-save') || !dirty) return;

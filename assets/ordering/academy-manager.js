@@ -1,12 +1,15 @@
+import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
 import {esc,clone,uid,slugify,emptyClass,photoRef,moveItem,orderedClasses,missingContent,instagramUrl,enquiryUrl,classLink} from './academy-model.js';
 import {academyApi,academyImages,uploadAcademyPhoto,galleryImageAccept} from './academy-client.js';
 import {academyPhoto} from './academy-view.js';
+import {accountingDatePicker,bindAccountingDates,validateAccountingDates} from './accounting-date-picker.js?v=branded-calendars-1';
+import {dateInManila} from './shop-rules.js?v=daily-quantities-1';
 
 export async function mountAcademy(root,{role,connected}) {
  if(!root)return;
  if(!connected||role!=='owner'){root.innerHTML='<p class="notice">Only the owner can manage Academy.</p>';return;}
  let data,settings,row=null,draft=null,images={},dirty=false,busy=false,drag=null;
- const field=(path,label,value='',type='text',extra='')=>`<label class="field">${esc(label)}<input data-ac-field="${esc(path)}" type="${type}" value="${esc(value??'')}" ${extra}></label>`;
+ const field=(path,label,value='',type='text',extra='')=>type==='date'?accountingDatePicker(path,label,value||'',dateInManila(),{optional:true,attrs:`data-ac-field="${esc(path)}" ${extra}`}):`<label class="field">${esc(label)}<input data-ac-field="${esc(path)}" type="${type}" value="${esc(value??'')}" ${extra}></label>`;
  const area=(path,label,value='')=>`<label class="field">${esc(label)}<textarea data-ac-field="${esc(path)}" maxlength="12000" rows="3">${esc(value??'')}</textarea></label>`;
  const button=(action,label,extra='')=>`<button type="button" class="button button-secondary" data-ac="${action}" ${extra}>${label}</button>`;
  const selection=(path,label,value,options)=>`<label class="field">${esc(label)}<select data-ac-field="${esc(path)}">${options.map(([id,name])=>`<option value="${esc(id)}" ${value===id?'selected':''}>${esc(name)}</option>`).join('')}</select></label>`;
@@ -15,7 +18,7 @@ export async function mountAcademy(root,{role,connected}) {
  function set(path,value){const keys=path.split('.'),last=keys.pop();keys.reduce((v,k)=>v[k],model())[last]=value;mark();}
  function mark(){dirty=true;root.dataset.dirty='true';root.querySelector('[data-ac-dirty]')?.replaceChildren(document.createTextNode('Unsaved changes'));}
  function status(text,bad=false){const box=root.querySelector('[data-ac-status]');if(box){box.textContent=text;box.classList.toggle('danger',bad);box.hidden=!text;}}
- function canLeave(){return !busy&&(!dirty||confirm('Discard unsaved Academy changes?'));}
+ async function canLeave(){return !busy&&(!dirty||await confirmDialog('Your unsaved Academy changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}));}
  function batchOptions(){return [['','Entire class'],...draft.batches.map(b=>[b.id,b.label])];}
  function orderControls(path,i,length){return `<span class="ac-order"><button type="button" class="button button-quiet ac-grip" draggable="true" data-ac-drag="${esc(path)}" data-index="${i}" aria-label="Drag to reorder">⠿</button>${button('move','↑',`data-path="${path}" data-from="${i}" data-to="${i-1}" aria-label="Move up" ${i===0?'disabled':''}`)}${button('move','↓',`data-path="${path}" data-from="${i}" data-to="${i+1}" aria-label="Move down" ${i===length-1?'disabled':''}`)}</span>`;}
  function picture(path,label,{assign=false,single=false}={}) {
@@ -43,7 +46,7 @@ export async function mountAcademy(root,{role,connected}) {
   if(preserve)window.scrollTo({top:y});
  }
  async function load(){const result=await academyApi('admin');if(!root.isConnected)return;data=result;settings=clone(data.settings.draft);settings.class_order=(settings.class_order||[]).filter(id=>data.classes.some(c=>c.id===id));for(const c of data.classes)if(!settings.class_order.includes(c.id))settings.class_order.push(c.id);images={...images,...await academyImages(data.classes.map(r=>r.draft))};render(false);}
- function validate(){const invalid=[...root.querySelectorAll('[data-ac-field]')].find(el=>!el.checkValidity());if(invalid){const details=invalid.closest('details');if(details)details.open=true;invalid.reportValidity();throw Error('Check the highlighted field.');}if(draft){draft.videos.forEach(v=>v.url=instagramUrl(v.url));}else if(!enquiryUrl(settings.enquiry_url))throw Error('Enter an HTTPS enquiry link.');}
+ function validate(){if(!validateAccountingDates(root))throw Error('Check the highlighted date.');const invalid=[...root.querySelectorAll('[data-ac-field]')].find(el=>!el.checkValidity());if(invalid){const details=invalid.closest('details');if(details)details.open=true;invalid.reportValidity();throw Error('Check the highlighted field.');}if(draft){draft.videos.forEach(v=>v.url=instagramUrl(v.url));}else if(!enquiryUrl(settings.enquiry_url))throw Error('Enter an HTTPS enquiry link.');}
  async function save(){validate();row=await academyApi('save_class',{id:row.id,revision:row.revision,content:draft});draft=clone(row.draft);const i=data.classes.findIndex(c=>c.id===row.id);if(i<0)data.classes.push(row);else data.classes[i]=row;dirty=false;root.dataset.dirty='false';}
  async function run(fn){if(busy)return;busy=true;root.dataset.busy='true';root.setAttribute('aria-busy','true');const disabled=[...root.querySelectorAll('input,textarea,select,button')].filter(x=>!x.disabled);disabled.forEach(x=>x.disabled=true);try{await fn();}catch(e){status(e.message,true);}finally{busy=false;root.dataset.busy='false';root.removeAttribute('aria-busy');disabled.filter(x=>x.isConnected).forEach(x=>x.disabled=false);}}
  async function media(path,multiple){
@@ -66,17 +69,18 @@ export async function mountAcademy(root,{role,connected}) {
  root.addEventListener('click',async e=>{
   const b=e.target.closest('[data-ac]');if(!b||b.closest('.ac-media-dialog'))return;e.preventDefault();e.stopPropagation();if(busy||b.disabled)return;
   const action=b.dataset.ac,path=b.dataset.path,i=Number(b.dataset.index);
-  if(['edit','new','back'].includes(action)){if(!canLeave())return;dirty=false;root.dataset.dirty='false';if(action==='back'){draft=null;row=null;await run(load);return;}row=action==='new'?{id:uid(),revision:0,draft:emptyClass()}:data.classes.find(c=>c.id===b.dataset.id);draft=clone(row.draft);render(false);return;}
+  if(['edit','new','back'].includes(action)){if(!await canLeave()||!root.isConnected)return;dirty=false;root.dataset.dirty='false';if(action==='back'){draft=null;row=null;await run(load);return;}row=action==='new'?{id:uid(),revision:0,draft:emptyClass()}:data.classes.find(c=>c.id===b.dataset.id);draft=clone(row.draft);render(false);return;}
   if(action==='media'){await media(path,b.dataset.multiple==='true');return;}
   if(action==='move'){moveItem(get(path),Number(b.dataset.from),Number(b.dataset.to));mark();render();return;}
-  if(action==='remove-photo'){if(!confirm('Remove this photo from this location? The uploaded image stays in your library.'))return;if(b.dataset.single==='true')set(path,null);else{const keys=path.split('.'),at=Number(keys.pop());get(keys.join('.')).splice(at,1);mark();}render();return;}
-  if(action==='remove-item'){if(!confirm(`Remove this ${path==='batches'?'batch and its album':'item'}? Uploaded photos remain in your library.`))return;const item=get(path)[i];get(path).splice(i,1);if(path==='batches'){for(const c of draft.creations)for(const p of c.photos)if(p.batch_id===item.id)p.batch_id='';for(const v of draft.videos)if(v.batch_id===item.id)v.batch_id='';}mark();render();return;}
+  if(action==='remove-photo'){if(!await confirmDialog('Remove this photo from this location? The uploaded image stays in your library.',{title:'Remove photo?',confirmLabel:'Remove photo',danger:true})||!root.isConnected)return;if(b.dataset.single==='true')set(path,null);else{const keys=path.split('.'),at=Number(keys.pop());get(keys.join('.')).splice(at,1);mark();}render();return;}
+  if(action==='remove-item'){if(!await confirmDialog(`Remove this ${path==='batches'?'batch and its album':'item'}? Uploaded photos remain in your library.`,{title:path==='batches'?'Remove batch?':path==='creations'?'Remove creation?':'Remove video?',confirmLabel:'Remove',danger:true})||!root.isConnected)return;const item=get(path)[i];get(path).splice(i,1);if(path==='batches'){for(const c of draft.creations)for(const p of c.photos)if(p.batch_id===item.id)p.batch_id='';for(const v of draft.videos)if(v.batch_id===item.id)v.batch_id='';}mark();render();return;}
   if(action==='add-creation'){draft.creations.push({id:uid(),name:'',description:'',photos:[]});mark();render();return;}
   if(action==='add-batch'){draft.batches.push({id:uid(),label:'New batch',description:'',start_date:'',end_date:'',student_count:null,cover:null,photos:[]});mark();render();return;}
   if(action==='add-video'){draft.videos.push({id:uid(),url:'',title:'',batch_id:'',cover:null});mark();render();return;}
   if(['save','publish','save-settings','publish-settings'].includes(action)){try{validate();}catch(error){status(error.message,true);return;}}
-  if(action==='delete'&&!confirm(`Delete “${draft.title}” and remove its public page? This cannot be undone. Uploaded images will remain in the library.`))return;
-  if(action==='unpublish'&&!confirm('Hide this class from visitors? Your draft and photos will remain available to edit.'))return;
+  if(action==='delete'&&!await confirmDialog(`Delete “${draft.title}” and remove its public page? This cannot be undone. Uploaded images will remain in the library.`,{title:'Delete class?',confirmLabel:'Delete class',danger:true}))return;
+  if(action==='unpublish'&&!await confirmDialog('Hide this class from visitors? Your draft and photos will remain available to edit.',{title:'Unpublish class?',confirmLabel:'Unpublish class'}))return;
+  if(!root.isConnected)return;
   await run(async()=>{
    if(action==='save'){await save();render();status('Class draft saved. Published content is unchanged.');}
    if(action==='publish'){await save();row=await academyApi('publish_class',{id:row.id,revision:row.revision});data.classes[data.classes.findIndex(c=>c.id===row.id)]=row;render();status('Class published. Visitors can now see this version.');}
@@ -94,6 +98,7 @@ export async function mountAcademy(root,{role,connected}) {
  root.addEventListener('pointerdown',e=>{const h=e.target.closest('[data-ac-drag]');if(e.pointerType==='touch'&&h&&!busy){touchDrag={path:h.dataset.acDrag,index:Number(h.dataset.index),y:e.clientY};h.setPointerCapture(e.pointerId);}});
  root.addEventListener('pointerup',e=>{if(!touchDrag)return;const d=touchDrag;touchDrag=null;if(Math.abs(e.clientY-d.y)<12)return;const item=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-ac-index]');if(item?.parentElement.dataset.acArray===d.path){moveItem(get(d.path),d.index,Number(item.dataset.acIndex));mark();render();}});
  root.addEventListener('pointercancel',()=>touchDrag=null);
+ bindAccountingDates(root);
  root.innerHTML='<p role="status">Loading Academy…</p>';
  try{await load();}catch(e){root.innerHTML=`<p class="notice danger">${esc(e.message)}</p>${button('back','Retry')}`;}
 }

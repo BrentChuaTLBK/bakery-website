@@ -55,7 +55,7 @@ try{
    const file=resolve(root,'.'+url.pathname);if(!file.startsWith(root+sep))return route.abort();
    try{return route.fulfill({contentType:mime[extname(file)]||'application/octet-stream',body:await readFile(file)});}catch{return route.fulfill({status:404,body:''});}
   });
-  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>{errors.push('Unexpected native dialog: '+dialog.message());return dialog.dismiss();});
   await page.goto(origin+'/manage.html#accounting');
   await page.getByText(role==='owner'?'Sales & income':'A little overview',{exact:true}).waitFor();
   if(role==='staff'){
@@ -117,6 +117,9 @@ try{
    const previousSaves=calls.filter(c=>c.action==='accounting_save_entry').length;
    for(const amount of ['12.34','56.78']){await form.locator('[name=amount]').fill(amount);await form.locator('[type=submit]').click();await page.waitForFunction(()=>document.querySelector('#accounting-manager')?.dataset.busy!=='true'&&document.querySelector('.accounting-entry-form [name=amount]').value==='');}
    const repeats=calls.filter(c=>c.action==='accounting_save_entry').slice(previousSaves);assert.equal(repeats.length,2);assert.notEqual(repeats[0].payload.id,repeats[1].payload.id);assert.deepEqual(repeats.map(c=>c.payload.amount_cents),[1234,5678]);assert.ok(repeats.every(c=>c.payload.category_id==='cakes'&&c.payload.payment_method==='cash'&&c.payload.kind==='expense'));
+   const removeEntry=page.locator(`[data-accounting=delete][data-id="${repeats[0].payload.id}"]`),removeCount=calls.filter(c=>c.action==='accounting_delete_entry').length;
+   await removeEntry.click();const removePrompt=page.getByRole('dialog',{name:'Remove accounting entry?',exact:true});await removePrompt.getByRole('button',{name:'Keep entry',exact:true}).click();await removePrompt.waitFor({state:'hidden'});assert.equal(calls.filter(c=>c.action==='accounting_delete_entry').length,removeCount,'Cancel never deletes an entry');assert.equal(await removeEntry.count(),1);
+   await removeEntry.click();await removePrompt.getByRole('button',{name:'Remove entry',exact:true}).click();await removeEntry.waitFor({state:'detached'});assert.equal(calls.filter(c=>c.action==='accounting_delete_entry').length,removeCount+1,'Approval deletes once');
    await pickDate(page.locator('.accounting-filters'),'month','2024-02');assert.equal(await page.locator('.accounting-filters [name=end]').inputValue(),'2024-02-29');
    await pickDate(page.locator('.accounting-filters'),'start','2026-09-26');await pickDate(page.locator('.accounting-filters'),'end','2026-09-25');await page.locator('.accounting-filters [type=submit]').click();await page.getByText('The end date must be on or after the start date.',{exact:true}).waitFor();
    await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order][data-id=pickup]').click();await page.locator('#admin-dialog').waitFor();

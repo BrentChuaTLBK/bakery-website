@@ -61,7 +61,7 @@ async function context({role='owner',mobile=false}={}){
       const {p_action,p_payload}=route.request().postDataJSON();return route.fulfill({contentType:'application/json',body:JSON.stringify(response(p_action,p_payload))});
     }
     if(url.origin!==origin)return route.abort();
-    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock+`export async function partyCartItemsApi(action,payload){const r=await fetch('/test-cart',{method:'POST',body:JSON.stringify({action,payload})});const d=await r.json();if(!r.ok)throw Error(d.message);return d;}`});
+    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock+`export async function academyApi(){throw Error('Unexpected Academy request')} export async function academyUpload(){throw Error('Unexpected Academy upload')} export async function academySignedUrls(){throw Error('Unexpected Academy photos')} export async function partyCartItemsApi(action,payload){const r=await fetch('/test-cart',{method:'POST',body:JSON.stringify({action,payload})});const d=await r.json();if(!r.ok)throw Error(d.message);return d;}`});
     if(/\/assets\/ordering\/(traffic|newsletter)\.js/.test(url.pathname))return route.fulfill({contentType:'text/javascript',body:''});
     if(url.pathname==='/test-party'){
       try{const{action,payload}=route.request().postDataJSON();if(action==='delete'&&deleteGate)await deleteGate;return route.fulfill({contentType:'application/json',body:JSON.stringify(response(action,payload))});}
@@ -70,11 +70,11 @@ async function context({role='owner',mobile=false}={}){
     try{return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2'}[extname(url.pathname)]||'application/octet-stream',body:await readFile(join(root,url.pathname))});}
     catch{return route.fulfill({status:404,body:'Not found'});}
   });
-  ctx.on('page',page=>page.on('pageerror',error=>errors.push(error.message)));
+  ctx.on('page',page=>{page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>{errors.push('Unexpected native dialog: '+dialog.message());return dialog.dismiss();});});
   return ctx;
 }
 try{
-  const ctx=await context(),page=await ctx.newPage();let acceptDialog=true,lastDialogMessage='';page.on('dialog',d=>{lastDialogMessage=d.message();return acceptDialog?d.accept():d.dismiss();});
+  const ctx=await context(),page=await ctx.newPage();
   await page.goto(`${origin}/manage.html#packages`);await page.locator('[data-party-edit]').first().waitFor();
   assert.equal(await page.locator('[data-party-edit]').count(),4);
   assert.equal(await page.locator('[data-party-delete]').count(),4);
@@ -89,6 +89,11 @@ try{
   assert.deepEqual(await page.locator('[data-feature-label]').evaluateAll(nodes=>nodes.map(n=>n.value)),['60 Cookie A La Mode','Extra toppings','Choose 3 Flavors']);
   assert.match(await page.locator('[data-party-preview]').innerText(),/9,500.50/);
   await page.locator('.party-editor').evaluate(el=>el.scrollTop=0);await page.screenshot({path:join(output,'editor.png'),fullPage:true});
+  await page.locator('[data-party-close]').last().scrollIntoViewIfNeeded();const editorScroll=await page.locator('.party-editor').evaluate(el=>el.scrollTop);
+  await page.locator('[data-party-close]').last().click();const discardPrompt=page.getByRole('dialog',{name:'Discard package changes?',exact:true});await discardPrompt.waitFor();
+  assert.equal(await page.locator('.party-editor').evaluate(el=>el.open),true,'Editor remains open behind the confirmation');
+  await discardPrompt.getByRole('button',{name:'Keep editing',exact:true}).click();await discardPrompt.waitFor({state:'hidden'});
+  assert.equal(await page.locator('[name="subtitle"]').inputValue(),'Cookie party');assert.equal(await page.locator('[name="price"]').inputValue(),'9500.50');assert.ok(Math.abs(await page.locator('.party-editor').evaluate(el=>el.scrollTop)-editorScroll)<3,'Cancelling preserves editor scroll');
   failSave=true;await page.locator('[data-party-form] button[type="submit"]').click();await page.locator('[data-party-error]').filter({hasText:'Connection lost'}).waitFor();
   assert.equal(await page.locator('[name="price"]').inputValue(),'9500.50');
   await page.locator('[data-party-form] button[type="submit"]').click();await page.locator('.party-editor').waitFor({state:'hidden'});
@@ -119,10 +124,10 @@ try{
   assert.match(await publicPage.locator('body').innerText(),/Customize your own cart!/i);
   await publicPage.locator('[data-party-packages]').screenshot({path:join(output,'public-packages.png')});
   const deleting=page.locator('[data-party-delete="package-4"]'),deleteBefore=calls.filter(c=>c.action==='delete').length;
-  acceptDialog=false;await deleting.click();assert.match(lastDialogMessage,/Delete.*Package 4/);assert.match(lastDialogMessage,/cannot be undone/);
+  await deleting.click();const deletePrompt=page.getByRole('dialog',{name:'Delete package?',exact:true});await deletePrompt.waitFor();assert.match(await deletePrompt.innerText(),/Delete.*Package 4/);assert.match(await deletePrompt.innerText(),/cannot be undone/);await deletePrompt.getByRole('button',{name:'Keep package',exact:true}).click();await deletePrompt.waitFor({state:'hidden'});
   assert.equal(calls.filter(c=>c.action==='delete').length,deleteBefore);assert.equal(await deleting.count(),1);
-  acceptDialog=true;failDelete=true;await deleting.click();await page.locator('[data-party-message]').filter({hasText:'Could not delete'}).waitFor();assert.equal(await deleting.count(),1);assert(await deleting.isEnabled());
-  let releaseDelete;deleteGate=new Promise(resolve=>{releaseDelete=resolve});await deleting.click();
+  failDelete=true;await deleting.click();await deletePrompt.getByRole('button',{name:'Delete package',exact:true}).click();await page.locator('[data-party-message]').filter({hasText:'Could not delete'}).waitFor();assert.equal(await deleting.count(),1);assert(await deleting.isEnabled());
+  let releaseDelete;deleteGate=new Promise(resolve=>{releaseDelete=resolve});await deleting.click();await deletePrompt.getByRole('button',{name:'Delete package',exact:true}).click();
   await page.locator('[data-party-message]').filter({hasText:'Deleting'}).waitFor();assert(await deleting.isDisabled());assert(await page.locator('[data-party-new]').isDisabled());
   await deleting.dispatchEvent('click');releaseDelete();deleteGate=null;
   await deleting.waitFor({state:'detached'});assert.equal(calls.filter(c=>c.action==='delete').length,deleteBefore+2);
@@ -136,7 +141,7 @@ try{
   const cartBefore=cartCalls.filter(c=>c.action==='admin_get').length;
   await staffPage.goto(`${origin}/manage.html`);await staffPage.locator('[data-view="packages"]').click();await staffPage.getByText('Sign in with the owner account to add or edit party packages.').waitFor();assert.equal(await staffPage.locator('[data-party-new]').count(),0);assert.equal(calls.filter(c=>c.action==='admin_list').length,before);assert.equal(cartCalls.filter(c=>c.action==='admin_get').length,cartBefore);
   assert.equal(await staffPage.locator('[data-party-delete]').count(),0);
-  const mobile=await context({mobile:true}),phone=await mobile.newPage();phone.on('dialog',d=>d.accept());await phone.goto(`${origin}/manage.html`);await phone.locator('[data-view="packages"]').click();await phone.locator('[data-party-edit]').first().click();
+  const mobile=await context({mobile:true}),phone=await mobile.newPage();await phone.goto(`${origin}/manage.html`);await phone.locator('[data-view="packages"]').click();await phone.locator('[data-party-edit]').first().click();
   assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await phone.locator('.party-editor').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await phone.screenshot({path:join(output,'editor-mobile.png'),fullPage:true});
   await phone.goto(`${origin}/partycarts.html`);await phone.locator('.party-card').first().waitFor();assert(await phone.locator('[data-party-packages]').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
   assert.equal((await phone.locator('.cart-showcase-copy h1').innerText()).replace(/\s+/g,' ').trim(),'A cart full of happy moments.');assert(await phone.locator('.party-feature-detail').first().isVisible());
@@ -145,7 +150,7 @@ try{
   await publicPage.reload();await publicPage.getByText('Contact us to discuss treats for your custom cart.').waitFor();assert.equal(await publicPage.locator('[data-party-cart-item]').count(),0);
   items.forEach(p=>{p.published=false});await publicPage.reload();await publicPage.locator('[data-party-status]').filter({hasText:'updating our party packages'}).waitFor();assert.equal(await publicPage.locator('.party-card').count(),0);
   while(await page.locator('[data-party-delete]').count()){
-    const button=page.locator('[data-party-delete]').first(),id=await button.getAttribute('data-party-delete');await button.click();await page.locator(`[data-party-delete="${id}"]`).waitFor({state:'detached'});
+    const button=page.locator('[data-party-delete]').first(),id=await button.getAttribute('data-party-delete');await button.click();await deletePrompt.getByRole('button',{name:'Delete package',exact:true}).click();await page.locator(`[data-party-delete="${id}"]`).waitFor({state:'detached'});
   }
   await page.getByText('No packages yet. Add your first package.').waitFor();assert(await page.locator('[data-party-new]').isEnabled());assert(await page.locator('[data-party-new]').evaluate(el=>el===document.activeElement));
   assert.deepEqual(errors,[]);console.log('PASS owner editing, retained drafts, retries, create, confirmed deletion/cancel/failure/busy/empty states, visibility, ordering, shared inclusions, public updates, escaped text, staff permissions and mobile layout.');

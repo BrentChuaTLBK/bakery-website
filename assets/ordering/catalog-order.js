@@ -1,3 +1,4 @@
+import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
 import { catalogProductGroups, orderedCatalogProducts } from './catalog-ordering.js?v=multi-category-1';
 
 const grip = '<svg width="16" height="24" viewBox="0 0 16 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="6" r="1.6"/><circle cx="11" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="11" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="11" cy="18" r="1.6"/></svg>';
@@ -147,7 +148,7 @@ export function mountCatalogOrder(root, { kind, items, categories, editable, api
   paint();
   return {
     get dirty(){return changed();}, get busy(){return busy;},
-    canLeave(){if(busy){status.textContent='Please wait for the order to finish saving.';return false;}return !changed()||confirm('Discard your unsaved order changes?');},
+    async canLeave(){if(busy){status.textContent='Please wait for the order to finish saving.';return false;}return !changed()||await confirmDialog('Your unsaved product or category order will be lost.',{title:'Discard rearrangement?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true,parentDialog:root.closest('dialog')});},
     destroy(){lifecycle.abort();},
   };
 }
