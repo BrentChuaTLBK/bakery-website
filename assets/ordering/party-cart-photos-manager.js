@@ -1,5 +1,5 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
-import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js';
+import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=heic-2';
 import { bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { packageEscape as esc } from './party-packages-view.js';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';

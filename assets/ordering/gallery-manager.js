@@ -1,5 +1,5 @@
 import { parseGalleryExport, safePhotoUrl } from './gallery-import.js';
-import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js';
+import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=heic-2';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 
 const names = { 'custom-orders': 'Custom Orders', pastries: 'Pastries' };

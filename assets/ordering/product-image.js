@@ -1,4 +1,4 @@
-import { prepareGalleryImage } from './gallery-image.js';
+import { prepareGalleryImage } from './gallery-image.js?v=heic-2';
 
 export const productImageAccept = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
