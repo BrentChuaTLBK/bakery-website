@@ -28,13 +28,13 @@ Deno.serve(async (request: Request) => {
         if (current?.skip) { stats.skipped++; continue; }
         if (!current?.payload) throw new HttpError(503, "The leased message could not be validated before delivery.");
         const message = current;
-        const welcome = message.payload.event_type === "newsletter_welcome";
+        const welcome = ["newsletter_welcome","newsletter_campaign","newsletter_test"].includes(message.payload.event_type);
         const key = (welcome && env("NEWSLETTER_RESEND_API_KEY")) || env("RESEND_API_KEY");
         const sender = (welcome && env("NEWSLETTER_FROM")) || env("EMAIL_FROM");
         if (!key || !sender) throw new HttpError(503, "Email delivery is waiting for RESEND_API_KEY and EMAIL_FROM configuration.");
         if (!message.to_email || !message.event_key) throw new HttpError(503, "The email outbox is missing a recipient or event key.");
         const rendered = renderEmail(message.payload);
-        if (welcome && !await newsletterWelcomeAllowed(message.to_email, message.payload.topic_id, key)) {
+        if (welcome && message.payload.event_type!=="newsletter_test" && !await newsletterWelcomeAllowed(message.to_email, message.payload.topic_id, key)) {
           await service("email_skipped", { id: row.id, lease_token: row.lease_token, reason: "Newsletter recipient has opted out or no longer exists." }, 8000);
           stats.skipped++;
           continue;

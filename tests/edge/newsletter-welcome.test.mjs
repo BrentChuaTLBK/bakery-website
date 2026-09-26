@@ -74,3 +74,19 @@ test('new subscriber email includes the personal offer, full limits and exact Ma
   assert.doesNotMatch(renderEmail(payload).text,/Your welcome gift/,'Existing subscribers get no promise of another code');
   assert.throws(()=>renderEmail({...payload,welcome_offer:{...welcome_offer,code:'<script>'}}),/discount is invalid/);
 });
+
+test('welcome email renders configurable percentage and fixed discounts from its issuance snapshot',()=>{
+ const offer={code:'7K4M9Q',kind:'percent',value:12,min_subtotal_cents:50000,cap_cents:20000,valid_days:14,expires_at:'2026-10-23T06:00:00Z'};
+ const percent=renderEmail({...payload,welcome_email_version:2,welcome_offer:offer});
+ for(const text of [percent.html,percent.text]){assert.match(text,/12% OFF/);assert.match(text,/₱500/);assert.match(text,/₱200/);assert.match(text,/14 days/);assert.doesNotMatch(text,/5%/);}
+ const fixed=renderEmail({...payload,welcome_email_version:2,welcome_offer:{...offer,kind:'fixed',value:7500,cap_cents:null}});
+ assert.match(fixed.text,/₱75 OFF/);assert.doesNotMatch(fixed.text,/Maximum discount/);
+ assert.throws(()=>renderEmail({...payload,welcome_email_version:2,welcome_offer:{...offer,value:101}}),/invalid/);
+});
+
+test('campaign email uses its saved content and private unsubscribe link, while a test uses the public preferences page',()=>{
+ const campaign={...payload,event_type:'newsletter_campaign',content:{template:'offer',subject:'Hello',title:'A little treat',intro:'From our kitchen',offer_heading:'10% OFF',offer_terms:'Until Friday',items:[],cta_url:'https://thelittlebakerkitchen.com/shop.html'}};
+ const rendered=renderEmail(campaign);assert.match(rendered.html,/10% OFF/);assert.match(rendered.text,/#unsubscribe=a{64}/);
+ assert.throws(()=>renderEmail({...campaign,unsubscribe_token:''}),/unsubscribe/);
+ const preview=renderEmail({...campaign,event_type:'newsletter_test',unsubscribe_token:''});assert.doesNotMatch(preview.text,/#unsubscribe=/);
+});

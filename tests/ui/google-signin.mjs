@@ -35,7 +35,8 @@ try{
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());
    if(url.pathname==='/auth/v1/settings')return route.fulfill({status:settingsError?503:200,contentType:'application/json',body:JSON.stringify({external:{google:enabled}})});
-   if(url.pathname==='/functions/v1/newsletter')return route.fulfill({contentType:'application/json',body:JSON.stringify({status:'not_subscribed'})});
+   if(url.pathname==='/rest/v1/rpc/newsletter_offer')return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:true,kind:'percent',value:5,valid_days:30,min_subtotal_cents:30000,cap_cents:10000})});
+   if(url.pathname==='/functions/v1/newsletter'){const input=route.request().postDataJSON();if(input.action==='subscribe')await route.request().frame().evaluate(()=>window.newsletterSubscribes=(window.newsletterSubscribes||0)+1);return route.fulfill({contentType:'application/json',body:JSON.stringify({status:input.action==='subscribe'?'subscribed':'not_subscribed'})});}
    if(url.origin!==origin){requests.push(url.href);return route.abort()}
    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
    if(url.pathname==='/assets/ordering/traffic.js')return route.fulfill({contentType:'text/javascript',body:''});
@@ -65,6 +66,7 @@ try{
  check('Google signup does not opt into the newsletter',await f.page.locator('[name=newsletter]').isChecked()===false);
  await f.page.locator('[data-mode=signin]').click();await f.page.locator('[name=email]').fill('existing@example.test');await f.page.locator('[name=password]').fill('fixture-password');await f.page.locator('#auth-form button[type=submit]').click();await f.page.waitForURL(origin+'/shop.html');check('Password login remains available after OAuth error',true);await f.context.close();
  const user={id:'same-existing-user',email:'existing@example.test',email_confirmed_at:'2026-09-19T00:00:00Z'};
+ f=await fixture({user});await f.context.addInitScript(()=>sessionStorage.setItem('tlb-newsletter-signup-consent',String(Date.now())));await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+'/shop.html');check('Explicit Google signup consent suppresses the newsletter popup',await f.page.evaluate(()=>localStorage.getItem('tlb-newsletter-preference'))==='subscribed');await f.context.close();
  for(const destination of ['/shop.html#checkout','/account.html','/manage.html']){
   f=await fixture({user,remembered:destination});await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+destination);
   check('Verified Google callback returns to '+destination,await f.page.evaluate(()=>localStorage.getItem('tlb-checkout-v1'))==='saved checkout fixture');
