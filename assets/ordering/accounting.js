@@ -2,8 +2,8 @@ export const accountingPaymentMethods = {gcash: 'GCash', cash: 'Cash', bank_tran
 
 export function accountingTotals(report) {
   const summary = report.summary || [];
-  const sales = summary.filter(c => c.kind === 'sale').reduce((n, c) => n + Number(c.amount_cents), 0);
-  const expenses = summary.filter(c => c.kind === 'expense').reduce((n, c) => n + Number(c.amount_cents), 0);
+  const sales = summary.reduce((n, c) => n + Number(c.sales_cents), 0);
+  const expenses = summary.reduce((n, c) => n + Number(c.expense_cents), 0);
   const deliveries = report.deliveries || [];
   const recorded = deliveries.filter(d => d.cost_cents !== null);
   return {sales, expenses, net: sales - expenses,

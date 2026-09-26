@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 export default async function({db,check,state}) {
  const h=state.harness,range={start:'1900-01-01',end:'2100-01-01'};
- const report=filters=>h.api('accounting_report',filters||range,h.ids.owner);
+ const report=filters=>h.api('accounting_report',{...filters||range,report_version:2},h.ids.owner);
  const fixture=async()=>{
   const {product,date}=await h.fixture();let o=await h.api('create_order',h.checkout(product,date),h.ids.customer);
   await db.query("update tlb.orders set data=data||'{\"subtotal_cents\":100000,\"discount_cents\":5000,\"delivery_cents\":15000,\"total_cents\":110000}'::jsonb where id=$1",[o.id]);
@@ -37,7 +37,8 @@ export default async function({db,check,state}) {
   for(const date of dates)assert.equal((await report({start:date,end:date})).entries.some(e=>e.order_id===o.id),false);
   const category=key=>baseline.categories.find(c=>c.system_key===key).id;
   for(const [key,value] of [['website',100000],['discount',5000],['delivery_fee',15000],['delivery_cost',22550]]){
-   assert.equal(baseline.summary.find(s=>s.id===category(key)).amount_cents-after.summary.find(s=>s.id===category(key)).amount_cents,value);
+   const column=['website','delivery_fee'].includes(key)?'sales_cents':'expense_cents';
+   assert.equal(baseline.summary.find(s=>s.id===category(key))[column]-after.summary.find(s=>s.id===category(key))[column],value);
   }
   assert.equal(await h.scalar('select amount_cents::int from tlb.accounting_delivery_costs where order_id=$1',[o.id]),22550);
   assert.ok(await h.scalar('select count(*)>0 from tlb.accounting_ledger where order_id=$1',[o.id]));
@@ -50,7 +51,7 @@ export default async function({db,check,state}) {
   const category=await h.api('accounting_save_category',{id:randomUUID(),revision:0,name:'Unaffected manual '+randomUUID(),kind:'expense'},h.ids.owner);
   const entry=await h.api('accounting_save_entry',{id:randomUUID(),revision:0,entry_date:await h.day(0),category_id:category.id,amount_cents:12345,note:'Independent expense'},h.ids.owner);
   await h.action('cancel_order',await h.order(o.id),{reason:'Fixture',restore_stock:true});
-  const r=await report();assert.equal(r.entries.some(e=>e.order_id===o.id),false);assert.ok(r.entries.find(e=>e.id===entry.id));assert.equal(r.summary.find(c=>c.id===category.id).amount_cents,12345);
+  const r=await report();assert.equal(r.entries.some(e=>e.order_id===o.id),false);assert.ok(r.entries.find(e=>e.id===entry.id));assert.equal(r.summary.find(c=>c.id===category.id).expense_cents,12345);
   const definition=await h.scalar("select pg_get_functiondef('tlb.accounting_api(uuid,text,jsonb)'::regprocedure)");
   await db.exec(await readFile(new URL('../../supabase/migrations/20260924184817_accounting_eligible_orders.sql',import.meta.url),'utf8'));
   assert.equal(await h.scalar("select pg_get_functiondef('tlb.accounting_api(uuid,text,jsonb)'::regprocedure)"),definition);

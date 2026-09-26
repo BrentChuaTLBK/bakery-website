@@ -1,5 +1,5 @@
-import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=accounting-entry-details-1';
-import {exportAccounting} from './accounting-export.js?v=accounting-entry-details-1';
+import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
+import {exportAccounting} from './accounting-export.js?v=shared-categories-1';
 import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=accounting-calendar-1';
 import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
 
@@ -17,11 +17,11 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     <p class="help-text">Only paid, confirmed orders and orders being prepared or already fulfilled are included. Cancelled and refunded orders are excluded entirely, including discounts and delivery costs. All dates use Manila time.</p>
     <p class="notice accounting-message" role="status" hidden></p><section class="panel accounting-editor" hidden></section>
     <div class="accounting-report"><p>Loading accounting…</p></div>
-    <section class="panel accounting-categories"><details><summary>Manage categories</summary><p class="help-text">Create separate categories for your manual sales and expenses. Automatic website categories are kept separate.</p><div class="accounting-category-form"></div></details></section>`;
+    <section class="panel accounting-categories"><details><summary>Manage categories</summary><p class="help-text">Use the same category for sales and expenses. Choose the type when you add an entry. Automatic website categories are managed by the system.</p><div class="accounting-category-form"></div></details></section>`;
   function message(text,bad=false) { const box=$('.accounting-message');box.hidden=!text;box.textContent=text;box.classList.toggle('danger',bad); }
   function summarySection(kind,title) {
-    const rows=report.summary.filter(c=>c.kind===kind),sum=rows.reduce((n,c)=>n+Number(c.amount_cents),0);
-    return `<section class="panel"><h2>${title}</h2><dl class="accounting-breakdown">${rows.map(c=>`<div><dt>${esc(c.name)}</dt><dd>${money(c.amount_cents)}</dd></div>`).join('')}<div class="accounting-subtotal"><dt>Total ${kind==='sale'?'sales / income':'expenses'}</dt><dd>${money(sum)}</dd></div></dl></section>`;
+    const key=kind==='sale'?'sales_cents':'expense_cents',rows=report.summary.filter(c=>Number(c[key])!==0),sum=rows.reduce((n,c)=>n+Number(c[key]),0);
+    return `<section class="panel"><h2>${title}</h2><dl class="accounting-breakdown">${rows.map(c=>`<div><dt>${esc(c.name)}</dt><dd>${money(c[key])}</dd></div>`).join('')||'<p class="muted">No entries in this timeframe.</p>'}<div class="accounting-subtotal"><dt>Total ${kind==='sale'?'sales / income':'expenses'}</dt><dd>${money(sum)}</dd></div></dl></section>`;
   }
   function renderReport() {
     const t=accountingTotals(report),rows=report.entries.slice().reverse(),cats=new Map(report.categories.map(c=>[c.id,c]));
@@ -30,26 +30,24 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       <section class="panel accounting-net"><div><span class="eyebrow">Overall total</span><h2>Income less expenses</h2><p>Based on the entries recorded for ${esc(report.start)} to ${esc(report.end)}.</p></div><strong>${money(t.net)}</strong></section>
       ${t.missingCosts?`<p class="notice">${t.missingCosts} delivery order${t.missingCosts===1?' needs':'s need'} an actual cost. The overall total will change when these expenses are recorded.</p>`:''}
       ${report.legacy_count?'<p class="notice">Some older orders had no detailed change history. Their current saved amounts were imported on the payment approval date.</p>':''}
-      <section class="panel accounting-records"><div class="section-heading"><h2>Accounting entries</h2><span class="badge">${rows.length} entries</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Category / details</th><th>Source</th><th>Sales / income</th><th>Expense</th><th>Actions</th></tr></thead><tbody>${rows.slice(page*50,(page+1)*50).map(e=>{const c=cats.get(e.category_id);return `<tr><td>${esc(e.entry_date)}</td><td><strong>${esc(c?.name)}</strong><small class="accounting-note">${esc(e.note)}</small>${e.client_name?`<small class="accounting-note">Client: ${esc(e.client_name)}</small>`:''}${e.source==='Manual'?`<small>Payment: ${esc(accountingPaymentMethods[e.payment_method]||'Not recorded')}</small>`:''}${e.reference?`<button class="button button-quiet" data-accounting="order" data-id="${esc(e.order_id)}">${esc(e.reference)}</button>`:''}</td><td>${esc(e.source)}</td><td>${c?.kind==='sale'?money(e.amount_cents):'—'}</td><td>${c?.kind==='expense'?money(e.amount_cents):'—'}</td><td>${e.source==='Manual'?`<button class="button button-quiet" data-accounting="edit" data-id="${esc(e.id)}">Edit</button><button class="button button-quiet" data-accounting="delete" data-id="${esc(e.id)}">Remove</button><button class="button button-quiet" data-accounting="history" data-id="${esc(e.id)}">History</button>`:e.source==='Delivery cost'?'<span class="muted">Edit in order</span>':'<span class="muted">Automatic</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6">No entries in this timeframe.</td></tr>'}</tbody></table></div>
+      <section class="panel accounting-records"><div class="section-heading"><h2>Accounting entries</h2><span class="badge">${rows.length} entries</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Category / details</th><th>Source</th><th>Sales / income</th><th>Expense</th><th>Actions</th></tr></thead><tbody>${rows.slice(page*50,(page+1)*50).map(e=>{const c=cats.get(e.category_id);return `<tr><td>${esc(e.entry_date)}</td><td><strong>${esc(c?.name)}</strong><small class="accounting-note">${esc(e.note)}</small>${e.client_name?`<small class="accounting-note">Client: ${esc(e.client_name)}</small>`:''}${e.source==='Manual'?`<small>Payment: ${esc(accountingPaymentMethods[e.payment_method]||'Not recorded')}</small>`:''}${e.reference?`<button class="button button-quiet" data-accounting="order" data-id="${esc(e.order_id)}">${esc(e.reference)}</button>`:''}</td><td>${esc(e.source)}</td><td>${e.kind==='sale'?money(e.amount_cents):'—'}</td><td>${e.kind==='expense'?money(e.amount_cents):'—'}</td><td>${e.source==='Manual'?`<button class="button button-quiet" data-accounting="edit" data-id="${esc(e.id)}">Edit</button><button class="button button-quiet" data-accounting="delete" data-id="${esc(e.id)}">Remove</button><button class="button button-quiet" data-accounting="history" data-id="${esc(e.id)}">History</button>`:e.source==='Delivery cost'?'<span class="muted">Edit in order</span>':'<span class="muted">Automatic</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6">No entries in this timeframe.</td></tr>'}</tbody></table></div>
       ${rows.length>50?`<div class="row-actions accounting-pagination"><button class="button button-secondary" data-accounting="previous" ${page===0?'disabled':''}>Previous</button><span>Page ${page+1} of ${Math.ceil(rows.length/50)}</span><button class="button button-secondary" data-accounting="next" ${(page+1)*50>=rows.length?'disabled':''}>Next</button></div>`:''}<p class="help-text">Excel includes all entries in the selected timeframe, across every page. Negative automatic entries adjust earlier amounts for included orders.</p><div class="accounting-history"></div></section>
       <section class="panel"><div class="section-heading"><h2>Delivery comparison</h2><span class="badge">${report.deliveries.length} orders</span></div><p class="help-text">Orders paid in this timeframe. Costs are expenses on their cost date. Difference for orders with a recorded cost: <strong>${money(t.deliveryDifference)}</strong>.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Customer fee collected</th><th>Actual delivery cost</th><th>Difference</th></tr></thead><tbody>${report.deliveries.map(d=>`<tr><td><button class="button button-quiet" data-accounting="order" data-id="${esc(d.order_id)}">${esc(d.reference)}</button>${d.refund_label||['cancelled','expired'].includes(d.status)?'<small class="accounting-note">Sales reversed</small>':''}</td><td>${money(d.fee_cents)}</td><td>${d.cost_cents===null?'Not recorded':money(d.cost_cents)}</td><td>${d.cost_cents===null?'—':money(d.fee_cents-d.cost_cents)}</td></tr>`).join('')||'<tr><td colspan="4">No delivery orders in this timeframe.</td></tr>'}</tbody></table></div></section>`;
   }
   function renderCategories(selected='') {
     const cats=report.categories.filter(c=>!c.system_key),c=cats.find(c=>c.id===selected);
-    categoryDraft=c?{...c}:{id:crypto.randomUUID(),revision:0,kind:'sale',name:''};
-    $('.accounting-category-form').innerHTML=`<form class="accounting-category-editor">${selection('existing','Category',opt('','Create a category',selected)+cats.map(c=>opt(c.id,`${c.name} · ${c.kind==='sale'?'Sales':'Expense'}${c.archived?' (archived)':''}`,selected)).join(''))}<div class="field-row">${field('name','Category name',categoryDraft.name,'text','required maxlength="80"')}${selection('kind','Type',opt('sale','Sales / income',categoryDraft.kind)+opt('expense','Expense',categoryDraft.kind))}</div>${c?`<label class="check-field"><input name="archived" type="checkbox" ${c.archived?'checked':''}>Archive category (keeps existing entries)</label>`:''}${error}<button class="button button-secondary" type="submit">Save category</button></form>`;
-    if(c) $('.accounting-category-editor [name=kind]').disabled=true;
+    categoryDraft=c?{...c}:{id:crypto.randomUUID(),revision:0,name:''};
+    $('.accounting-category-form').innerHTML=`<form class="accounting-category-editor">${selection('existing','Category',opt('','Create a category',selected)+cats.map(c=>opt(c.id,`${c.name}${c.archived?' (archived)':''}`,selected)).join(''))}${field('name','Category name',categoryDraft.name,'text','required maxlength="80"')}${c?`<label class="check-field"><input name="archived" type="checkbox" ${c.archived?'checked':''}>Archive category (keeps existing entries)</label>`:''}${error}<button class="button button-secondary" type="submit">Save category</button></form>`;
   }
   function renderEntry(entry=null) {
-    draft=entry?{...entry,kind:report.categories.find(c=>c.id===entry.category_id).kind}:{id:crypto.randomUUID(),revision:0,entry_date:today,kind:'sale',category_id:'',note:'',client_name:'',payment_method:'',amount_cents:null};
+    draft=entry?{...entry}:{id:crypto.randomUUID(),revision:0,entry_date:today,kind:'sale',category_id:'',note:'',client_name:'',payment_method:'',amount_cents:null};
     const panel=$('.accounting-editor');panel.hidden=false;
     panel.innerHTML=`<div class="section-heading"><h2>${entry?'Edit entry':'Add manual entry'}</h2><button class="button button-quiet" data-accounting="cancel-entry">Close</button></div><form class="accounting-entry-form"><div class="field-row three">${field('entry_date','Date',draft.entry_date,'date','required')}${selection('kind','Type',opt('sale','Sales / income',draft.kind)+opt('expense','Expense',draft.kind))}${field('amount','Amount · PHP',draft.amount_cents===null?'':(draft.amount_cents/100).toFixed(2),'number','required min="0.01" max="9999999.99" step="0.01" inputmode="decimal"')}</div><div class="field-row three"><div>${selection('category_id','Category','')}<div class="accounting-new-category" hidden>${field('new_category','New category name','','text','maxlength="80"')}</div></div>${field('client_name','Client name · optional',draft.client_name||'','text','maxlength="160" autocomplete="off"')}${selection('payment_method','Payment method · optional',opt('','Not recorded',draft.payment_method||'')+Object.entries(accountingPaymentMethods).map(([value,name])=>opt(value,name,draft.payment_method)).join(''))}</div><label class="field">Notes / reference · optional<textarea name="note" maxlength="2000">${esc(draft.note)}</textarea></label>${error}<button class="button" type="submit">Save entry</button></form>`;
     updateCategoryOptions(draft.category_id); panel.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function updateCategoryOptions(selected='') {
     const form=$('.accounting-entry-form');if(!form)return;
-    const kind=form.elements.kind.value;
-    form.elements.category_id.innerHTML=opt('','Choose a category',selected)+report.categories.filter(c=>c.kind===kind&&!c.system_key&&(!c.archived||c.id===selected)).map(c=>opt(c.id,c.name,selected)).join('')+opt('__new','+ Create a category',selected);
+    form.elements.category_id.innerHTML=opt('','Choose a category',selected)+report.categories.filter(c=>!c.system_key&&(!c.archived||c.id===draft?.category_id)).map(c=>opt(c.id,c.name,selected)).join('')+opt('__new','+ Create a category',selected);
     form.elements.category_id.required=true; syncNewCategory();
   }
   function syncNewCategory() {const form=$('.accounting-entry-form');if(!form)return;const on=form.elements.category_id.value==='__new';$('.accounting-new-category').hidden=!on;form.elements.new_category.required=on;}
@@ -57,7 +55,8 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     const request=++loadId;const range={...filters};
     $('[data-accounting=export]').disabled=true;
     try {
-      const result=await api('accounting_report',range);
+      const result=await api('accounting_report',{...range,report_version:2});
+      if(result.report_version!==2)throw Error('The shared-category database update is still being installed. Please try again shortly.');
       if(request!==loadId||!root.isConnected)return;
       report=result;renderReport();renderCategories();
       $('[data-accounting=export]').disabled=false;$('[data-accounting=add]').disabled=false;
@@ -65,7 +64,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
   }
   root.addEventListener('change',e=>{
     if(e.target.name==='month'){try{const range=monthRange(e.target.value);setAccountingDate($('.accounting-filters'),'start',range.start);setAccountingDate($('.accounting-filters'),'end',range.end);}catch(error){message(error.message,true);}}
-    if(e.target.closest('.accounting-entry-form')){if(e.target.name==='kind')updateCategoryOptions();if(e.target.name==='category_id')syncNewCategory();}
+    if(e.target.closest('.accounting-entry-form')&&e.target.name==='category_id')syncNewCategory();
     if(e.target.name==='existing')renderCategories(e.target.value);
   });
   root.addEventListener('accounting-refresh',()=>load());
@@ -81,16 +80,16 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
         if(!isCalendarDate(f.get('start'))||!isCalendarDate(f.get('end'))||f.get('start')>f.get('end'))throw Error('The end date must be on or after the start date.');
         filters.start=f.get('start');filters.end=f.get('end');page=0;message('');await load();
       } else if(form.classList.contains('accounting-category-editor')) {
-        await api('accounting_save_category',{id:categoryDraft.id,revision:categoryDraft.revision,name:f.get('name'),kind:categoryDraft.revision?categoryDraft.kind:f.get('kind'),archived:f.has('archived')});
+        await api('accounting_save_category',{id:categoryDraft.id,revision:categoryDraft.revision,name:f.get('name'),archived:f.has('archived')});
         root.dataset.dirty='false';await load();message('Category saved.');if(draft)updateCategoryOptions(draft.category_id);
       } else if(form.classList.contains('accounting-entry-form')) {
         let category=f.get('category_id');
         if(category==='__new') {
           draft.new_category_id ||= crypto.randomUUID();
-          const created=await api('accounting_save_category',{id:draft.new_category_id,revision:0,kind:f.get('kind'),name:f.get('new_category')});
+          const created=await api('accounting_save_category',{id:draft.new_category_id,revision:0,name:f.get('new_category')});
           report.categories.push(created);category=created.id;updateCategoryOptions(category);
         }
-        await api('accounting_save_entry',{id:draft.id,revision:draft.revision,entry_date:f.get('entry_date'),category_id:category,amount_cents:parseAccountingAmount(f.get('amount')),note:f.get('note'),client_name:f.get('client_name').trim(),payment_method:f.get('payment_method')});
+        await api('accounting_save_entry',{id:draft.id,revision:draft.revision,entry_date:f.get('entry_date'),kind:f.get('kind'),category_id:category,amount_cents:parseAccountingAmount(f.get('amount')),note:f.get('note'),client_name:f.get('client_name').trim(),payment_method:f.get('payment_method')});
         draft=null;$('.accounting-editor').hidden=true;root.dataset.dirty='false';await load();message('Entry saved.');
       }
     } catch(e) {errorBox.textContent=e.message;}
@@ -110,7 +109,8 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       if(action==='export'&&report){
         // Recheck order eligibility immediately before export, using the loaded
         // timeframe rather than any unapplied date-picker edits.
-        const fresh=await api('accounting_report',{start:report.start,end:report.end});
+        const fresh=await api('accounting_report',{start:report.start,end:report.end,report_version:2});
+        if(fresh.report_version!==2)throw Error('The shared-category database update is still being installed. Please try again shortly.');
         if(!root.isConnected)return;
         report=fresh;renderReport();await exportAccounting(structuredClone(fresh));message('Excel file downloaded.');
       }
