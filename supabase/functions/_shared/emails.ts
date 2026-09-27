@@ -5,6 +5,11 @@ import { renderBrandedEmail } from "./emails-branded.ts";
 
 export function renderEmail(payload: any): {html: string; text: string} {
   const legacy = renderLegacyEmail(payload);
+  // The outbox branding trigger also tags newsletters. Their own renderer is
+  // already branded and has no order. Keep historical welcome bodies stable,
+  // while configurable welcomes must use their saved offer terms.
+  if (["newsletter_campaign", "newsletter_test"].includes(payload?.event_type)
+    || (payload?.event_type === "newsletter_welcome" && payload?.welcome_email_version === 2)) return legacy;
   // Keep the exact original request body for existing provider retry keys.
   return payload?.email_design_version === 2 ? renderBrandedEmail(payload, legacy.text) : legacy;
 }

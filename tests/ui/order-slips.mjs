@@ -121,20 +121,28 @@ try {
   await popup.close();
 
   popup = await print(large, { role: 'staff' });
-  check('Staff can print a six-line pickup order on two slips', await popup.locator('.slip').count() === 2);
+  check('Six-line pickup order fits one compact slip instead of two', await popup.locator('.slip').count() === 1);
   check('Each item appears once, in the saved order', await popup.locator('.slip-item[data-continued="false"]').count() === 6 && (await popup.locator('.slip-item').evaluateAll(cards => cards.map(card => Number(card.dataset.itemIndex)))).join() === '0,1,2,3,4,5');
-  check('Continuation slips repeat reference and buyer', await popup.locator('.slip-reference').count() === 2 && await popup.locator('.slip-buyer-name').count() === 2 && (await popup.locator('.slip-number').allTextContents()).join() === 'Slip 1 of 2,Slip 2 of 2');
+  check('Single compact slip includes reference, buyer and its physical size', await popup.locator('.slip-reference').count() === 1 && await popup.locator('.slip-buyer-name').count() === 1 && /sheet order slip/.test(await popup.locator('.slip-number').innerText()));
   check('The complete payment breakdown appears only on the final slip', await popup.locator('.slip-payment').count() === 1 && await popup.locator('.slip').last().locator('.slip-total').innerText() === 'Order total\n₱3,663.00');
   check('Pickup preserves its saved location/hours but excludes general customer pickup instructions', (await popup.locator('#slips').innerText()).includes('Collection at the kitchen') && !/Unit 3B|NEW ADDRESS|NEW HOURS|NEW PICKUP|CUSTOMER-PICKUP-GUIDE|Pickup instructions/.test(await popup.locator('#slips').innerText()));
   check('Customer-entered preparation instructions still print', (await popup.locator('#slips').innerText()).includes('Keep chilled. Box separately.'));
   check('Large order has no clipped content', await noOverflow(popup));
-  for (let i = 0; i < 2; i++) await popup.locator('.slip').nth(i).screenshot({ path: join(output, `large-slip-${i + 1}.png`) });
+  for (let i = 0; i < await popup.locator('.slip').count(); i++) await popup.locator('.slip').nth(i).screenshot({ path: join(output, `large-slip-${i + 1}.png`) });
   await popup.pdf({ path: join(output, 'large-slips.pdf'), preferCSSPageSize: true, printBackground: true });
   await popup.setViewportSize({ width: 390, height: 844 });
   await popup.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth + 1);
   check('Mobile preview fits the viewport', await popup.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await popup.screenshot({ path: join(output, 'mobile-preview.png'), fullPage: true });
   await popup.close();
+
+  const mediumItems=Array.from({length:12},(_,i)=>item(`Treat ${i+1}`,1,13000,`Flavour ${i+1}`));
+  const medium={...small,id:'medium-order',reference:'SAMPLE-HALF',items:mediumItems,subtotal_cents:156000,discount_cents:0,total_cents:166000,promo_snapshot:null};
+  popup=await print(medium);
+  check('Twelve items expand to one half-sheet slip with all details readable',await popup.locator('.slip').count()===1&&await popup.locator('.slip').getAttribute('data-size')==='half'&&await popup.locator('.slip-item').count()===12&&await noOverflow(popup));
+  const halfDimensions=await popup.locator('.slip').evaluate(el=>({width:el.offsetWidth*25.4/96,height:el.offsetHeight*25.4/96}));
+  check('Expanded slip is landscape and fits within half of A4 or Letter',halfDimensions.width>halfDimensions.height&&halfDimensions.width<=254.8&&halfDimensions.height<=101.9);
+  await popup.locator('.slip').screenshot({path:join(output,'half-slip.png')});await popup.pdf({path:join(output,'half-slip.pdf'),preferCSSPageSize:true,printBackground:true});await popup.close();
 
   const longNote = 'Keep the cake chilled; label every pouch and call the customer before collection. '.repeat(25).trim();
   const longOptions = 'Mixed box: chocolate × 2, vanilla × 2, ube × 2. '.repeat(50).trim();
@@ -143,6 +151,7 @@ try {
   const instructionChunks = await popup.locator('.slip-detail').evaluateAll(sections => sections.filter(section => section.querySelector('h2').textContent.startsWith('Instructions')).map(section => section.querySelector('p').textContent));
   check('Extra-long mixed-box selections continue without losing characters', chunks.join('') === longOptions && chunks.length > 1);
   check('Long instructions continue without losing characters', instructionChunks.join('') === longNote && instructionChunks.length > 1);
+  check('Only exceptional long orders need extra half-sheet slips',await popup.locator('.slip').count()>1&&await popup.locator('.slip:not([data-size=half])').count()===0);
   check('Long text does not clip and totals remain on the last slip', await noOverflow(popup) && await popup.locator('.slip').last().locator('.slip-payment').count() === 1);
   await popup.pdf({ path: join(output, 'long-details.pdf'), preferCSSPageSize: true, printBackground: true });
   await popup.close();
@@ -195,21 +204,21 @@ try {
   check('Select all shown orders selects the full current result', await page.locator('[data-print-order]:checked').count() === 3);
   popup = await selectedPreview();
   check('Batch preview allows paper choice before opening the print dialog', !await popup.evaluate(() => window.printCalls) && !await popup.locator('#paper-size').isDisabled());
-  check('Three selected orders including continuations share one four-slip sheet', await popup.locator('.print-sheet').count() === 1 && await popup.locator('.slip').count() === 4 && await popup.locator('.slip-payment').count() === 3);
+  check('Three selected orders share one sheet without unnecessary continuations', await popup.locator('.print-sheet').count() === 1 && await popup.locator('.slip').count() === 3 && await popup.locator('.slip-payment').count() === 3);
   const dimensions = await popup.locator('.slip').first().evaluate(el => ({ width: el.offsetWidth * 25.4 / 96, height: el.offsetHeight * 25.4 / 96 }));
   check('Every slip is five inches wide and four inches high', Math.abs(dimensions.width - 127) < .3 && Math.abs(dimensions.height - 101.6) < .3);
   await popup.emulateMedia({ media: 'print' });
   const placements = await popup.locator('.print-sheet').first().evaluate(sheet => {
     const paper = sheet.getBoundingClientRect();
-    return [...sheet.children].map(card => { const rect = card.getBoundingClientRect(); return { x: (rect.x - paper.x) * 25.4 / 96, y: (rect.y - paper.y) * 25.4 / 96 }; });
+    return [...sheet.children].map(card => { const rect = card.getBoundingClientRect(); return { x: (rect.x - paper.x) * 25.4 / 96, y: (rect.y - paper.y) * 25.4 / 96, width:rect.width*25.4/96,height:rect.height*25.4/96 }; });
   });
-  check('Slips fill from the top-left in two rows without centering each order', Math.abs(placements[0].x - 3) < .2 && Math.abs(placements[0].y - 3) < .2 && Math.abs(placements[1].x - 130.5) < .2 && Math.abs(placements[2].y - 105.1) < .2);
+  check('Quarter and half slips pack from the top-left without overlap',Math.abs(placements[0].x-3)<.2&&Math.abs(placements[0].y-3)<.2&&placements.every((a,i)=>placements.slice(i+1).every(b=>a.x+a.width<=b.x+.2||b.x+b.width<=a.x+.2||a.y+a.height<=b.y+.2||b.y+b.height<=a.y+.2)));
   check('The printed sheet and all its slips have no overflow', await noOverflow(popup));
   await popup.locator('.print-sheet').screenshot({ path: join(output, 'batch-a4-sheet.png') });
   await popup.pdf({ path: join(output, 'batch-a4.pdf'), preferCSSPageSize: true, printBackground: true });
   await popup.emulateMedia({ media: null });
   await popup.locator('#paper-size').selectOption('letter');
-  check('Letter paper keeps four slips at the same physical size', await popup.locator('.print-sheet[data-paper="letter"]').count() === 1 && await popup.locator('.slip').count() === 4);
+  check('Letter paper preserves compact slips at their physical size', await popup.locator('.print-sheet[data-paper="letter"]').count() === 1 && await popup.locator('.slip').count() === 3);
   await popup.pdf({ path: join(output, 'batch-letter.pdf'), preferCSSPageSize: true, printBackground: true });
   await popup.locator('.print-slips').click();
   check('One print action includes the complete batch after photos are ready', await popup.evaluate(() => window.printCalls === 1 && window.photosReadyAtPrint));

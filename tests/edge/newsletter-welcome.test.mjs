@@ -5,6 +5,7 @@ let worker;
 globalThis.Deno={env:{get:name=>env[name]},serve:value=>{worker=value;}};
 await import('../../supabase/functions/email-worker/index.ts');
 const {renderEmail}=await import('../../supabase/functions/_shared/emails.ts');
+const {newsletterTemplates,sampleNewsletter,renderNewsletterCampaign}=await import('../../assets/ordering/newsletter-templates.js');
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status});
 const payload={event_type:'newsletter_welcome',topic_id:'newsletter',unsubscribe_token:'a'.repeat(64),settings:{site_url:'https://thelittlebakerkitchen.com',shop_name:'TLB <Kitchen>',pickup_address:'Test & address',contact_email:'hello@example.test'}};
 const run=()=>worker(new Request('https://worker.test',{method:'POST',headers:{'x-worker-token':env.EMAIL_WORKER_TOKEN}}));
@@ -89,4 +90,50 @@ test('campaign email uses its saved content and private unsubscribe link, while 
  const rendered=renderEmail(campaign);assert.match(rendered.html,/10% OFF/);assert.match(rendered.text,/#unsubscribe=a{64}/);
  assert.throws(()=>renderEmail({...campaign,unsubscribe_token:''}),/unsubscribe/);
  const preview=renderEmail({...campaign,event_type:'newsletter_test',unsubscribe_token:''});assert.doesNotMatch(preview.text,/#unsubscribe=/);
+});
+
+test('outbox-branded newsletter tests render every template without requiring an order',()=>{
+ for(const {id} of newsletterTemplates){
+  const content=sampleNewsletter(id);
+  for(const event_type of ['newsletter_test','newsletter_campaign']){
+   const message={...payload,event_type,content,email_design_version:2,product_photos:[]};
+   const link='https://thelittlebakerkitchen.com/newsletter.html'+(event_type==='newsletter_campaign'?'#unsubscribe='+payload.unsubscribe_token:'');
+   assert.deepEqual(renderEmail(message),renderNewsletterCampaign(content,payload.settings,link),`${event_type}: ${id}`);
+  }
+ }
+});
+
+test('configured welcome terms survive the outbox branding trigger',()=>{
+ const message={...payload,welcome_email_version:2,welcome_offer:{code:'7K4M9Q',kind:'fixed',value:7500,min_subtotal_cents:50000,cap_cents:null,valid_days:7,expires_at:'2026-10-23T06:00:00Z'}};
+ assert.deepEqual(renderEmail({...message,email_design_version:2,product_photos:[]}),renderEmail(message));
+ const rendered=renderEmail({...message,email_design_version:2,product_photos:[]});
+ for(const body of [rendered.html,rendered.text]){assert.match(body,/₱75 OFF/);assert.match(body,/7 days/);assert.doesNotMatch(body,/5% OFF|30 days/);}
+});
+
+test('worker sends an outbox-branded newsletter test only to its saved owner recipient',async()=>{
+ const row={id:'test-row',event_key:'newsletter-test:request-1',to_email:'owner@example.test',subject:'[TEST] Newsletter preview',lease_token:'test-lease',payload:{event_type:'newsletter_test',content:sampleNewsletter('showcase'),settings:payload.settings,email_design_version:2,product_photos:[]}};
+ const events=[],bodies=[];
+ globalThis.fetch=async(url,options={})=>{
+  if(String(url).includes('/rpc/shop_service')){
+   const body=JSON.parse(options.body);events.push(body.p_action);
+   if(body.p_action==='claim_emails')return reply([row]);
+   if(body.p_action==='prepare_email')return reply(row);
+   if(body.p_action==='email_sent')assert.equal(body.p_payload.provider_id,'test-accepted');
+   return reply({});
+  }
+  if(String(url).includes('/rpc/newsletter_broadcast_service'))return reply(null);
+  assert.equal(String(url),'https://api.resend.com/emails','A test must not create contacts or send a subscriber broadcast');
+  assert.equal(new Headers(options.headers).get('Authorization'),'Bearer private-newsletter-key');
+  assert.equal(new Headers(options.headers).get('Idempotency-Key'),row.event_key);
+  const body=JSON.parse(options.body);bodies.push(body);events.push('provider');
+  assert.deepEqual(body.to,[row.to_email]);assert.equal(body.from,env.NEWSLETTER_FROM);
+  assert.deepEqual({html:body.html,text:body.text},renderEmail(row.payload));
+  return reply({id:'test-accepted'});
+ };
+ for(let attempt=0;attempt<2;attempt++){
+  const response=await run(),stats=await response.json();
+  assert.equal(response.status,200);assert.equal(stats.accepted,1);assert.equal(stats.failed,0);
+ }
+ assert.deepEqual(bodies[0],bodies[1],'Retries keep the same body and provider key');
+ assert.deepEqual(events.slice(0,5),['maintenance','claim_emails','prepare_email','provider','email_sent']);
 });
