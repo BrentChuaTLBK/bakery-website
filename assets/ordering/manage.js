@@ -1,4 +1,4 @@
-import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=newsletter-broadcasts-1';
+import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=offer-templates-1';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
 import { mountAcademy } from './academy-manager.js?v=admin-lazy-1';
@@ -185,7 +185,7 @@ function render() {
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
   const views = { newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
-  if (state.view === 'newsletters') mountNewsletters($('#newsletter-manager'),{settings:state.settings,products:state.products});
+  if (state.view === 'newsletters') mountNewsletters($('#newsletter-manager'),{settings:state.settings,products:state.products,promos:state.promos});
   if (state.view === 'promos'&&owner()) mountWelcomeOffer($('#newsletter-offer-manager'));
   if (state.view === 'academy') mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
