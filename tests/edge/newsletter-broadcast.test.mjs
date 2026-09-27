@@ -39,3 +39,12 @@ test('failure to save draft or send intent never sends; pending unsubscribe wait
 test('network interruption during send records uncertainty for provider reconciliation',async()=>{
  const {calls}=mock({existing:true,failure:'send'});assert.equal(await processNewsletterBroadcast(),'pending');assert.equal(calls.filter(c=>c.url.endsWith('/send')).length,1);assert.equal(calls.at(-1).body.p_action,'failed');
 });
+test('every new template uses the shared renderer and one Resend Broadcast with unsubscribe',async()=>{
+ for(const template of ['promo','launch','academy']){
+  const {calls,job}=mock();Object.assign(job.content,{template,offer_code:'SWEET15',offer_heading:'15% OFF',offer_terms:'Ends October 31, 2026 PHT.'});
+  assert.equal(await processNewsletterBroadcast(),'queued');
+  const creates=calls.filter(c=>c.url==='https://api.resend.com/broadcasts'&&c.method==='POST');assert.equal(creates.length,1);
+  assert.match(creates[0].body.html,/SWEET15/);assert.match(creates[0].body.text,/Ends October 31/);assert.match(creates[0].body.html,/{{{RESEND_UNSUBSCRIBE_URL}}}/);
+  assert.equal(calls.filter(c=>c.url.endsWith('/send')).length,1);
+ }
+});
