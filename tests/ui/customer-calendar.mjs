@@ -67,6 +67,7 @@ try {
   const forbidden = [];
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:false,kind:'percent',value:5})});
     if (url.origin === origin) return route.continue();
     if (/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href)) forbidden.push(url.href);
     return route.abort();

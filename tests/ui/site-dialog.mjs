@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
-import { join, resolve, extname } from 'node:path';
+import { join, resolve, extname, sep } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_ROOT ? join(process.env.PLAYWRIGHT_PACKAGE_ROOT, 'playwright') : 'playwright');
@@ -36,7 +36,7 @@ try {
       if (url.origin !== origin) return route.abort();
       if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
       const path = resolve(root, '.' + decodeURIComponent(url.pathname));
-      if (!path.startsWith(root + '/') && !path.startsWith(root + '\\')) return route.abort();
+      if (!path.startsWith(root + sep) && !path.startsWith(root + '\\')) return route.abort();
       try { return route.fulfill({ contentType: mime[extname(path)] || 'application/octet-stream', body: await readFile(path) }); }
       catch { return route.fulfill({ status: 404, body: '' }); }
     });

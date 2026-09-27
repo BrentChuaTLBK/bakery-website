@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Browser fixtures only. No production sign-in, uploads or content writes.
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -60,7 +61,7 @@ async function context(role='owner',mobile=false){
     }
     if(path.startsWith('/storage/v1/object/public/product-images/'))return route.fulfill({contentType:'image/png',body:png});
     if(u.origin!==origin)return route.abort();
-    if(path==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
+    if(path==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:completeClientFixture(client, mock)});
     if(/\/assets\/ordering\/(traffic|newsletter)\.js/.test(path))return route.fulfill({contentType:'text/javascript',body:''});
     try{return route.fulfill({contentType:{'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2'}[extname(path)]||'application/octet-stream',body:await readFile(join(root,decodeURIComponent(path)))});}
     catch{
@@ -76,7 +77,7 @@ try {
   assert.equal(await publicPage.locator('.party-card,[data-cart-thumb]').count(),0);
   assert(!(await publicPage.locator('main').innerText()).includes('Party-only'));
   await publicPage.screenshot({path:join(output,'empty-desktop.png'),fullPage:true});
-  const admin=await ctx.newPage();let accept=true;admin.on('dialog',d=>accept?d.accept():d.dismiss());
+  const admin=await ctx.newPage();admin.on('dialog',()=>{throw Error('Unexpected native browser dialog')});
   await admin.goto(origin+'/manage.html#dessert');await admin.getByText('No packages yet. Add your first package.').waitFor();
   assert.equal(await admin.locator('#party-package-manager h1').innerText(),'Dessert bar');
   await admin.locator('[data-party-settings]').click();assert.equal(await admin.locator('[data-feature-label]').count(),0);
@@ -93,7 +94,7 @@ try {
   await admin.locator('[data-cart-photo-upload]').setInputFiles([{name:'dessert-one.png',mimeType:'image/png',buffer:png},{name:'dessert-two.png',mimeType:'image/png',buffer:png}]);
   await admin.locator('[data-cart-photo-message]').filter({hasText:'2 photos ready'}).waitFor();assert(uploads.every(f=>f.type==='image/webp'&&f.name.endsWith('.webp')));
   await admin.locator('[data-cart-photo-caption="0"]').fill('Dessert table');await admin.locator('[data-photo-move="0"]').press('ArrowRight');
-  accept=false;await admin.locator('[data-view="packages"]').click();assert.equal(await admin.locator('#party-package-manager h1').innerText(),'Dessert bar');accept=true;
+  await admin.locator('[data-view="packages"]').click();await admin.getByRole('dialog').getByRole('button',{name:'Keep editing'}).click();assert.equal(await admin.locator('#party-package-manager h1').innerText(),'Dessert bar');
   await admin.locator('[data-cart-photo-save]').click();await admin.locator('[data-cart-photo-message]').filter({hasText:'Saved.'}).waitFor();
   await publicPage.reload();await publicPage.locator('.party-card').waitFor();await publicPage.locator('[data-cart-thumb]').first().waitFor();
   assert.equal(await publicPage.locator('.party-card h3').innerText(),'Dessert tasting');assert(await publicPage.locator('.party-feature-detail').isVisible());
@@ -112,7 +113,7 @@ try {
   assert.equal(await phone.locator('[data-cart-count]').innerText(),'2 / 2');assert(!(await phone.locator('[data-cart-lightbox]').isVisible()));
   await phone.locator('[data-cart-count]').filter({hasText:'1 / 2'}).waitFor({timeout:5000});
   await admin.locator('[data-party-edit]').click();await admin.locator('[name="name"]').fill('Edited dessert package');await admin.locator('[data-party-form] button[type="submit"]').click();await admin.locator('.party-editor').waitFor({state:'hidden'});
-  await admin.locator('[data-party-delete]').click();await admin.getByText('No packages yet. Add your first package.').waitFor();
+  await admin.locator('[data-party-delete]').click();await admin.getByRole('dialog').getByRole('button',{name:'Delete package',exact:true}).click();await admin.getByText('No packages yet. Add your first package.').waitFor();
   await admin.locator('[data-party-settings]').click();await admin.locator('[data-feature-remove]').click();await admin.locator('[data-party-form] button[type="submit"]').click();await admin.locator('.party-editor').waitFor({state:'hidden'});assert.deepEqual(settings.inclusions,[]);
   const staff=await context('staff'),staffPage=await staff.newPage(),before=calls.length;
   await staffPage.goto(origin+'/manage.html#dessert');await staffPage.getByText('Sign in with the owner account to add or edit dessert bar packages.').waitFor();assert.equal(calls.length,before);

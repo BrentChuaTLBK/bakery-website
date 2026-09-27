@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Exercise the real admin and storefront with local fixtures. No remote calls.
 import { createRequire } from 'node:module';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -38,7 +39,7 @@ try{
  await context.route('**/*',async route=>{
   const url=new URL(route.request().url());
   if(url.origin!==origin)return route.abort();
-  if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
+  if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:completeClientFixture(client, mock)});
   if(['/assets/ordering/traffic.js','/assets/ordering/newsletter.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:''});
   if(url.pathname.startsWith('/photos/')){const i=Number(url.pathname.split('/').at(-1).split('.')[0]);return route.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect width="180" height="180" fill="#f2e7d6"/><ellipse cx="90" cy="134" rx="69" ry="20" fill="#e2d5c4"/><path d="M35 68h110v60c0 24-110 24-110 0z" fill="${['#8971a3','#6f4530','#48523b','#b07f51','#52352c'][i]}"/><ellipse cx="90" cy="68" rx="55" ry="20" fill="${['#b5a1c8','#b09072','#73844b','#d6b085','#966c52'][i]}"/></svg>`})}
   try{return route.fulfill({contentType:mime[extname(url.pathname)]||'application/octet-stream',body:await readFile(join(root,url.pathname))})}catch{return route.fulfill({status:404,body:'Not found'})}

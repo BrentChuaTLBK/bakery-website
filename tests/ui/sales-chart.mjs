@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin !== origin) return route.abort();
-      if (url.pathname === '/assets/ordering/client.js') return route.fulfill({contentType:'text/javascript',body:mock});
+      if (url.pathname === '/assets/ordering/client.js') return route.fulfill({contentType:'text/javascript',body:completeClientFixture(client, mock)});
       const file = resolve(root,'.'+url.pathname);
       if (!file.startsWith(root+sep)) return route.abort();
       try { return await route.fulfill({body:await readFile(file),contentType:mime[extname(file)] || 'application/octet-stream'}); }

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,mkdir} from 'node:fs/promises';
-import {join,resolve,extname} from 'node:path';
+import {join,resolve,extname, sep } from 'node:path';
 import {orderProductPhoto} from '../../assets/ordering/order-item-photos.js';
 
 const require=createRequire(import.meta.url);
@@ -57,7 +57,7 @@ try{
    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
    if(['/assets/ordering/newsletter.js','/assets/ordering/traffic.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:''});
    const path=resolve(root,'.'+decodeURIComponent(url.pathname));
-   if(!path.startsWith(root+'/')&&!path.startsWith(root+'\\'))return route.abort();
+   if(!path.startsWith(root+sep)&&!path.startsWith(root+'\\'))return route.abort();
    try{return await route.fulfill({contentType:mime[extname(path)]||'application/octet-stream',body:await readFile(path)})}catch{return route.fulfill({status:404,body:''})}
   });
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));

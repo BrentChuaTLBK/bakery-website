@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Exercise the actual admin page using a local allowlisted fixture only.
 // No live products, settings, orders, or notifications are changed.
 import { createRequire } from 'node:module';
@@ -56,7 +57,7 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const server = createServer(async (req, res) => {
   try {
     const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    if (name === '/assets/ordering/client.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end(mockClient); return; }
+    if (name === '/assets/ordering/client.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end(completeClientFixture(realClient, mockClient)); return; }
     const path = resolve(root, '.' + (name === '/' ? '/manage.html' : name));
     if (!path.startsWith(root + sep)) throw new Error('Invalid path');
     const data = await readFile(path);
@@ -73,6 +74,7 @@ try {
   const forbidden = [];
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:false,kind:'percent',value:5})});
     if (url.origin === origin) return route.continue();
     if (/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href)) forbidden.push(url.href);
     return route.abort();

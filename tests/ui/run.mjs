@@ -1,7 +1,7 @@
 import {createRequire} from 'node:module';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
-import {join,extname,resolve} from 'node:path';
+import {join,extname,resolve, sep } from 'node:path';
 import {once} from 'node:events';
 import assert from 'node:assert/strict';
 const fixtureNow='2026-09-15T02:00:00Z';
@@ -11,7 +11,7 @@ const shot=async(page,name,options={})=>{if(screenshotDir)await page.screenshot(
 const require=createRequire(import.meta.url);const {chromium}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
 const root=resolve(import.meta.dirname,'../..');
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.jpeg':'image/jpeg','.woff2':'font/woff2','.md':'text/markdown'};
-const server=createServer(async(req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);if(name==='/assets/ordering/config.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end('export const config = Object.freeze({supabaseUrl:"",supabasePublishableKey:""});');return;}const path=resolve(root,'.'+(name==='/'?'/index.html':name));try{if(!path.startsWith(root+'/'))throw Error();const data=await readFile(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'});res.end(data)}catch{res.writeHead(404);res.end('Not found')}}).listen(0,'127.0.0.1');await once(server,'listening');
+const server=createServer(async(req,res)=>{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);if(name==='/assets/ordering/config.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end('export const config = Object.freeze({supabaseUrl:"",supabasePublishableKey:""});');return;}const path=resolve(root,'.'+(name==='/'?'/index.html':name));try{if(!path.startsWith(root+sep))throw Error();const data=await readFile(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'});res.end(data)}catch{res.writeHead(404);res.end('Not found')}}).listen(0,'127.0.0.1');await once(server,'listening');
 const origin=`http://127.0.0.1:${server.address().port}`;
 let browser;
 try{

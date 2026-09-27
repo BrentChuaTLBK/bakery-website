@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Local browser fixtures only: production auth, uploads and data are never used.
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -56,7 +57,7 @@ async function context({ role = 'owner', mobile = false } = {}) {
       return route.fulfill({ contentType: 'application/json', body });
     }
     if (url.origin !== origin) return route.abort();
-    if (url.pathname === '/assets/ordering/client.js') return route.fulfill({ contentType: 'text/javascript', body: mock });
+    if (url.pathname === '/assets/ordering/client.js') return route.fulfill({ contentType: 'text/javascript', body: completeClientFixture(client, mock) });
     if (/\/assets\/ordering\/(traffic|newsletter)\.js/.test(url.pathname)) return route.fulfill({ contentType: 'text/javascript', body: '' });
     if (url.pathname === '/test-gallery') { const { action, payload } = route.request().postDataJSON(); return route.fulfill({ contentType: 'application/json', body: JSON.stringify(response(action, payload)) }); }
     if (url.pathname === '/test-upload') { uploadInfo = route.request().postDataJSON(); return route.fulfill({ body: '{}' }); }

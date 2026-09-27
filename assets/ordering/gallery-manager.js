@@ -1,3 +1,4 @@
+import {galleryPhoto,galleryThumbnail,bindThumbnailFallback} from './gallery-thumbnail.js?v=gallery-thumbnails-1';
 import { parseGalleryExport, safePhotoUrl } from './gallery-import.js';
 import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=heic-2';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
@@ -23,6 +24,7 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
     <p data-gallery-message role="status" aria-live="polite"></p><div data-gallery-import-preview></div><p data-gallery-count></p><div class="gallery-admin-grid" data-gallery-items></div><button type="button" class="button button-secondary" data-gallery-more hidden>Load more photos</button>
     <dialog closedby="none" class="gallery-editor" aria-labelledby="gallery-editor-title"><form data-gallery-editor><div class="gallery-editor-heading"><h2 id="gallery-editor-title">Photo details</h2><button type="button" class="icon-button" data-gallery-close aria-label="Close photo editor">×</button></div><div class="gallery-editor-layout"><div><img class="gallery-photo-preview" alt="Photo preview" data-gallery-preview><p class="muted" data-gallery-file-info></p><label>Replace photo<input type="file" accept="${galleryImageAccept}" data-gallery-replace></label><p class="muted">Gallery image links are public. Hiding a photo removes it from the gallery.</p></div><div class="gallery-fields"><label>Category<input name="category" list="gallery-category-options" required maxlength="100" placeholder="Choose or type a category"></label><datalist id="gallery-category-options"></datalist><label>Hidden search keywords<textarea name="keywords" rows="4" placeholder="Pikachu&#10;Pokémon"></textarea><small>One keyword or phrase per line. Customers can search these, but won’t see the keyword list.</small></label><label>Name <span class="muted">(optional)</span><input name="title" maxlength="200"></label><label>Description <span class="muted">(optional)</span><textarea name="description" rows="3" maxlength="2000"></textarea></label><label class="gallery-checkbox"><input type="checkbox" name="published" checked> Show in gallery</label></div></div><p data-gallery-editor-message role="status"></p><div class="row-actions"><button type="submit" class="button">Save photo</button><button type="button" class="button button-secondary" data-gallery-close>Cancel</button><span data-gallery-queue class="muted"></span></div></form></dialog>`;
   const $ = selector => root.querySelector(selector);
+  bindThumbnailFallback(root);
   const dialog = $('dialog'), form = $('[data-gallery-editor]');
   root.addEventListener('error', event => {
     if (!event.target.matches?.('.gallery-image-button img')) return;
@@ -47,7 +49,7 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
     const select = $('[data-gallery-filter] select');
     select.innerHTML = '<option value="">All categories</option>' + categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join(''); select.value = category;
     $('[data-gallery-count]').textContent = `${items.length} of ${total} photos${query ? ' matching your search' : ''}`;
-    $('[data-gallery-items]').innerHTML = items.map(item => `<article class="gallery-admin-card"><button type="button" class="gallery-image-button" data-gallery-edit="${esc(item.id)}" aria-label="Edit ${esc(item.title || item.category + ' photo')}"><img src="${esc(safePhotoUrl(item.photo_url))}" alt="${esc(item.title || item.category + ' design')}" loading="lazy" decoding="async"></button><div><strong>${esc(item.title || item.category)}</strong><p>${esc(item.category)} · ${item.published ? 'Visible' : 'Hidden'}</p><p class="gallery-keywords">${esc(item.keywords.join(' · ') || 'No search keywords')}</p><div class="row-actions"><button type="button" class="button button-secondary" data-gallery-edit="${esc(item.id)}">Edit</button><button type="button" class="button button-secondary" data-gallery-delete="${esc(item.id)}">Remove</button></div></div></article>`).join('') || '<p class="empty-state">No photos found. Upload photos or import your existing gallery.</p>';
+    $('[data-gallery-items]').innerHTML = items.map(item => `<article class="gallery-admin-card"><button type="button" class="gallery-image-button" data-gallery-edit="${esc(item.id)}" aria-label="Edit ${esc(item.title || item.category + ' photo')}"><img src="${esc(galleryThumbnail(item.photo_url))}" data-full-photo="${esc(galleryPhoto(item.photo_url))}" alt="${esc(item.title || item.category + ' design')}" loading="lazy" decoding="async"></button><div><strong>${esc(item.title || item.category)}</strong><p>${esc(item.category)} · ${item.published ? 'Visible' : 'Hidden'}</p><p class="gallery-keywords">${esc(item.keywords.join(' · ') || 'No search keywords')}</p><div class="row-actions"><button type="button" class="button button-secondary" data-gallery-edit="${esc(item.id)}">Edit</button><button type="button" class="button button-secondary" data-gallery-delete="${esc(item.id)}">Remove</button></div></div></article>`).join('') || '<p class="empty-state">No photos found. Upload photos or import your existing gallery.</p>';
     $('[data-gallery-more]').hidden = items.length >= total;
   }
   async function load(reset = true) {
@@ -85,7 +87,7 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
     form.elements.published.checked = item?.published ?? true;
     $('#gallery-category-options').innerHTML = categories.map(c => `<option value="${esc(c)}"></option>`).join('');
     $('[data-gallery-preview]').removeAttribute('src');
-    if (item) $('[data-gallery-preview]').src = safePhotoUrl(item.photo_url);
+    if (item) $('[data-gallery-preview]').src = galleryPhoto(item.photo_url);
     $('[data-gallery-file-info]').textContent = '';
     $('[data-gallery-editor-message]').textContent = '';
     $('[data-gallery-queue]').textContent = queue.length ? `${queue.length} more photos after this one` : '';

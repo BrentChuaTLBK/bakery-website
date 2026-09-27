@@ -1,9 +1,10 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Regression test for optional product labels. All authentication and API calls
 // are mocked locally; external requests are blocked before browser navigation.
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
-import { join, extname, resolve } from 'node:path';
+import { join, extname, resolve, sep } from 'node:path';
 import { once } from 'node:events';
 import assert from 'node:assert/strict';
 
@@ -61,9 +62,9 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const server = createServer(async (req, res) => {
   try {
     const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    if (name === '/assets/ordering/client.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end(mockClient); return; }
+    if (name === '/assets/ordering/client.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end(completeClientFixture(realClient, mockClient)); return; }
     const path = resolve(root, '.' + (name === '/' ? '/shop.html' : name));
-    if (!path.startsWith(root + '/')) throw new Error('Invalid path');
+    if (!path.startsWith(root + sep)) throw new Error('Invalid path');
     const data = await readFile(path);
     res.writeHead(200, { 'Content-Type': mime[extname(path)] || 'application/octet-stream' }); res.end(data);
   } catch { res.writeHead(404); res.end('Not found'); }
@@ -77,6 +78,8 @@ try {
   const forbidden = [];
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/functions/v1/newsletter') { assert.equal(route.request().postDataJSON().action,'status'); return route.fulfill({contentType:'application/json',body:'{"subscribed":false,"popup_seen":true}'}); }
+    if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:false,kind:'percent',value:5})});
     if (url.origin === origin) return route.continue();
     if (/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href)) forbidden.push(url.href);
     return route.abort();
