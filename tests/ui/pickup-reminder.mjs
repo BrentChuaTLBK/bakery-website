@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,mkdir} from 'node:fs/promises';
@@ -20,7 +21,7 @@ try{
     const ctx=await browser.newContext({viewport:{width,height:1000},hasTouch:width<500,serviceWorkers:'block'});
     await ctx.route('**/*',async route=>{
       const url=new URL(route.request().url());if(url.origin!==origin)return route.abort();
-      if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
+      if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:completeClientFixture(client, mock)});
       if(url.pathname==='/fixture-api'){
         const {action,payload}=route.request().postDataJSON();calls.push({action,payload});
         let response;

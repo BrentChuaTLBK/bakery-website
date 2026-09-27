@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Real dashboard/print integration with local fixtures; every external request is blocked.
 import { createRequire } from 'node:module';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -65,7 +66,7 @@ await context.addInitScript(() => {
 await context.route('**/*', async route => {
   const url = new URL(route.request().url());
   if (url.origin !== origin) return route.abort();
-  if (url.pathname === '/assets/ordering/client.js') return route.fulfill({ contentType: 'text/javascript', body: mock });
+  if (url.pathname === '/assets/ordering/client.js') return route.fulfill({ contentType: 'text/javascript', body: completeClientFixture(client, mock) });
   if (url.pathname === '/assets/ordering/order-slips.css' && rejectStyle) return route.fulfill({ status: 503, body: '' });
   if (['/assets/ordering/traffic.js', '/assets/ordering/newsletter.js'].includes(url.pathname)) return route.fulfill({ contentType: 'text/javascript', body: '' });
   if (url.pathname.startsWith('/photos/')) {

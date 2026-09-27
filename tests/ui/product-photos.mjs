@@ -1,3 +1,4 @@
+import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Exercise real mouse, keyboard and touch gestures against the product editor.
 // APIs and uploads are local fixtures; no production requests are allowed.
 import { createRequire } from 'node:module';
@@ -39,7 +40,7 @@ async function context(options={}) {
   await ctx.route('**/*',async route=>{
     const url=new URL(route.request().url());
     if(url.origin!==origin)return route.abort();
-    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
+    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:completeClientFixture(client, mock)});
     if(['/assets/ordering/traffic.js','/assets/ordering/newsletter.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:''});
     if(url.pathname.startsWith('/photos/')){
       const label=url.pathname.split('/').at(-1).replace('.svg','');
@@ -143,7 +144,7 @@ try {
   await page.locator('[data-action="remove-photo"][data-index="1"]').click();
   assert.deepEqual(await order(page),[5,2,3,4].map(photo));
   await page.evaluate(()=>{window.blockPhotoUpload=true});
-  await page.locator('#product-photos').setInputFiles({name:'new-photo.png',mimeType:'image/png',buffer:Buffer.from('fixture')});
+  await page.locator('#product-photos').setInputFiles({name:'new-photo.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=','base64')});
   await page.waitForFunction(()=>typeof window.finishPhotoUpload==='function');
   await mouseDrag(page,3,0);
   assert.deepEqual(await order(page),[5,2,3,4].map(photo));

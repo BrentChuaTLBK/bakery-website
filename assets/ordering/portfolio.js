@@ -1,5 +1,6 @@
+import {galleryPhoto,galleryThumbnail,bindThumbnailFallback} from './gallery-thumbnail.js?v=gallery-thumbnails-1';
 import { config } from './config.js';
-import { safePhotoUrl } from './gallery-import.js';
+
 
 const gallery = location.pathname.endsWith('pastries.html') ? 'pastries' : 'custom-orders';
 const isPastries = gallery === 'pastries';
@@ -29,7 +30,7 @@ function previousGallery() {
   const script = document.createElement('script'); script.src = `assets/js/${gallery === 'pastries' ? 'pastries' : 'customorders'}.js`; document.body.append(script);
 }
 function photoCard(item, index) {
-  return `<figure class="portfolio-card"><button type="button" data-photo="${index}" aria-label="View ${esc(item.title || item.category + ' design')}"><img src="${esc(safePhotoUrl(item.photo_url))}" alt="${esc(item.title || item.category + ' design')}" width="400" height="400" loading="lazy" decoding="async"></button>${item.title || item.description ? `<figcaption>${item.title ? `<h3>${esc(item.title)}</h3>` : ''}${item.description ? `<p>${esc(item.description)}</p>` : ''}</figcaption>` : ''}</figure>`;
+  return `<figure class="portfolio-card"><button type="button" data-photo="${index}" aria-label="View ${esc(item.title || item.category + ' design')}"><img src="${esc(galleryThumbnail(item.photo_url))}" data-full-photo="${esc(galleryPhoto(item.photo_url))}" alt="${esc(item.title || item.category + ' design')}" width="400" height="400" loading="lazy" decoding="async"></button>${item.title || item.description ? `<figcaption>${item.title ? `<h3>${esc(item.title)}</h3>` : ''}${item.description ? `<p>${esc(item.description)}</p>` : ''}</figcaption>` : ''}</figure>`;
 }
 function paint() {
   if (isPastries) {
@@ -102,7 +103,7 @@ more.addEventListener('click', () => void load(false));
 root.addEventListener('click', event => {
   const button = event.target.closest('[data-photo]'); if (!button) return;
   const item = items[Number(button.dataset.photo)];
-  const image = lightbox.querySelector('img'); image.src = safePhotoUrl(item.photo_url); image.alt = item.title || `${item.category} design`;
+  const image = lightbox.querySelector('img'); image.src = galleryPhoto(item.photo_url); image.alt = item.title || `${item.category} design`;
   lightbox.querySelector('p').textContent = [item.title, item.description].filter(Boolean).join(' — ');
   lightbox.showModal();
 });
@@ -122,4 +123,5 @@ lightbox.addEventListener('click', event => {
   backdropPress = false;
 });
 lightbox.addEventListener('close', () => { backdropPress = false; });
+bindThumbnailFallback(root);
 void load(true, true);
