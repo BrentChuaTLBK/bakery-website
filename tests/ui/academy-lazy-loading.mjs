@@ -25,6 +25,8 @@ await context.route('**/*',async route=>{
  try{return route.fulfill({contentType:extname(path)==='.js'?'text/javascript':extname(path)==='.css'?'text/css':'application/octet-stream',body:await readFile(path)});}catch{return route.fulfill({status:404,body:''});}
 });
 await page.goto(origin+'/academy.html');await page.locator('.academy-active-batch').waitFor();
+await page.waitForFunction(()=>{const img=document.querySelector('.academy-picker summary img');return img&&!img.hasAttribute('data-academy-pending')&&img.naturalWidth>1;});
+assert.equal(await page.locator('.academy-picker').evaluate(el=>el.open),false,'The mobile picker summary photo loads while the picker stays closed');
 const heading=()=>page.locator('.academy-active-batch h3'),gallery=page.locator('#bakers-in-action');
 await page.evaluate(()=>{window.originalHero=document.querySelector('.academy-hero');window.originalSelector=document.querySelector('#class-albums');});
 await gallery.scrollIntoViewIfNeeded();

@@ -16,4 +16,6 @@ assert.equal(cache.get('a'),undefined,'Do not refresh unseen photos');
 await cache.load(ref('b'),{force:true});assert.deepEqual(calls.at(-1),['b']);
 fail=true;await assert.rejects(cache.load(ref('d')),/Offline/);fail=false;await cache.load(ref('d'));assert.ok(cache.get('d'),'A failed request can be retried');
 const separate=createAcademyImageCache(async()=>({}));assert.deepEqual(separate.snapshot(),{},'Page instances do not share signed URLs');
+cache.seed({id:'upload',url:'fresh-upload.webp'});assert.equal(cache.get('upload').url,'fresh-upload.webp','A newly uploaded image needs no extra signing request');
+clock+=240001;assert.equal(cache.get('upload'),undefined,'Seeded upload links expire too');
 console.log('PASS Academy image cache: overlapping requests, cache reuse, expiry, targeted renewal, retry and page isolation');
