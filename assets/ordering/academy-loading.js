@@ -27,6 +27,51 @@ export function applyAcademyImage(img,image){
  if(img.getAttribute('src')!==image.url)img.src=image.url;
 }
 
+// Warm only the selected album. Two low-priority downloads at a time keep the
+// next swipe ready without competing with the hero or a newly selected batch.
+export function preloadAcademyBatch(cache,photos,{makeImage=()=>new Image(),connection=globalThis.navigator?.connection}={}){
+ const limited=connection?.saveData||/^(slow-)?2g$/.test(connection?.effectiveType||'');
+ const warmed=new Map(),running=new Set(),downloads=new Set();
+ let queue=[...photos.slice(0,limited?24:photos.length)],active=0,signing=false,timer,disposed=false,failures=0;
+ const doc=globalThis.document;
+ const ready=p=>cache.get(p.asset_id)?.url===warmed.get(p.asset_id)&&warmed.has(p.asset_id);
+ function schedule(delay=180){if(disposed)return;clearTimeout(timer);timer=setTimeout(pump,delay);}
+ async function pump(){
+  if(disposed||doc?.hidden)return;
+  queue=queue.filter(p=>!ready(p)&&!running.has(p.asset_id));
+  if(!queue.length||active>=2||signing)return;
+  if(!cache.get(queue[0].asset_id)){
+   signing=true;const group=queue.slice(0,24);
+   try{await cache.load(group);failures=0;}
+   catch{failures++;if(failures<=3)schedule(2000);return;}
+   finally{signing=false;}
+   if(disposed)return;
+   // Missing/deleted assets must not create a tight retry loop.
+   const missing=new Set(group.filter(p=>!cache.get(p.asset_id)).map(p=>p.asset_id));
+   queue=queue.filter(p=>!missing.has(p.asset_id));
+   if(!queue.length)return;
+  }
+  while(!disposed&&active<2&&queue.length){
+   const p=queue[0],image=cache.get(p.asset_id);
+   if(!image){schedule();break;}
+   queue.shift();active++;running.add(p.asset_id);
+   const img=makeImage();img.decoding='async';img.fetchPriority='low';
+   let timeout;
+   const done=success=>{clearTimeout(timeout);img.onload=img.onerror=null;downloads.delete(cancel);active--;running.delete(p.asset_id);if(success)warmed.set(p.asset_id,image.url);if(!disposed)schedule();};
+   const cancel=()=>{done(false);img.removeAttribute('src');};downloads.add(cancel);
+   img.onload=()=>done(true);img.onerror=()=>done(false);timeout=setTimeout(cancel,15000);img.src=image.url;
+  }
+ }
+ function prioritize(photo){
+  const index=photos.findIndex(p=>p.asset_id===photo.asset_id);if(index<0||disposed)return;
+  const near=[...photos.slice(index+1,index+9),...photos.slice(Math.max(0,index-2),index)];
+  const ids=new Set(near.map(p=>p.asset_id));queue=[...near,...queue.filter(p=>!ids.has(p.asset_id))];failures=0;schedule(0);
+ }
+ const visible=()=>{if(!doc.hidden)schedule(0);};doc?.addEventListener('visibilitychange',visible);
+ schedule(100);
+ return {prioritize,dispose(){disposed=true;clearTimeout(timer);queue=[];for(const cancel of [...downloads])cancel();doc?.removeEventListener('visibilitychange',visible);}};
+}
+
 // Resolve private image links near the viewport, not for every album in a class.
 export function bindAcademyLazyImages(root,cache){
  const queued=new Set(),seen=new WeakSet(),retried=new Map();let timer=null,disposed=false;

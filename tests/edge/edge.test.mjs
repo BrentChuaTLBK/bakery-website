@@ -317,6 +317,7 @@ test('staff notifications are individually addressed and use their own stable pr
       assert.doesNotMatch(options.body,/private-guest-token/);
       events.push('provider');return reply({id:'review-provider-id'});
     }
+    if(String(url).endsWith('/newsletter_broadcast_service'))return reply(null);
     const body=JSON.parse(options.body);events.push(body.p_action);
     if(body.p_action==='claim_emails')return reply([row]);
     if(body.p_action==='prepare_email')return reply(row);
@@ -365,6 +366,7 @@ test('worker uses stable idempotency key and only records provider acceptance af
     if (String(url).includes('resend.com')) {
       assert.equal(options.headers['Idempotency-Key'], row.event_key); events.push('provider'); return reply({ id: 'provider-test-id' });
     }
+    if(String(url).endsWith('/newsletter_broadcast_service'))return reply(null);
     const body = JSON.parse(options.body); events.push(body.p_action);
     if (body.p_action === 'claim_emails') return reply([row]);
     if (body.p_action === 'prepare_email') return reply(row);

@@ -1,6 +1,7 @@
 import { constantTimeEqual, env, HttpError, json, service } from "../_shared/server.ts";
 import { renderEmail } from "../_shared/emails.ts";
 import { newsletterWelcomeAllowed } from "../_shared/newsletter-welcome.ts";
+import { processNewsletterBroadcast } from "../_shared/newsletter-broadcast.ts";
 
 // This endpoint has its own non-public worker credential. It does not accept a
 // browser user, anonymous key, or order token as authority to send messages.
@@ -28,7 +29,12 @@ Deno.serve(async (request: Request) => {
         if (current?.skip) { stats.skipped++; continue; }
         if (!current?.payload) throw new HttpError(503, "The leased message could not be validated before delivery.");
         const message = current;
-        const welcome = ["newsletter_welcome","newsletter_campaign","newsletter_test"].includes(message.payload.event_type);
+        if (message.payload.event_type === "newsletter_campaign") {
+          await service("email_failed", { id: row.id, lease_token: row.lease_token, terminal: true, error: "Legacy campaign sending is disabled. Create a new newsletter draft to send through Resend Broadcasts." }, 8000);
+          stats.failed++;
+          continue;
+        }
+        const welcome = ["newsletter_welcome","newsletter_test"].includes(message.payload.event_type);
         const key = (welcome && env("NEWSLETTER_RESEND_API_KEY")) || env("RESEND_API_KEY");
         const sender = (welcome && env("NEWSLETTER_FROM")) || env("EMAIL_FROM");
         if (!key || !sender) throw new HttpError(503, "Email delivery is waiting for RESEND_API_KEY and EMAIL_FROM configuration.");
@@ -62,7 +68,11 @@ Deno.serve(async (request: Request) => {
         catch { /* The lease expires so a later worker can retry the same key. */ }
       }
     }
-    return json(stats, !env("RESEND_API_KEY") || !env("EMAIL_FROM") ? 503 : 200);
+    // Complete order messages first. Campaigns use Resend Broadcasts, with their
+    // own durable lease; a marketing service outage cannot fail order delivery.
+    let broadcast = 'unavailable';
+    try { broadcast = await processNewsletterBroadcast(); } catch { /* Report separately. */ }
+    return json({ ...stats, broadcast }, !env("RESEND_API_KEY") || !env("EMAIL_FROM") ? 503 : 200);
   } catch {
     return json({ ...stats, error: "Email maintenance could not complete. Check the Edge Function and database setup; unacknowledged leases remain retryable." }, 503);
   }

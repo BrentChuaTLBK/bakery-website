@@ -1,7 +1,7 @@
 import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,instagramUrl,missingContent} from './academy-model.js';
-import {academyPhoto as renderPhoto,bindAcademyInteractions} from './academy-view.js?v=lazy-albums-1';
+import {academyPhoto as renderPhoto,bindAcademyInteractions} from './academy-view.js?v=album-preload-1';
 import {academyApi,academyImages} from './academy-client.js';
-import {createAcademyImageCache,bindAcademyLazyImages} from './academy-loading.js?v=lazy-albums-1';
+import {createAcademyImageCache,bindAcademyLazyImages,preloadAcademyBatch} from './academy-loading.js?v=album-preload-1';
 
 const academyPhoto=(photo,images,label,options={})=>renderPhoto(photo,images,label,{...options,deferred:true});
 
@@ -30,7 +30,7 @@ export function albumBrowser(data,images,{preview=false,slug='',batchId=''}={}) 
 
 const root=document.querySelector('[data-academy-root]');
 if(root){
- let data,lazy,activeSlug=null;
+ let data,lazy,preloader,activeSlug=null;
  const cache=createAcademyImageCache(academyImages);
  const preview=new URLSearchParams(location.search).get('preview')==='1';
  function navigate(slug,batch=''){
@@ -41,7 +41,7 @@ if(root){
  function render(focus=false,scrollToBatch=false){
   const params=new URLSearchParams(location.search),slug=params.get('class')||'';
   const view=albumBrowser(data,cache.snapshot(),{preview,slug,batchId:params.get('batch')||''});
-  lazy?.dispose();
+  lazy?.dispose();preloader?.dispose();
   if(view.content&&activeSlug===view.content.slug&&root.querySelector('#bakers-in-action')){
    const template=document.createElement('template');template.innerHTML=view.html;
    for(const selector of ['#bakers-in-action','#academy-class-videos']){
@@ -52,7 +52,8 @@ if(root){
   }else root.innerHTML=view.html;
   activeSlug=view.content?.slug||null;
   document.title=(view.content?.title||'Academy')+' · TLB Kitchen';
-  bindAcademyInteractions(root,{content:view.content,images:cache.images,onBatch:b=>navigate(view.content.slug,b),onMore:scope=>lazy?.observe(scope),loadPhoto:async(p,options)=>{await cache.load(p,options);return cache.get(p.asset_id);}});
+  preloader=preloadAcademyBatch(cache,view.content?.batches.find(b=>b.id===view.batchId)?.photos||[]);
+  bindAcademyInteractions(root,{content:view.content,images:cache.images,onBatch:b=>navigate(view.content.slug,b),onMore:scope=>lazy?.observe(scope),onPhoto:p=>preloader?.prioritize(p),loadPhoto:async(p,options)=>{await cache.load(p,options);return cache.get(p.asset_id);}});
   lazy=bindAcademyLazyImages(root,cache);
   const picker=root.querySelector('.academy-picker');picker.open=matchMedia('(min-width: 900px)').matches;
   if(focus){const heading=root.querySelector(scrollToBatch?'#bakers-in-action h3':'h1');heading?.setAttribute('tabindex','-1');heading?.focus({preventScroll:true});}

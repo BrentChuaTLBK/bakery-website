@@ -15,12 +15,12 @@ const original=await readFile(join(root,'academy.html'),'utf8');
 const html=original.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace('</body>','<script type="module" src="/assets/ordering/academy-browser.js"></script></body>');
 const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined});
 try{
-const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,reducedMotion:'reduce'}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,reducedMotion:'reduce'}),page=await context.newPage(),errors=[],downloads=new Set();page.on('pageerror',e=>errors.push(e.message));
 await context.route('**/*',async route=>{
  const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
  if(u.pathname==='/academy.html')return route.fulfill({contentType:'text/html',body:html});
  if(u.pathname==='/assets/ordering/academy-client.js')return route.fulfill({contentType:'text/javascript',body:mock});
- if(u.pathname.startsWith('/photo/'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#d6b9a2"/></svg>'});
+ if(u.pathname.startsWith('/photo/')){downloads.add(u.pathname);return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#d6b9a2"/></svg>'});}
  const path=resolve(root,'.'+u.pathname);if(!path.startsWith(root+sep))return route.abort();
  try{return route.fulfill({contentType:extname(path)==='.js'?'text/javascript':extname(path)==='.css'?'text/css':'application/octet-stream',body:await readFile(path)});}catch{return route.fulfill({status:404,body:''});}
 });
@@ -32,12 +32,22 @@ await page.waitForFunction(()=>[...document.querySelectorAll('#bakers-in-action 
 let requested=await page.evaluate(()=>window.imageRequests.flat());
 assert.ok(requested.filter(id=>/^b\d+-/.test(id)).every(id=>/^b1-/.test(id)&&Number(id.split('-')[1])<24),'Only the selected visible batch photos are resolved');
 assert.ok(requested.length<60,'Initial image work does not grow with all 2,600 camp photos');
+await page.waitForFunction(()=>window.imageRequests.flat().includes('b1-31'));
+for(let i=0;i<100&&!downloads.has('/photo/b1-31.svg');i++)await new Promise(r=>setTimeout(r,100));
+assert.ok(downloads.has('/photo/b1-31.svg'),'Photo bytes beyond 24 load gradually before swiping');
+assert.ok([...downloads].filter(p=>/\/b\d+-/.test(p)).every(p=>p.startsWith('/photo/b1-')),'Background warming stays inside the selected batch');
+await gallery.locator('.academy-photo-open').nth(23).click();await page.locator('[data-light-step="1"]').click();
+await page.waitForFunction(()=>document.querySelector('.academy-lightbox img')?.src.includes('b1-24.svg'));
+assert.equal(await page.locator('[data-light-count]').textContent(),'25 of 200');
+assert.ok(await page.locator('.academy-light-stage').evaluate(e=>e.getBoundingClientRect().height)>400,'The viewer keeps a stable height');
+await page.keyboard.press('Escape');
 await page.evaluate(()=>{window.imageDelay=1000;document.querySelector('[data-academy-batch="b2"]').click();});
 assert.equal(await heading().textContent(),'Batch 2','Batch UI changes before the delayed image request');
 assert.equal(await page.evaluate(()=>document.querySelector('.academy-hero')===window.originalHero&&document.querySelector('#class-albums')===window.originalSelector),true,'Class content and selector stay mounted');
 await page.waitForFunction(()=>window.imageRequests.some(ids=>ids.includes('b2-0')));
 await page.locator('[data-academy-batch="b3"]').evaluate(b=>b.click());assert.equal(await heading().textContent(),'Batch 3');
 await page.waitForFunction(()=>{const i=document.querySelector('#bakers-in-action img');return i?.src.includes('b3-0.svg')&&i.naturalWidth>1;});
+assert.ok(!(await page.evaluate(()=>window.imageRequests.flat())).includes('b2-24'),'Abandoned batch does not start its next background page');
 assert.ok((await gallery.locator('img').first().getAttribute('src')).includes('b3-0.svg'),'A late Batch 2 request never replaces Batch 3');
 await page.locator('[data-academy-batch="b1"]').evaluate(b=>b.click());await page.waitForFunction(()=>document.querySelector('#bakers-in-action img')?.src.includes('b1-0.svg'));
 const b1Requests=await page.evaluate(()=>window.imageRequests.flat().filter(id=>id==='b1-0').length);assert.equal(b1Requests,1,'Revisiting Batch 1 reuses its cached link');
@@ -59,5 +69,5 @@ await page.locator('.academy-photo-status').waitFor({state:'visible'});assert.eq
 await page.evaluate(()=>window.imageFail=false);await page.locator('.academy-photo-retry').click();
 await page.waitForFunction(()=>{const i=document.querySelector('#bakers-in-action img');return i?.src.includes('b4-0.svg')&&i.naturalWidth>1;});
 assert.deepEqual(errors,[]);await context.close();
-console.log('PASS mobile lazy loading: 2,600-photo fixture, immediate batch UI, viewport-only requests, cache reuse, unchanged class DOM, stale-response safety, on-demand lightbox, Show more, expiry, history, refresh and offline retry');
+console.log('PASS mobile albums: 2,600-photo fixture, first 24 prioritized, later bytes preloaded, photo 25 swipe, selected-batch isolation, canceled background work, immediate UI, cache reuse, stable viewer, stale-response safety, Show more, expiry, history and retry');
 }finally{await browser.close();}
