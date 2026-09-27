@@ -1,5 +1,11 @@
 # TLB newsletter setup and acceptance
 
+## Test delivery and acknowledgement
+
+“Send a test email to my email” queues a preview for the signed-in owner's verified account email. It does not send to subscribers or create a broadcast. The worker uses the newsletter renderer even when the shared outbox trigger adds `email_design_version: 2`; configurable welcome messages also retain their saved offer terms. Historical welcome and order retry bodies remain unchanged.
+
+The dashboard's **Acknowledge & dismiss** button hides the specific reviewed email alert across sessions. It preserves the outbox row, delivery state, retry timing and provider key. Owner and staff accounts may acknowledge alerts; other users cannot. A later attempt, changed error or changed status makes a new alert visible. Acknowledged alerts remain available in a collapsed history, and stale acknowledgements require a refresh.
+
 The newsletter is for new products, seasonal menus, and promotions. Account verification and order/payment/pickup emails continue independently. This feature captures consent and manages preferences; it does not create or send a marketing campaign.
 
 ## Welcome discount and reporting · September 23, 2026

@@ -3,7 +3,7 @@ import { escapeHtml as esc, money, formatDate } from './client.js?v=academy-1';
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
 const text = value => String(value ?? '').trim();
 const lines = values => values.map(text).filter(Boolean).join('\n');
-const previewUrl = new URL('./order-print.html?v=batch-slips-1', import.meta.url).href;
+const previewUrl = new URL('./order-print.html?v=compact-slips-1', import.meta.url).href;
 
 function photoUrl(value) {
   if (typeof value !== 'string' || !(/^(https?:\/\/|assets\/)/.test(value))) return '';
@@ -90,6 +90,24 @@ function paymentCard(doc, model) {
 
 const fits = column => column.scrollHeight <= column.clientHeight + 1;
 
+// Measure complete orders before printing: quarter sheet, compact quarter,
+// half sheet, compact half. Never crop details or shrink below the defined type sizes.
+function fitOrder(doc, model) {
+  const host=doc.querySelector('#slips');
+  for(const [size,compact,columns] of [['quarter',false],['quarter',true],['quarter',true,2],['half',false],['half',true],['half',true,3]]){
+    const slip=createSlip(doc,model);slip.dataset.size=size;slip.classList.toggle('slip--compact',compact);slip.classList.toggle('slip--dense',columns>1);host.append(slip);
+    for(const item of model.items)slip.querySelector('.slip-items').append(itemCard(doc,item,item.variation));
+    slip.querySelector('.slip-left').append(paymentCard(doc,model));
+    for(const detail of model.details)slip.querySelector('.slip-details').append(detailCard(doc,detail.title,detail.value));
+    slip.querySelector('.slip-number').textContent=size==='half'?'Half-sheet order slip':'Quarter-sheet order slip';
+    slip.querySelector('.slip-footer span:last-child').textContent='Keep with this order';
+    const fitsAll=[slip,...slip.querySelectorAll('.slip-left,.slip-details,.slip-header,.slip-footer')].every(el=>fits(el)&&el.scrollWidth<=el.clientWidth+1);
+    if(fitsAll)return [slip];
+    slip.remove();
+  }
+  return paginateOverflow(doc,model);
+}
+
 // Measure real wrapping at the physical print size. Extra-long option lists and
 // instructions split at a word boundary; all characters are retained on later slips.
 function appendText(pages, getPage, selector, make, value) {
@@ -114,7 +132,7 @@ function appendText(pages, getPage, selector, make, value) {
       block.remove();
       if (fit) low = middle; else high = middle - 1;
     }
-    if (!low) throw new Error('These order details cannot fit on a 5 × 4 inch slip. Please check the order details and try again.');
+    if (!low) throw new Error('These order details cannot fit on a half-sheet slip. Please check the order details and try again.');
     const boundary = remaining.lastIndexOf(' ', low - 1);
     if (boundary > low / 2) low = boundary + 1;
     // Do not split a Unicode surrogate pair at the page boundary.
@@ -125,10 +143,10 @@ function appendText(pages, getPage, selector, make, value) {
   }
 }
 
-function paginate(doc, model) {
+function paginateOverflow(doc, model) {
   const host = doc.querySelector('#slips');
   const pages = [];
-  const newPage = () => { const page = createSlip(doc, model); host.append(page); pages.push(page); return page; };
+  const newPage = () => { const page = createSlip(doc, model); page.dataset.size='half';page.classList.add('slip--compact');host.append(page); pages.push(page); return page; };
   newPage();
   for (const item of model.items) appendText(pages, newPage, '.slip-items', (value, continued) => itemCard(doc, item, value, continued), item.variation);
   let last = pages.at(-1), payment = paymentCard(doc, model);
@@ -157,7 +175,7 @@ function paginate(doc, model) {
     page.querySelector('.slip-item-heading').textContent = cards.length ? `Items ${Number(cards[0].dataset.itemIndex) + 1}-${Number(cards.at(-1).dataset.itemIndex) + 1} of ${model.items.length}` : 'Order details';
     if (index < pages.length - 1) page.querySelector('.slip-item-heading').append(` | Totals on slip ${pages.length}`);
     if (!fits(page.querySelector('.slip-left')) || !fits(page.querySelector('.slip-details')) || page.scrollHeight > page.clientHeight + 1) {
-      throw new Error('These order details cannot fit on a 5 × 4 inch slip. Please check the order details and try again.');
+      throw new Error('These order details cannot fit on a half-sheet slip. Please check the order details and try again.');
     }
   });
   return pages;
@@ -199,14 +217,20 @@ function arrangeSheets(doc, slips, paper) {
   const host = doc.querySelector('#slips');
   host.replaceChildren();
   doc.querySelector('#paper-style').textContent = `@page{size:${paper === 'letter' ? 'Letter' : 'A4'} landscape;margin:0}`;
-  for (let index = 0; index < slips.length; index += 4) {
-    const sheet = doc.createElement('section');
-    sheet.className = 'print-sheet';
-    sheet.dataset.paper = paper;
-    sheet.setAttribute('aria-label', `Sheet ${index / 4 + 1}`);
-    sheet.append(...slips.slice(index, index + 4));
-    host.append(sheet);
+  let sheet=null,occupied=[],count=0;
+  for(const slip of slips){
+    const slots=slip.dataset.size==='half'?2:1;
+    const available=()=>slots===2?[0,2].find(i=>!occupied[i]&&!occupied[i+1]):[0,1,2,3].find(i=>!occupied[i]);
+    let position=available();
+    if(!sheet||position===undefined){
+      sheet=doc.createElement('section');sheet.className='print-sheet';sheet.dataset.paper=paper;
+      sheet.setAttribute('aria-label',`Sheet ${++count}`);host.append(sheet);occupied=[];position=0;
+    }
+    slip.style.gridRow=String(Math.floor(position/2)+1);
+    slip.style.gridColumn=slots===2?'1 / span 2':String(position%2+1);
+    sheet.append(slip);occupied[position]=true;if(slots===2)occupied[position+1]=true;
   }
+  return count;
 }
 
 // Opening the tab happens synchronously on the click, before optional batch
@@ -233,16 +257,16 @@ export async function printOrderSlips(source, { products = [], settings = {} } =
     const models = orders.map(order => printModel(order, products, settings));
     doc.title = `${models.length === 1 ? models[0].reference : `${models.length} orders`} - preparation slips`;
     status.textContent = 'Preparing order slips…';
-    const slips = models.flatMap(model => paginate(doc, model));
+    const slips = models.flatMap(model => fitOrder(doc, model));
     await readyImages(doc);
     if (preview.closed) return;
     try { if (localStorage.getItem('order-slip-paper') === 'letter') paperChoice.value = 'letter'; } catch { /* Paper choice remains available without storage. */ }
     const resize = () => doc.documentElement.style.setProperty('--preview-scale', Math.min(1, Math.max(.1, (preview.innerWidth - 24) / ((paperChoice.value === 'letter' ? 279.4 : 297) * 96 / 25.4))));
     const arrange = () => {
       const paper = paperChoice.value === 'letter' ? 'letter' : 'a4';
-      arrangeSheets(doc, slips, paper); resize();
-      const count = Math.ceil(slips.length / 4);
-      status.textContent = `${orders.length} order${orders.length === 1 ? '' : 's'} · ${slips.length} slip${slips.length === 1 ? '' : 's'} · ${count} sheet${count === 1 ? '' : 's'}. Slips are 5″ wide × 4″ high. Choose matching paper in the print dialog, landscape, Actual size / 100%, with headers and footers off.`;
+      const count=arrangeSheets(doc, slips, paper); resize();
+      const half=slips.filter(s=>s.dataset.size==='half').length;
+      status.textContent = `${orders.length} order${orders.length === 1 ? '' : 's'} · ${slips.length} slip${slips.length === 1 ? '' : 's'} · ${count} sheet${count === 1 ? '' : 's'}. ${slips.length-half} quarter-sheet · ${half} half-sheet. Each slip uses at most half a sheet; extra slips are added only when necessary. Choose matching paper in the print dialog, landscape, Actual size / 100%, with headers and footers off.`;
     };
     arrange(); preview.addEventListener('resize', resize);
     paperChoice.addEventListener('change', () => {

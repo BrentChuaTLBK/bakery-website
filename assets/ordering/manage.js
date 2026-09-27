@@ -10,7 +10,7 @@ import { confirmOrderTotalChange } from './order-edit-confirmation.js?v=custom-c
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=cancelled-review-1';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
-import { printOrderSlips } from './order-slips.js?v=academy-1';
+import { printOrderSlips } from './order-slips.js?v=compact-slips-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
 import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
@@ -19,7 +19,7 @@ import { analyticsDateRange, buildAnalytics } from './analytics.js?v=customer-me
 import { renderAnalytics } from './analytics-view.js?v=branded-calendars-1';
 import { bindSalesChart } from './sales-chart.js?v=sales-tooltip-1';
 import { renderPickupReminder } from './pickup-reminder.js?v=pickup-reminder-1';
-import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=excel-totals-1';
+import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=delivery-category-1';
 import { monthRange } from './accounting.js?v=accounting-1';
 import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-2';
 import { mountGalleryManager } from './gallery-manager.js?v=gallery-thumbnails-1';
@@ -224,8 +224,11 @@ function overviewView() {
 function emailStatusCard() {
   const rows = Array.isArray(state.email_status) ? state.email_status : [];
   const counts = rows.reduce((result, row) => { result[row.status] = (result[row.status] || 0) + 1; return result; }, {});
-  const problems = rows.filter(row => row.last_error && row.status !== 'sent').slice(0, 4);
-  return `<section class="panel" style="margin-top:22px"><div class="section-heading"><h2>Email delivery</h2><a class="button button-quiet" href="docs/SETUP.md" target="_blank" rel="noopener">Email setup →</a></div>${rows.length ? `<p class="muted">Latest ${rows.length} notifications: ${Object.entries(counts).map(([status, count]) => `${count} ${label(status).toLowerCase()}`).map(esc).join(' · ')}</p>` : '<p class="muted">No order notifications queued yet. Email sending requires the configured email service and scheduler.</p>'}${problems.map(row => `<p class="notice danger"><strong>${esc(label(row.event_type))}</strong> · ${esc(state.orders.find(o => o.id === row.order_id)?.reference || 'Order notification')}<br>${esc(row.last_error)}</p>`).join('')}<p class="help-text no-margin">Queued or pending messages have not been confirmed delivered. A sent status means the email provider accepted the message; check the recipient inbox during acceptance testing.</p></section>`;
+  const alerts = rows.filter(row => row.last_error && row.status !== 'sent');
+  const problems = alerts.filter(row => !row.alert_acknowledged);
+  const acknowledged = alerts.filter(row => row.alert_acknowledged);
+  const description = row => `<strong>${esc(label(row.event_type))}</strong> · ${esc(row.order_id ? state.orders.find(o => o.id === row.order_id)?.reference || 'Order notification' : 'Newsletter notification')}<br>${esc(row.last_error)}`;
+  return `<section id="email-delivery" class="panel" style="margin-top:22px"><div class="section-heading"><h2 tabindex="-1">Email delivery</h2><a class="button button-quiet" href="docs/SETUP.md" target="_blank" rel="noopener">Email setup →</a></div>${rows.length ? `<p class="muted">Latest ${rows.length} notifications: ${Object.entries(counts).map(([status, count]) => `${count} ${label(status).toLowerCase()}`).map(esc).join(' · ')}</p>` : '<p class="muted">No notifications queued yet. Email sending requires the configured email service and scheduler.</p>'}${problems.slice(0,4).map(row => `<div class="notice danger email-delivery-alert"><p>${description(row)}</p><button type="button" class="button button-secondary" data-action="acknowledge-email-alert" data-id="${esc(row.id)}">Acknowledge &amp; dismiss</button></div>`).join('')}${problems.length>4?`<p class="help-text">${problems.length-4} more alerts will appear as you dismiss these.</p>`:''}${acknowledged.length?`<details class="email-delivery-acknowledged"><summary>Acknowledged alerts (${acknowledged.length})</summary>${acknowledged.map(row=>`<p class="notice">${description(row)}</p>`).join('')}</details>`:''}<p class="help-text">Acknowledging an alert clears it from this list. Email records and scheduled retries are kept; a new failure appears again.</p><p class="help-text no-margin">Queued or pending messages have not been confirmed delivered. A sent status means the email provider accepted the message; check the recipient inbox during acceptance testing.</p></section>`;
 }
 function filteredOrders() {
   const f = state.filters;
@@ -627,6 +630,24 @@ async function onAction(button) {
   const index = Number(button.dataset.index);
   if (catalogOrder && action !== 'close-dialog' && !await leaveCatalogEditor()) return;
   switch (action) {
+    case 'acknowledge-email-alert': {
+      const row = state.email_status.find(item => item.id === id);
+      if (!row || row.alert_acknowledged) break;
+      button.disabled = true;
+      try {
+        const result = await api('acknowledge_email_alert', { id, attempts: row.attempts, status: row.status, last_error: row.last_error });
+        Object.assign(row, result);
+        const card = $('#email-delivery');
+        if (card) {
+          const top = card.getBoundingClientRect().top, scroll = window.scrollY;
+          card.outerHTML = emailStatusCard();
+          window.scrollTo({top:scroll + $('#email-delivery').getBoundingClientRect().top - top,behavior:'instant'});
+          ($('#email-delivery [data-action="acknowledge-email-alert"]') || $('#email-delivery h2'))?.focus({preventScroll:true});
+        }
+        toast('Alert acknowledged. Email records and scheduled retries are unchanged.');
+      } finally { button.disabled = false; }
+      break;
+    }
     case 'unlimit-quantity': state.inventoryDrafts[id] = ''; updateInventoryProducts(); $(`[data-quantity-id="${CSS.escape(id)}"]`)?.focus(); break;
     case 'reset-quantities': state.inventoryDrafts = {}; updateInventoryProducts(); break;
     case 'close-dialog': await closeDialog(); break;

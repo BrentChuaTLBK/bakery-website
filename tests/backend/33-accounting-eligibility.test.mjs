@@ -35,7 +35,7 @@ export default async function({db,check,state}) {
   const after=await report();
   assert.equal(after.entries.some(e=>e.order_id===o.id),false);assert.equal(after.deliveries.some(e=>e.order_id===o.id),false);
   for(const date of dates)assert.equal((await report({start:date,end:date})).entries.some(e=>e.order_id===o.id),false);
-  const category=key=>baseline.categories.find(c=>c.system_key===key).id;
+  const category=key=>baseline.categories.find(c=>c.system_key===(key==='delivery_cost'?'delivery_fee':key)).id;
   for(const [key,value] of [['website',100000],['discount',5000],['delivery_fee',15000],['delivery_cost',22550]]){
    const column=['website','delivery_fee'].includes(key)?'sales_cents':'expense_cents';
    assert.equal(baseline.summary.find(s=>s.id===category(key))[column]-after.summary.find(s=>s.id===category(key))[column],value);

@@ -17,7 +17,7 @@
 .newsletter-trap{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
 dialog.newsletter-dialog{width:min(460px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:38px 30px 28px;border:1px solid #e8dfd3;border-radius:22px;background:#fffdf8;box-shadow:0 30px 100px #24180e33}
 .newsletter-dialog::backdrop{background:#241a146b;backdrop-filter:blur(3px)}
-.newsletter-close{position:absolute;right:12px;top:12px;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#764b25;font-size:27px;cursor:pointer}
+.newsletter-close{padding:0;line-height:1;position:absolute;right:12px;top:12px;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#764b25;font-size:27px;cursor:pointer}
 .newsletter-dialog .newsletter-title{font-size:34px;max-width:340px}.newsletter-dialog .newsletter-button{width:100%}.newsletter-dialog .newsletter-button-secondary{margin-top:10px}
 .newsletter-mark{display:block;box-sizing:border-box;width:48px;height:48px;padding:8px;border-radius:50%;background:#764b25;object-fit:contain;margin-bottom:16px}
 .newsletter-card{max-width:580px;margin:24px auto;padding:32px;background:#fffdf8;border:1px solid #e8dfd3;border-radius:18px}.newsletter-card h1{font-size:30px}.newsletter-card .newsletter-form{margin-top:24px}

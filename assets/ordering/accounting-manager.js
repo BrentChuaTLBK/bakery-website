@@ -49,7 +49,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
   function updateNameLabel(){const form=$('.accounting-entry-form');if(form)form.elements.client_name.closest('label').firstChild.textContent=form.elements.kind.value==='expense'?'Supplier · optional':'Client name · optional';}
   function updateCategoryOptions(selected='') {
     const form=$('.accounting-entry-form');if(!form)return;
-    form.elements.category_id.innerHTML=opt('','Choose a category',selected)+report.categories.filter(c=>!c.system_key&&(!c.archived||c.id===draft?.category_id)).map(c=>opt(c.id,c.name,selected)).join('')+opt('__new','+ Create a category',selected);
+    form.elements.category_id.innerHTML=opt('','Choose a category',selected)+report.categories.filter(c=>(!c.system_key||c.system_key==='delivery_fee')&&(!c.archived||c.id===draft?.category_id)).map(c=>opt(c.id,c.name,selected)).join('')+opt('__new','+ Create a category',selected);
     form.elements.category_id.required=true; syncNewCategory();
   }
   function syncNewCategory() {const form=$('.accounting-entry-form');if(!form)return;const on=form.elements.category_id.value==='__new';$('.accounting-new-category').hidden=!on;form.elements.new_category.required=on;}

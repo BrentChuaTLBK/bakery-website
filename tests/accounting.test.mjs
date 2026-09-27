@@ -47,6 +47,20 @@ test('real XLSX roundtrip keeps category sheets, formulas, currency, dates and h
  const delivery=saved.getWorksheet('Delivery comparison');assert.equal(delivery.getCell('F6').value.result,-75.5);assert.equal(delivery.getCell('E7').value,'Not recorded');assert.equal(delivery.getCell('F7').value,null);
  for(const sheet of saved.worksheets)assert.equal(sheet.views[0].state,'frozen');
 });
+test('Delivery exports one category with separate income and expense tables and unchanged totals',async()=>{
+ const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
+ const report=structuredClone(fixture),before=accountingTotals(report);
+ report.categories=report.categories.filter(c=>c.id!=='cost');report.categories.find(c=>c.id==='fee').name='Delivery';
+ report.entries.forEach(e=>{if(e.category_id==='cost')e.category_id='fee';});
+ report.summary=report.summary.filter(c=>c.id!=='cost');Object.assign(report.summary.find(c=>c.id==='fee'),{name:'Delivery',expense_cents:22550});
+ assert.deepEqual(accountingTotals(report),before);
+ const wb=buildAccountingWorkbook(report,ExcelJS),sheet=wb.getWorksheet('Delivery');
+ assert.ok(sheet);assert.equal(wb.getWorksheet('Delivery fees'),undefined);assert.equal(wb.getWorksheet('Delivery costs'),undefined);
+ assert.equal(sheet.getCell('A5').value,'Sales / income');assert.equal(sheet.getCell('A11').value,'Expenses');assert.equal(sheet.getCell('G7').value,150);assert.equal(sheet.getCell('G13').value,225.5);
+ const rows=[];wb.getWorksheet('Summary').eachRow(r=>{if(r.getCell(1).value==='Delivery')rows.push(r);});assert.equal(rows.length,1);assert.equal(rows[0].getCell(4).value.result,-75.5);
+ sheet.eachRow(r=>r.eachCell(c=>assert.notEqual(c.value,'Net')));
+ const reopened=new ExcelJS.Workbook();await reopened.xlsx.load(await wb.xlsx.writeBuffer());assert.ok(reopened.getWorksheet('Delivery'));
+});
 
 test('a shared category exports two independently filterable tables and one summary row',async()=>{
  const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
