@@ -24,6 +24,7 @@ async function setup(width,count){
  return {context,page,errors,grid:page.locator('.ac-album-grid').first()};
 }
 const albumIds=grid=>grid.locator('.academy-photo').evaluateAll(nodes=>nodes.map(node=>node.dataset.academyAsset));
+async function showAll(page){while(await page.locator('[data-ac=more-photos]').count())await page.locator('[data-ac=more-photos]').click();}
 async function touchReorder(page,grid,from,to){
  const a=grid.locator('[data-ac-drag]').nth(from),b=grid.locator('[data-ac-drag]').nth(to);await a.scrollIntoViewIfNeeded();await b.scrollIntoViewIfNeeded();const ab=await a.boundingBox(),bb=await b.boundingBox(),start={x:ab.x+ab.width/2,y:ab.y+ab.height/2},end={x:bb.x+bb.width/2,y:bb.y+bb.height/2};
  const cdp=await page.context().newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[start]});for(let i=1;i<=6;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:start.x+(end.x-start.x)*i/6,y:start.y+(end.y-start.y)*i/6}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();
@@ -31,7 +32,8 @@ async function touchReorder(page,grid,from,to){
 try{
  for(const width of [1440,390,320]){
   const {context,page,errors,grid}=await setup(width,552);
-  assert.equal(await grid.locator('.ac-album-photo').count(),552,'Large album renders as a compact grid');
+  assert.equal(await grid.locator('.ac-album-photo').count(),48,'Large album initially renders only 48 cards');
+  await showAll(page);assert.equal(await grid.locator('.ac-album-photo').count(),552,'More photos remain available on demand');
   assert.equal(await grid.locator('input,textarea,select,[data-ac=media]').count(),0,'No individual photo editing controls');
   assert.equal(await page.locator('[data-ac-field="hero.caption"],[data-ac-field="batches.0.cover.focal_x"],[data-ac-field="creations.0.photos.0.alt"]').count(),3,'Hero, cover, and creation editing remains available');
   assert.equal(await page.locator('[data-ac=select-batch]').count(),12,'All twelve batches have compact selectors');
@@ -58,10 +60,10 @@ try{
   await page.locator('[data-ac=save]').click();await page.getByText('Class draft saved. Published content is unchanged.',{exact:true}).waitFor();
   const saved=await page.evaluate(()=>window.savedAlbum);assert.equal(saved.batches[1].description,'Batch two unsaved notes');assert.equal(saved.batches[0].photos.length,552);assert.deepEqual(saved.batches[0].photos.map(p=>p.asset_id),expected);
   const retained=saved.batches[0].photos.find(p=>p.id==='photo-20');assert.deepEqual(retained,photo(20),'Existing captions, alt, crop, and type metadata are preserved');
-  await page.reload();await page.locator('[data-ac=edit]').click();await page.locator('[data-section=batches]>summary').click();assert.deepEqual(await albumIds(grid),expected,'Saved photo order survives reload');
+  await page.reload();await page.locator('[data-ac=edit]').click();await page.locator('[data-section=batches]>summary').click();await showAll(page);assert.deepEqual(await albumIds(grid),expected,'Saved photo order survives reload');
   assert.deepEqual(errors,[]);await context.close();console.log(`PASS Academy album ${width}px: 552-photo compact grid, rich cover controls retained, mouse/touch/arrows, remove cancellation, reuse, draft save/reload`);
  }
  const {context,page,errors,grid}=await setup(390,2000);
  await page.locator('[data-ac=media][data-path="batches.0.photos"]').click();await page.locator('.ac-media-dialog [data-asset]').first().click();await page.getByText('This album can hold 2,000 photos. Remove a photo before adding another.',{exact:true}).waitFor();
- await page.locator('.ac-media-dialog input[type=file]').setInputFiles({name:'extra.webp',mimeType:'image/webp',buffer:Buffer.from('fixture blocked before decode')});assert.equal(await page.evaluate(()=>window.uploadCalls),0,'Capacity rejection happens before upload');await page.locator('[data-ac=close-media]').click();assert.equal(await grid.locator('.ac-album-photo').count(),2000);assert.deepEqual(errors,[]);await context.close();console.log('PASS 2,000-photo capacity blocks extra uploads and library additions without losing the draft');
+ await page.locator('.ac-media-dialog input[type=file]').setInputFiles({name:'extra.webp',mimeType:'image/webp',buffer:Buffer.from('fixture blocked before decode')});assert.equal(await page.evaluate(()=>window.uploadCalls),0,'Capacity rejection happens before upload');await page.locator('[data-ac=close-media]').click();assert.equal(await grid.locator('.ac-album-photo').count(),48);assert.deepEqual(errors,[]);await context.close();console.log('PASS 2,000-photo capacity blocks extra uploads and library additions without losing the draft');
 }finally{await browser.close()}

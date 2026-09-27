@@ -17,7 +17,8 @@ export function createAcademyImageCache(fetchImages,{now=()=>Date.now()}={}){
   await Promise.all(wait);
   return Object.fromEntries(ids.filter(id=>get(id)).map(id=>[id,get(id)]));
  }
- return {images,get,load,invalidate:id=>expires.delete(id),snapshot:()=>Object.fromEntries(Object.keys(images).filter(id=>get(id)).map(id=>[id,get(id)]))};
+ function seed(image){if(image?.id&&image.url){images[image.id]=image;expires.set(image.id,now()+240000);}}
+ return {images,get,load,seed,invalidate:id=>expires.delete(id),snapshot:()=>Object.fromEntries(Object.keys(images).filter(id=>get(id)).map(id=>[id,get(id)]))};
 }
 
 export function applyAcademyImage(img,image){
@@ -73,36 +74,46 @@ export function preloadAcademyBatch(cache,photos,{makeImage=()=>new Image(),conn
 }
 
 // Resolve private image links near the viewport, not for every album in a class.
-export function bindAcademyLazyImages(root,cache){
+export function bindAcademyLazyImages(root,cache,{statusHost=root.querySelector('#bakers-in-action')}={}){
  const queued=new Set(),seen=new WeakSet(),retried=new Map();let timer=null,disposed=false;
  const note=document.createElement('p');note.className='academy-photo-status';note.hidden=true;note.setAttribute('role','status');
  note.innerHTML='Some photos could not load. <button type="button" class="academy-photo-retry">Try again</button>';
- root.querySelector('#bakers-in-action')?.append(note);
+ statusHost?.append(note);
+ function visible(img){
+  if(!root.isConnected||!img.isConnected||img.closest('[hidden],dialog:not([open])'))return false;
+  const dialog=img.closest('dialog');if(dialog&&dialog!==root)return false;
+  // A closed details element still displays its summary (the mobile class picker).
+  for(let details=img.closest('details');details;details=details.parentElement?.closest('details')){
+   if(!details.open&&!details.querySelector(':scope > summary')?.contains(img))return false;
+  }
+  return true;
+ }
  function paint(img){const image=cache.get(img.dataset.academyAsset);if(image)applyAcademyImage(img,image);return !!image;}
  async function flush(){
-  timer=null;const imgs=[...queued].filter(img=>img.isConnected&&!img.closest('[hidden]'));queued.clear();if(disposed||!imgs.length)return;
+  timer=null;const imgs=[...queued].filter(visible);queued.clear();if(disposed||!imgs.length)return;
   try{
    await cache.load(imgs.map(img=>({asset_id:img.dataset.academyAsset})));
-   if(disposed)return;
-   for(const img of imgs)if(img.isConnected&&!paint(img)){img.dataset.academyFailed='';note.hidden=false;}
+   if(disposed||!root.isConnected)return;
+   for(const img of imgs)if(visible(img)&&!paint(img)){img.dataset.academyFailed='';note.hidden=false;}
   }catch{if(!disposed){imgs.forEach(img=>img.dataset.academyFailed='');note.hidden=false;}}
  }
- function enqueue(img){if(disposed||img.closest('[hidden]')||paint(img))return;queued.add(img);if(timer===null)timer=setTimeout(flush,20);}
- const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){enqueue(e.target);observer.unobserve(e.target);}},{rootMargin:'200px 0px'}):null;
+ function enqueue(img){if(disposed||!visible(img)||paint(img))return;queued.add(img);if(timer===null)timer=setTimeout(flush,20);}
+ const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting&&visible(e.target)){enqueue(e.target);observer.unobserve(e.target);}},{rootMargin:'200px 0px'}):null;
  function observe(scope=root){
   for(const img of scope.querySelectorAll('img[data-academy-asset]')){
-   if(img.closest('[hidden]')||seen.has(img))continue;seen.add(img);
+   if(!visible(img)||seen.has(img))continue;seen.add(img);
    if(!paint(img)){if(observer)observer.observe(img);else enqueue(img);}
   }
  }
  async function failed(e){
-  const img=e.target,id=img.dataset?.academyAsset;if(img.tagName!=='IMG'||!id||img.hasAttribute('data-academy-pending'))return;
+  const img=e.target,id=img.dataset?.academyAsset;if(img.tagName!=='IMG'||!id||!visible(img)||img.hasAttribute('data-academy-pending'))return;
   if(Date.now()-(retried.get(id)||0)<60000){img.dataset.academyFailed='';note.hidden=false;return;}
   retried.set(id,Date.now());
-  try{await cache.load({asset_id:id},{force:true});if(!disposed)for(const same of root.querySelectorAll('img[data-academy-asset]'))if(same.dataset.academyAsset===id&&!paint(same)){same.dataset.academyFailed='';note.hidden=false;}}
+  try{await cache.load({asset_id:id},{force:true});if(!disposed)for(const same of root.querySelectorAll('img[data-academy-asset]'))if(same.dataset.academyAsset===id&&visible(same)&&!paint(same)){same.dataset.academyFailed='';note.hidden=false;}}
   catch{if(!disposed){img.dataset.academyFailed='';note.hidden=false;}}
  }
  note.querySelector('button').onclick=()=>{note.hidden=true;for(const img of root.querySelectorAll('[data-academy-failed]')){cache.invalidate(img.dataset.academyAsset);img.removeAttribute('data-academy-failed');seen.delete(img);}observe();};
- root.addEventListener('error',failed,true);observe();
- return {observe,dispose(){disposed=true;observer?.disconnect();if(timer!==null)clearTimeout(timer);queued.clear();root.removeEventListener('error',failed,true);note.remove();}};
+ const toggled=()=>observe();
+ root.addEventListener('toggle',toggled,true);root.addEventListener('error',failed,true);observe();
+ return {observe,dispose(){disposed=true;observer?.disconnect();if(timer!==null)clearTimeout(timer);queued.clear();root.removeEventListener('toggle',toggled,true);root.removeEventListener('error',failed,true);note.remove();}};
 }
