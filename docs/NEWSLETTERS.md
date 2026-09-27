@@ -4,6 +4,8 @@ Promo codes contains Newsletter welcome offer settings: percentage or fixed PHP 
 
 The owner-only Newsletters page provides The TLB Edit, A Little Treat and From Our Kitchen layouts. Edit subject, inbox preview, copy, photo URLs, featured products, offer details and the main button. Save drafts, preview mobile/desktop, and send a test to the signed-in owner email. A separate branded confirmation queues a campaign to eligible subscribers. Any advertised code must be an active regular promo; a personal welcome code cannot be broadcast.
 
+Main and featured-product photos can also be uploaded directly. JPG, PNG, WebP and HEIC originals up to 25 MB are resized to a maximum 1600px dimension and converted to JPEG. The existing owner-only public image upload endpoint validates the converted file and stores a unique, permanent URL. Uploads update the preview and retain other unsaved fields; save the draft to persist the URL. Replacing a photo does not overwrite images already used in sent newsletters. No database or email-worker deployment is required for this upload feature.
+
 Campaigns freeze their content when queued. Repeat or concurrent send requests cannot queue the same campaign twice. The existing email worker checks current local consent and provider suppression before delivery. Campaign unsubscribe links work without signing in and do not invalidate other current unsubscribe links. Order emails have priority over campaign messages. The dashboard counts provider acceptance, skipped recipients and failures; acceptance does not guarantee inbox delivery.
 
 ## Deployment

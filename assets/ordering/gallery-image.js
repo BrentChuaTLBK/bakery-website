@@ -9,7 +9,8 @@ async function decode(blob) {
   } finally { URL.revokeObjectURL(url); }
 }
 
-export async function prepareGalleryImage(file) {
+export async function prepareGalleryImage(file, { format = 'webp' } = {}) {
+  if (!['webp', 'jpeg'].includes(format)) throw new Error('Choose a supported image format.');
   if (!file?.size) throw new Error('Choose an image.');
   if (file.size > 25 * 1024 * 1024) throw new Error('Choose an image up to 25 MB.');
   if (!/\.(jpe?g|png|webp|avif|gif|bmp|heic|heif)$/i.test(file.name) && !/^image\/(jpeg|png|webp|avif|gif|bmp|heic|heif)$/.test(file.type)) {
@@ -36,11 +37,16 @@ export async function prepareGalleryImage(file) {
     canvas.height = Math.max(1, Math.round(height * scale));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Image conversion is unavailable. Try a current Chrome, Edge, or Firefox browser.');
+    if (format === 'jpeg') {
+      context.fillStyle = '#fffaf0';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82));
-    if (!blob || blob.type !== 'image/webp') throw new Error('Your browser cannot create WebP images. Try a current Chrome, Edge, or Firefox browser.');
+    const mime = `image/${format}`, extension = format === 'jpeg' ? 'jpg' : 'webp';
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, format === 'jpeg' ? 0.86 : 0.82));
+    if (!blob || blob.type !== mime) throw new Error(`Your browser cannot create ${format === 'jpeg' ? 'JPEG' : 'WebP'} images. Try a current Chrome, Edge, or Firefox browser.`);
     if (blob.size > 5 * 1024 * 1024) throw new Error('The converted image is still too large. Choose a smaller image.');
-    const converted = new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'photo'}.webp`, { type: 'image/webp' });
+    const converted = new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'photo'}.${extension}`, { type: mime });
     return { file: converted, width: canvas.width, height: canvas.height, originalSize: file.size };
   } finally {
     image.close?.();
