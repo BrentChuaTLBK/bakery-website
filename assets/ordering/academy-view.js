@@ -21,6 +21,7 @@ export function bindAcademyInteractions(root,{content,images,batchId='',onBatch}
  stage.addEventListener('pointerup',e=>{if(!swipe||e.pointerId!==swipe.id)return;const dx=e.clientX-swipe.x,dy=e.clientY-swipe.y;swipe=null;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.25){index=(index+(dx<0?1:-1)+active.length)%active.length;show();}});
  stage.addEventListener('pointercancel',()=>swipe=null);
  root.onclick=async e=>{
+  if(e.target.closest('[data-academy-top]')){root.querySelector('h1')?.focus({preventScroll:true});window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});return;}
   const more=e.target.closest('[data-academy-more]');
   if(more){const grid=[...root.querySelectorAll('[data-academy-thumbnails]')].find(g=>g.dataset.academyThumbnails===more.dataset.academyMore);if(!grid)return;const hidden=[...grid.querySelectorAll('figure[hidden]')];hidden.slice(0,24).forEach(f=>f.hidden=false);const remaining=Math.max(0,hidden.length-24),total=grid.children.length;more.parentElement.querySelector('[data-academy-visible-count]').textContent=`Showing ${total-remaining} of ${total}`;if(!remaining){more.hidden=true;grid.querySelector('figure:last-child button')?.focus({preventScroll:true});}return;}
   const batch=e.target.closest('[data-academy-batch]');if(batch){onBatch?.(batch.dataset.academyBatch);return;}

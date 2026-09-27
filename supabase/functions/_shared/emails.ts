@@ -1,3 +1,4 @@
+import {renderNewsletterCampaign} from '../../../assets/ordering/newsletter-templates.js';
 import { HttpError } from "./server.ts";
 import { renderNewsletterWelcome } from "./newsletter-welcome.ts";
 import { renderBrandedEmail } from "./emails-branded.ts";
@@ -42,6 +43,16 @@ function renderReviewEmail(order: any, settings: any, site: URL): { html: string
 }
 
 function renderLegacyEmail(payload: any): { html: string; text: string } {
+  if (["newsletter_campaign","newsletter_test"].includes(payload?.event_type)) {
+    const site=new URL(payload.settings?.site_url);
+    if(site.protocol!=="https:"||site.username||site.password)throw new Error("Invalid newsletter site");
+    const link=new URL("/newsletter.html",site);
+    if(payload.event_type==="newsletter_campaign"){
+      if(!/^[a-f0-9]{64}$/.test(payload.unsubscribe_token||""))throw new Error("Missing newsletter unsubscribe token");
+      link.hash="unsubscribe="+payload.unsubscribe_token;
+    }
+    return renderNewsletterCampaign(payload.content,payload.settings,link.href);
+  }
   if (payload?.event_type === "newsletter_welcome") return renderNewsletterWelcome(payload);
   const order = payload?.order;
   const settings = { ...payload?.settings };

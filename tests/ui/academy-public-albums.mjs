@@ -49,7 +49,8 @@ try{
   for(const visible of [48,72,77]){await page.getByRole('button',{name:'Show more photos',exact:true}).click();assert.equal(await grid.locator('figure:visible').count(),visible);assert.equal(await page.locator('[data-academy-visible-count]').textContent(),`Showing ${visible} of 77`)}
   assert.equal(await page.getByRole('button',{name:'Show more photos',exact:true}).count(),0,'No more button when all photos shown');
   assert.equal(await grid.locator('button').last().evaluate(el=>el===document.activeElement),true);
-  await page.getByRole('button',{name:/Batch 2/}).click();assert.equal(await grid.locator('figure:visible').count(),2);assert.equal(await page.locator('[data-academy-more]').count(),0);
+  await page.locator('[data-academy-top]').click();assert.equal(await page.evaluate(()=>scrollY),0,'Back to top works after all photos load');assert.equal(await page.locator('h1').evaluate(el=>el===document.activeElement),true);
+  await page.getByRole('button',{name:/Batch 2/}).click();assert.equal(await grid.locator('figure:visible').count(),2);assert.equal(await page.locator('[data-academy-more]:visible').count(),0);assert.equal(await page.locator('[data-academy-top]').count(),1);
   assert.ok(page.url().includes('batch=batch-2'));await page.reload();await grid.waitFor();assert.equal(await grid.locator('figure:visible').count(),2,'Selected batch survives refresh');
   await page.goBack();await grid.locator('figure').nth(76).waitFor({state:'attached'});assert.equal(await grid.locator('figure:visible').count(),24,'Back restores Batch 1');
   assert.deepEqual(errors,[]);await context.close();console.log(`PASS ${width}px: compact grid, progressive thumbnails, full album viewer, keyboard/touch, batch URL and navigation`);

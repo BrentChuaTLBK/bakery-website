@@ -9,7 +9,7 @@ const root=resolve(import.meta.dirname,'../..'),origin='https://album.test',out=
 const id='a0000000-0000-4000-8000-000000000001',batch='a0000000-0000-4000-8000-000000000002';
 const assets=Array.from({length:12},(_,i)=>({id:`asset-${i}`,original_name:`QA photo ${i+1}`,width:800,height:600,url:`/fixture-photo/${i}.svg`}));
 const photo=i=>({id:`photo-${i}`,asset_id:assets[i%assets.length].id,alt:`Existing alt ${i}`,caption:`Existing caption ${i}`,focal_x:30,focal_y:70,batch_id:'',kind:i%2?'group':'activity'});
-function fixture(count){return {settings:{revision:1,draft:{heading:'Class albums',description:'',featured_id:id,class_order:[id],enquiry_url:'https://www.instagram.com/tlbacademy/',enquiry_heading:'Classes',enquiry_text:''}},classes:[{id,revision:1,published:null,draft:{...emptyClass('Album QA class'),allow_photo_placeholders:true,hero:photo(0),thumbnail:photo(1),creations:[{id:'creation',name:'Cookies',description:'QA creation',photos:[photo(2)]}],batches:[{id:batch,label:'Batch 1',description:'',start_date:'',end_date:'',student_count:null,cover:photo(3),photos:Array.from({length:count},(_,i)=>photo(i))}]}}],assets};}
+function fixture(count){return {settings:{revision:1,draft:{heading:'Class albums',description:'',featured_id:id,class_order:[id],enquiry_url:'https://www.instagram.com/tlbacademy/',enquiry_heading:'Classes',enquiry_text:''}},classes:[{id,revision:1,published:null,draft:{...emptyClass('Album QA class'),allow_photo_placeholders:true,hero:photo(0),thumbnail:photo(1),creations:[{id:'creation',name:'Cookies',description:'QA creation',photos:[photo(2)]}],batches:[{id:batch,label:'Batch 1',description:'',start_date:'',end_date:'',student_count:null,cover:photo(3),photos:Array.from({length:count},(_,i)=>photo(i))},...Array.from({length:11},(_,i)=>({id:'batch-extra-'+i,label:'Batch '+(i+2),description:'',start_date:'',end_date:'',student_count:null,cover:photo(i),photos:[photo(i)]}))]}}],assets};}
 const mock=count=>`const initial=${JSON.stringify(fixture(count))};let data=JSON.parse(sessionStorage.getItem('album-fixture-'+initial.classes[0].draft.batches[0].photos.length)||'null')||initial;window.albumCalls=[];window.uploadCalls=0;
 export const galleryImageAccept='image/webp';export function bindAcademyImageRefresh(){};export async function academyImages(){return Object.fromEntries(initial.assets.map(a=>[a.id,a]))};export async function uploadAcademyPhoto(){window.uploadCalls++;throw Error('Unexpected upload')};
 export async function academyApi(action,payload={}){window.albumCalls.push(action);if(action==='admin')return structuredClone(data);if(action==='save_class'){const row=data.classes[0];if(payload.revision!==row.revision)throw Error('Changed revision');row.draft=structuredClone(payload.content);row.revision++;sessionStorage.setItem('album-fixture-'+initial.classes[0].draft.batches[0].photos.length,JSON.stringify(data));window.savedAlbum=structuredClone(row.draft);return structuredClone(row)}throw Error('Unexpected API '+action)}`;
@@ -34,6 +34,12 @@ try{
   assert.equal(await grid.locator('.ac-album-photo').count(),552,'Large album renders as a compact grid');
   assert.equal(await grid.locator('input,textarea,select,[data-ac=media]').count(),0,'No individual photo editing controls');
   assert.equal(await page.locator('[data-ac-field="hero.caption"],[data-ac-field="batches.0.cover.focal_x"],[data-ac-field="creations.0.photos.0.alt"]').count(),3,'Hero, cover, and creation editing remains available');
+  assert.equal(await page.locator('[data-ac=select-batch]').count(),12,'All twelve batches have compact selectors');
+  assert.equal(await page.locator('.ac-batch-editor').count(),1,'Only the selected batch is rendered');
+  await page.locator('[data-ac-field="batches.0.description"]').fill('Batch one unsaved notes');
+  await page.locator('[data-ac=select-batch][data-id="batch-extra-0"]').click();assert.equal(await grid.locator('.ac-album-photo').count(),1);
+  await page.locator('[data-ac-field="batches.1.description"]').fill('Batch two unsaved notes');
+  await page.locator('[data-ac=select-batch]').first().click();assert.equal(await page.locator('[data-ac-field="batches.0.description"]').inputValue(),'Batch one unsaved notes');
   const original=await albumIds(grid);
   await grid.getByRole('button',{name:'Move photo 1 later',exact:true}).click();
   let expected=[original[1],original[0],...original.slice(2)];assert.deepEqual(await albumIds(grid),expected,'Arrow reordering changes only order');
@@ -50,7 +56,7 @@ try{
   assert.deepEqual(await page.evaluate(()=>window.albumCalls),['admin'],'Reorder/remove stays local until save');
   await page.locator('[data-ac=media][data-path="batches.0.photos"]').click();await page.locator('.ac-media-dialog [data-asset]').first().click();await page.locator('[data-ac=close-media]').click();expected.push(assets[0].id);assert.deepEqual(await albumIds(grid),expected,'Library reuse appends to the album');
   await page.locator('[data-ac=save]').click();await page.getByText('Class draft saved. Published content is unchanged.',{exact:true}).waitFor();
-  const saved=await page.evaluate(()=>window.savedAlbum);assert.equal(saved.batches[0].photos.length,552);assert.deepEqual(saved.batches[0].photos.map(p=>p.asset_id),expected);
+  const saved=await page.evaluate(()=>window.savedAlbum);assert.equal(saved.batches[1].description,'Batch two unsaved notes');assert.equal(saved.batches[0].photos.length,552);assert.deepEqual(saved.batches[0].photos.map(p=>p.asset_id),expected);
   const retained=saved.batches[0].photos.find(p=>p.id==='photo-20');assert.deepEqual(retained,photo(20),'Existing captions, alt, crop, and type metadata are preserved');
   await page.reload();await page.locator('[data-ac=edit]').click();await page.locator('[data-section=batches]>summary').click();assert.deepEqual(await albumIds(grid),expected,'Saved photo order survives reload');
   assert.deepEqual(errors,[]);await context.close();console.log(`PASS Academy album ${width}px: 552-photo compact grid, rich cover controls retained, mouse/touch/arrows, remove cancellation, reuse, draft save/reload`);

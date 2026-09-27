@@ -1,6 +1,7 @@
+import {applyNewsletterOffer} from './newsletter-offer.js?v=newsletter-settings-1';
 import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js';
 import { newsletterRequest } from './newsletter-client.js';
-import { mountNewsletterPreferences } from './newsletter.js?v=welcome-offer-3';
+import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=newsletter-settings-1';
 import { googleSignInEnabled } from './google-signin.js?v=google-1';
 
 const root = document.getElementById('account-root');
@@ -77,7 +78,7 @@ function accountForm() {
     <form id="auth-form"><fieldset ${disabled ? 'disabled' : ''} style="border:0;padding:0;margin:0">
       <label class="field">Email address<input name="email" type="email" autocomplete="email" maxlength="254" required value="${esc(email)}" placeholder="you@example.com"></label>
       ${['signin', 'signup'].includes(mode) ? `<label class="field">Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" ${mode === 'signup' ? 'minlength="10"' : ''} maxlength="128" required ${mode === 'signup' ? 'aria-describedby="password-hint"' : ''}></label>${mode === 'signup' ? '<p class="muted" id="password-hint">Use at least 10 characters. A memorable phrase works well.</p><label class="field">Confirm password<input name="confirm_password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>' : ''}` : ''}
-      ${mode === 'signup' ? `<label class="newsletter-check"><input type="checkbox" name="newsletter" ${newsletterChoice ? 'checked' : ''}><span>Subscribe to TLB’s newsletter <small>Optional. New subscribers get 5% off by email. Stay tuned for more subscriber-only offers. Subscribe immediately. Unsubscribe anytime.</small></span></label><div class="newsletter-trap" aria-hidden="true"><label>Leave this field empty<input name="website" tabindex="-1" autocomplete="off"></label></div>` : ''}
+      ${mode === 'signup' ? `<label class="newsletter-check"><input type="checkbox" name="newsletter" ${newsletterChoice ? 'checked' : ''}><span>Subscribe to TLB’s newsletter <small data-newsletter-offer-signup>Optional. Receive TLB news and subscriber-only offers. Unsubscribe anytime.</small></span></label><div class="newsletter-trap" aria-hidden="true"><label>Leave this field empty<input name="website" tabindex="-1" autocomplete="off"></label></div>` : ''}
       <button class="button" type="submit">${buttons[mode]}</button>
     </fieldset></form>
     <div class="dialog-actions"><button class="button button-quiet" type="button" data-mode="recover">Forgot password?</button><button class="button button-quiet" type="button" data-mode="resend">Resend verification</button></div>
@@ -87,6 +88,7 @@ function accountForm() {
 function renderSignedOut() {
   renderVersion++;
   root.innerHTML = `<div class="account-layout"><section><p class="eyebrow">Made for sweet moments</p><h1>A little place for<br>your favourite bakes.</h1><p>Keep your orders together, follow their progress, and make your next celebration a little easier.</p><p class="muted">Your cart, selected date, and checkout details stay saved on this browser while you sign in.</p><a class="button button-secondary" href="${esc(guestNext)}">Continue as a guest</a><p class="muted">You can order without an account. Promo codes require a verified account.</p></section>${accountForm()}</div>`;
+  applyNewsletterOffer(root);
   root.setAttribute('aria-busy', 'false');
   root.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
     email = root.querySelector('[name="email"]')?.value || email;
@@ -112,6 +114,7 @@ async function signInWithGoogle() {
     // OAuth stays in this tab so the existing checkout and return destination
     // survive. Never put checkout details, tokens or a Google secret in this URL.
     try { sessionStorage.setItem('tlb-auth-return-v1', next); } catch { /* The callback falls back to the shop. */ }
+    try { if(mode==='signup'&&root.querySelector('[name=newsletter]')?.checked)sessionStorage.setItem('tlb-newsletter-signup-consent',String(Date.now()));else sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
     notice('Opening Google sign-in…');
     const { error } = await auth.signInWithOAuth({ provider: 'google', options: {
       redirectTo: redirect('oauth-callback.html'), queryParams: { prompt: 'select_account' },
@@ -120,6 +123,7 @@ async function signInWithGoogle() {
   } catch {
     submitting = false;
     controls.forEach(node => { if (node.isConnected) node.disabled = false; });
+    try { sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
     notice('Google sign-in could not start. Please try again or sign in with your email and password.', 'danger');
   }
 }
@@ -148,7 +152,7 @@ async function submitAuth(event) {
       if (error && !/already|registered|exists/i.test(error.message)) throw error;
       let newsletterError = false;
       if (newsletterChoice) {
-        try { await newsletterRequest('subscribe', { email, source: 'account_signup', website: String(data.get('website') || '') }); }
+        try { await newsletterRequest('subscribe', { email, source: 'account_signup', website: String(data.get('website') || '') }); rememberPreference('subscribed'); }
         catch { newsletterError = true; }
       }
       if (result?.session) {
@@ -188,6 +192,7 @@ function signupNewsletterNotice(failed) {
     button.disabled = true;
     try {
       await newsletterRequest('subscribe', { email, source: 'account_signup', website: '' });
+      rememberPreference('subscribed');
       extra.textContent = 'You’re subscribed to the TLB newsletter! Look out for your welcome email.';
       button.remove();
     } catch { extra.textContent = 'We still could not complete your newsletter signup. Please try again shortly. Your account request is complete.'; button.disabled = false; }
@@ -271,12 +276,20 @@ async function renderCallback() {
 
 async function renderGoogleCallback() {
   const problem = () => {
+    try { sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
     root.innerHTML = `<section class="panel account-card"><p class="eyebrow">Your account</p><h1>Google sign-in wasn’t completed</h1><p>Please try again, or use your email and password. Your saved cart is still on this browser.</p><a class="button" href="account.html?next=${encodeURIComponent(next)}">Back to sign in</a></section>`;
     root.setAttribute('aria-busy', 'false');
   };
   if (!configured || initializationError || !auth || !authLink.received || authLink.failed || authLink.recovery || authLink.type === 'recovery') { problem(); return; }
   const { data: { user }, error } = await auth.getUser();
   if (error || !user?.email_confirmed_at) { problem(); return; }
+  let optedIn=false;
+  try { const chosenAt=Number(sessionStorage.getItem('tlb-newsletter-signup-consent'));optedIn=chosenAt>0&&Date.now()-chosenAt>=0&&Date.now()-chosenAt<30*60*1000;sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
+  if(optedIn){
+    email=user.email;
+    try { await newsletterRequest('subscribe',{email,source:'account_signup',website:''});rememberPreference('subscribed'); }
+    catch { root.innerHTML=`<section class="panel account-card"><h1>You’re signed in</h1><div id="account-notice" role="status"></div><a class="button" href="${esc(next)}">Continue</a></section>`;root.setAttribute('aria-busy','false');signupNewsletterNotice(true);return; }
+  }
   location.replace(next);
 }
 

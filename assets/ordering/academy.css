@@ -52,3 +52,7 @@
 @media(max-width:600px){.academy-thumbnail-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.academy-album-more{align-items:flex-start}.academy-album-more .academy-button{white-space:nowrap}}
 
 .academy-album-more [hidden],.academy-thumbnail-grid [hidden]{display:none!important}
+
+.academy-album-more>[data-academy-visible-count]{margin-right:auto}.academy-top-button{background:transparent;color:#784c28;border:1px solid #cdb89e}.academy-top-button:hover{background:#f2e6d6}
+
+.academy-album-more{flex-wrap:wrap;gap:12px}.academy-album-more>[data-academy-visible-count]{flex-basis:100%}

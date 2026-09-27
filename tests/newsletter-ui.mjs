@@ -49,6 +49,7 @@ try {
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin === origin) return route.continue();
+      if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:true,kind:'percent',value:5,min_subtotal_cents:30000,cap_cents:10000,valid_days:30,expires_at:null})});
       if (url.pathname === '/auth/v1/settings') return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({external:{google:false}})});
       if (url.pathname === '/functions/v1/newsletter') {
         const body = route.request().postDataJSON(); state.calls.push(body);
@@ -180,7 +181,10 @@ try {
   assert.equal(await f.page.evaluate(() => window.signupCalls),1);
   f.state.failSubscribe = false; await f.page.getByRole('button',{name:'Retry newsletter signup'}).click();
   await f.page.getByText('You’re subscribed to the TLB newsletter! Look out for your welcome email.').waitFor();
-  assert.equal(await f.page.evaluate(() => window.signupCalls),1,'Newsletter retry never recreates account'); await f.context.close();
+  assert.equal(await f.page.evaluate(() => window.signupCalls),1,'Newsletter retry never recreates account');
+  assert.equal(await f.page.evaluate(()=>localStorage.getItem('tlb-newsletter-preference')),'subscribed');
+  await f.page.goto(origin+'/index.html');await advance(f.page);assert.equal(await f.page.locator('#newsletter-dialog').count(),0,'Signup subscriber is not prompted on home');
+  await f.page.goto(origin+'/shop.html');await advance(f.page);assert.equal(await f.page.locator('#newsletter-dialog').count(),0,'Signup subscriber is not prompted on shop');await f.context.close();
 
   f = await fixture({user:member,initial:'subscribed'}); await f.page.goto(origin+'/account.html');
   await f.page.locator('#newsletter-preferences [name=newsletter]').uncheck(); await f.page.getByRole('button',{name:'Save email preference'}).click();
@@ -195,5 +199,5 @@ try {
   await f.page.getByText('You’re subscribed! Look out for a welcome email from TLB.').waitFor(); assert.equal(f.state.status,'subscribed'); await f.context.close();
   assert.deepEqual(errors,[]); assert.deepEqual(forbidden,[]);
   console.log('PASS: once-only popup on mobile and across devices; modal exclusion; demo/order suppression; immediate subscription, legacy links and private-token scrubbing; optional signup and independent retry; subscribe/unsubscribe preferences. No live emails.');
-} finally { await browser?.close(); await new Promise(resolveClose => server.close(resolveClose)); }
+} catch(e){console.log('UI errors',errors);throw e;} finally { await browser?.close(); await new Promise(resolveClose => server.close(resolveClose)); }
 

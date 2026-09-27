@@ -1,3 +1,4 @@
+import {applyNewsletterOffer,getNewsletterOffer,offerLabel} from './newsletter-offer.js?v=newsletter-settings-1';
 // Capture and remove private newsletter link data before importing auth or
 // making any request. A page view never confirms or cancels a subscription.
 const landing = document.getElementById('newsletter-root');
@@ -37,7 +38,7 @@ function markShown(requirePersistent = false) {
   shownInMemory = true;
   return true;
 }
-function rememberPreference(status) {
+export function rememberPreference(status) {
   preferenceInMemory = status;
   writeLocal(preferenceKey, status);
   document.dispatchEvent(new CustomEvent('tlb-newsletter-preference', { detail: { status } }));
@@ -53,13 +54,14 @@ function formMarkup(source, id, email = '') {
   return `<form class="newsletter-form" data-newsletter-form data-source="${source}">
     <label class="newsletter-field" for="${id}-email">Email address<input id="${id}-email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="you@example.com" value="${escape(email)}" required></label>
     <div class="newsletter-trap" aria-hidden="true"><label>Leave this field empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
-    <button class="newsletter-button" type="submit">Subscribe & get 5% OFF</button>
+    <button class="newsletter-button" type="submit" data-newsletter-offer-button>Subscribe to the newsletter</button>
     <p class="newsletter-fine">By subscribing, you agree to receive occasional TLB emails about new treats, seasonal menus, and special offers. Unsubscribe anytime.</p>
     <p class="newsletter-status" data-newsletter-status role="status" hidden></p>
   </form>`;
 }
 
 export function mountNewsletterForms(scope = document) {
+  applyNewsletterOffer(scope);
   scope.querySelectorAll('[data-newsletter-form]').forEach(form => {
     if (form.dataset.mounted) return;
     form.dataset.mounted = 'true';
@@ -79,7 +81,7 @@ export function mountNewsletterForms(scope = document) {
           dialog.querySelector('#newsletter-popup-title').textContent = 'You’re in!';
           const copy = dialog.querySelector('#newsletter-popup-copy');
           copy.setAttribute('role', 'status');
-          copy.textContent = 'Welcome to the TLB newsletter! New subscribers will receive their personal 5% off code in the welcome email. Stay tuned for more subscriber-only discounts.';
+          copy.textContent = 'Welcome to the TLB newsletter! New subscribers will receive their welcome offer details by email. Stay tuned for more subscriber-only discounts.';
           form.remove();
           dialog.querySelector('.newsletter-close').setAttribute('aria-label', 'Close newsletter welcome');
           const close = dialog.querySelector('[data-newsletter-dismiss]');
@@ -114,10 +116,11 @@ export async function mountNewsletterPreferences(container, email) {
     rememberPreference(current);
     const optedIn = current === 'subscribed';
     container.innerHTML = `<h2>Email preferences</h2><p>Choose whether to receive the TLB newsletter. Your order and payment emails stay on.</p>
-      <form data-newsletter-preferences><label class="newsletter-check"><input type="checkbox" name="newsletter" ${optedIn ? 'checked' : ''}><span>Subscribe to TLB’s newsletter<small>New subscribers get 5% off by email. Stay tuned for more subscriber-only offers. Unsubscribe anytime.</small></span></label>
+      <form data-newsletter-preferences><label class="newsletter-check"><input type="checkbox" name="newsletter" ${optedIn ? 'checked' : ''}><span>Subscribe to TLB’s newsletter<small data-newsletter-offer-signup>Receive TLB news and subscriber-only offers. Unsubscribe anytime.</small></span></label>
       <p class="muted">${current === 'subscribed' ? 'You’re subscribed to the TLB newsletter.' : 'You’re not subscribed to the TLB newsletter.'}</p>
       <button class="newsletter-button" type="submit">Save email preference</button>
       <p class="newsletter-status" role="status" data-newsletter-status hidden></p></form>`;
+    applyNewsletterOffer(container);
     const form = container.querySelector('form');
     const message = form.querySelector('[data-newsletter-status]');
     let busy = false;
@@ -176,6 +179,7 @@ function normalShop() {
 
 async function setupShopPopup() {
   if (!normalShop()) return;
+  await getNewsletterOffer();
   let user = null, granted = false, finished = false, checking = false;
   let dialog;
   // The five-second pause starts on page entry, not after a network request.
@@ -219,8 +223,9 @@ async function setupShopPopup() {
       dialog.className = 'newsletter-dialog'; dialog.id = 'newsletter-dialog';
       dialog.setAttribute('aria-labelledby', 'newsletter-popup-title');
       dialog.setAttribute('aria-describedby', 'newsletter-popup-copy');
-      dialog.innerHTML = `<button class="newsletter-close" type="button" aria-label="Close newsletter invitation">×</button><img class="newsletter-mark" src="assets/img/brands/Hat.png" alt=""><p class="newsletter-eyebrow">The TLB Newsletter</p><h2 class="newsletter-title" id="newsletter-popup-title">Get <strong>5% OFF</strong> your next order</h2><p class="newsletter-copy" id="newsletter-popup-copy">New subscribers get a welcome code by email. Stay tuned for more offers exclusively for newsletter subscribers.</p>${formMarkup('shop_popup', 'newsletter-popup', user?.email || '')}<button class="newsletter-button newsletter-button-secondary" type="button" data-newsletter-dismiss>Maybe later</button>`;
+      dialog.innerHTML = `<button class="newsletter-close" type="button" aria-label="Close newsletter invitation">×</button><img class="newsletter-mark" src="assets/img/brands/Hat.png" alt=""><p class="newsletter-eyebrow">The TLB Newsletter</p><h2 class="newsletter-title" id="newsletter-popup-title" data-newsletter-offer-title>A little more from our kitchen</h2><p class="newsletter-copy" id="newsletter-popup-copy">New subscribers get a welcome code by email. Stay tuned for more offers exclusively for newsletter subscribers.</p><p class="newsletter-fine" data-newsletter-offer-terms></p>${formMarkup('shop_popup', 'newsletter-popup', user?.email || '')}<button class="newsletter-button newsletter-button-secondary" type="button" data-newsletter-dismiss>Maybe later</button>`;
       document.body.append(dialog);
+      await applyNewsletterOffer(dialog);
       mountNewsletterForms(dialog);
       dialog.querySelector('.newsletter-close').onclick = () => dialog.close();
       dialog.querySelector('[data-newsletter-dismiss]').onclick = () => dialog.close();

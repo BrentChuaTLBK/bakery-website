@@ -1,7 +1,8 @@
+import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=newsletter-settings-1';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
-import { mountAcademy } from './academy-manager.js?v=album-photos-2';
-import { renderNewsletterPromos } from './newsletter-promos.js?v=welcome-offer-2';
+import { mountAcademy } from './academy-manager.js?v=album-browser-2';
+import { renderNewsletterPromos } from './newsletter-promos.js?v=newsletter-settings-1';
 import { prepareProductImage, productImageAccept } from './product-image.js?v=heic-2';
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=academy-1';
 import { prepareOrderSave, normalizeOrderEditReason } from './order-edit-save.js?v=custom-confirmation-1';
@@ -70,7 +71,7 @@ window.addEventListener('pageshow', syncPromoStatuses);
 window.addEventListener('pagehide', () => clearTimeout(promoStatusTimer));
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
-  if (catalogOrder?.dirty || catalogOrder?.busy || ['#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
+  if (catalogOrder?.dirty || catalogOrder?.busy || ['#newsletter-manager','#newsletter-offer-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
 });
 bindDateCalendars($('#workspace'));
 bindAccountingDates($('#workspace'));
@@ -173,6 +174,8 @@ async function refresh() {
 }
 function render() {
   clearSalesChart();
+  const newsletterLink=$('[data-view=newsletters]');if(newsletterLink)newsletterLink.style.display=state.connected&&state.role==='owner'?'':'none';
+  if(state.view==='newsletters'&&state.role!=='owner')state.view='overview';
   const academyLink = $('[data-view=academy]');
   if(academyLink) academyLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='academy'&&state.role!=='owner')state.view='overview';
@@ -180,8 +183,10 @@ function render() {
   if (accountingLink) accountingLink.style.display = state.connected && state.role === 'owner' ? '' : 'none';
   if (state.view === 'accounting' && state.connected && state.role !== 'owner') state.view = 'overview';
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
-  const views = { academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
+  const views = { newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  if (state.view === 'newsletters') mountNewsletters($('#newsletter-manager'),{settings:state.settings,products:state.products});
+  if (state.view === 'promos'&&owner()) mountWelcomeOffer($('#newsletter-offer-manager'));
   if (state.view === 'academy') mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
   clearSalesChart = bindSalesChart($('#workspace'));
@@ -347,7 +352,7 @@ function promoResults(now = Date.now()) {
 }
 function promosView() {
   return heading('A little treat', 'Promo codes for customers with verified email accounts.', `<button class="button" data-action="new-promo" ${owner() ? '' : 'disabled'}>+ Create promo code</button>`) + readonly() +
-    `<h2>Regular promo codes</h2><div class="filter-secondary">${select('promo-status-filter', 'Status', option('', 'All promo codes', state.promoFilter) + option('active', 'Active', state.promoFilter) + option('expired', 'Expired', state.promoFilter) + option('inactive', 'Inactive', state.promoFilter), 'id="promo-status-filter" aria-controls="promo-results" aria-describedby="promo-filter-help"')}<p id="promo-filter-help" class="muted">Inactive codes have not expired, but are disabled or not yet activated.</p></div><div id="promo-results">${promoResults()}</div><p class="muted">Discounts apply to products and option surcharges. Delivery fees are excluded. Paid and reserved uses both count toward the total limit. Reservations include orders awaiting payment or payment review; expired, rejected or cancelled unpaid orders release them. Paid cancellations and refunds remain counted.</p>${owner() ? '<div id="newsletter-promo-results"></div>' : ''}`;
+    `<h2>Regular promo codes</h2><div class="filter-secondary">${select('promo-status-filter', 'Status', option('', 'All promo codes', state.promoFilter) + option('active', 'Active', state.promoFilter) + option('expired', 'Expired', state.promoFilter) + option('inactive', 'Inactive', state.promoFilter), 'id="promo-status-filter" aria-controls="promo-results" aria-describedby="promo-filter-help"')}<p id="promo-filter-help" class="muted">Inactive codes have not expired, but are disabled or not yet activated.</p></div><div id="promo-results">${promoResults()}</div><p class="muted">Discounts apply to products and option surcharges. Delivery fees are excluded. Paid and reserved uses both count toward the total limit. Reservations include orders awaiting payment or payment review; expired, rejected or cancelled unpaid orders release them. Paid cancellations and refunds remain counted.</p>${owner() ? '<div id="newsletter-offer-manager"></div><div id="newsletter-promo-results"></div>' : ''}`;
 }
 function deletePromoDialog(id) {
   const promo = state.promos.find(item => item.id === id);
@@ -731,6 +736,7 @@ function exportOrders() {
 
 document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]');
+  if(view){const newsletterEditor=$('#newsletter-manager')||$('#newsletter-offer-manager');if(newsletterEditor?.dataset.busy==='true'){toast('Please wait for the newsletter update to finish.');return;}if(newsletterEditor?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved newsletter changes will be lost.',{title:'Discard newsletter changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;}
   if(view && $('#academy-manager')?.dataset.busy==='true'){toast('Please wait for the Academy update to finish.');return;}
   if(view && $('#academy-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved Academy changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if (view && $('#accounting-manager')?.dataset.busy === 'true') { toast('Please wait for the accounting update to finish.'); return; }
