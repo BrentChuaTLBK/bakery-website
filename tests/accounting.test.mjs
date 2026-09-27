@@ -4,6 +4,7 @@ import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
 import {accountingTotals,parseAccountingAmount,monthRange,accountingSheetName} from '../assets/ordering/accounting.js';
 import {buildAccountingWorkbook} from '../assets/ordering/accounting-export.js';
+import {xlsxParts} from './helpers/xlsx-parts.mjs';
 
 export const fixture={start:'2026-09-01',end:'2026-09-25',generated_at:'2026-09-25T00:00:00Z',legacy_count:0,
  categories:[{id:'website',name:'Website sales',kind:'sale',system_key:'website',revision:1},{id:'discount',name:'Discounts',kind:'expense',system_key:'discount',revision:1},{id:'fee',name:'Delivery fees',kind:'sale',system_key:'delivery_fee',revision:1},{id:'cost',name:'Delivery costs',kind:'expense',system_key:'delivery_cost',revision:1},{id:'cakes',name:'Custom cakes',kind:'sale',system_key:null,revision:1},{id:'ingredients',name:'Ingredients',kind:'expense',system_key:null,revision:1}],
@@ -58,4 +59,38 @@ test('a shared category exports two independently filterable tables and one summ
  const rows=[];summary.eachRow(row=>{if(row.getCell(1).value==='Custom cakes')rows.push(row);});assert.equal(rows.length,1);
  assert.equal(rows[0].getCell(2).value.result,2500);assert.equal(rows[0].getCell(3).value.result,125.25);assert.equal(rows[0].getCell(4).value.result,2374.75);
  sheet.eachRow(row=>row.eachCell(cell=>assert.notEqual(cell.value,'Net')));
+});
+
+test('serialized Excel tables mark formula totals correctly for mixed and empty categories',async()=>{
+ const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
+ const mixed=structuredClone(fixture);
+ mixed.entries.push({id:'mixed-xml',category_id:'cakes',entry_date:'2026-09-24',kind:'expense',amount_cents:12525,source:'Manual'},
+  {id:'second-sale',category_id:'cakes',entry_date:'2026-09-25',kind:'sale',amount_cents:5000,source:'Manual'});
+ Object.assign(mixed.summary.find(c=>c.id==='cakes'),{expense_cents:12525,sales_cents:255000});
+ const empty=structuredClone(fixture);empty.entries=[];empty.deliveries=[];
+ empty.summary.forEach(c=>{c.sales_cents=0;c.expense_cents=0;});
+ for(const report of [mixed,empty]){
+  const parts=xlsxParts(await buildAccountingWorkbook(report,ExcelJS).xlsx.writeBuffer());let checked=0;
+  for(const [name,rels] of parts){
+   if(!/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/.test(name))continue;
+   const sheet=parts.get(name.replace('/_rels/','/').replace(/\.rels$/,''));
+   for(const match of rels.matchAll(/Target="\.\.\/tables\/([^"/]+\.xml)"/g)){
+    const table=parts.get('xl/tables/'+match[1]),range=table.match(/\bref="A(\d+):G(\d+)"/);
+    assert.ok(range);const first=Number(range[1])+1,total=Number(range[2]);
+    assert.ok(total>first,'An empty period still includes a blank data row');
+    const column=table.match(/<tableColumn\b[^>]*\bname="Amount"[^>]*(?:\/>|>[\s\S]*?<\/tableColumn>)/)?.[0];
+    assert.match(column,/totalsRowFunction="custom"/,'Amount total is declared in the table XML, not only in the cell');
+    const cell=sheet.match(new RegExp('<c\\b[^>]*\\br="G'+total+'"[^>]*>([\\s\\S]*?)</c>'))?.[1];
+    const actual=cell?.match(/<f[^>]*>(.*?)<\/f>/)?.[1];
+    assert.equal(actual,`SUM(G${first}:G${total-1})`,'The worksheet stores the declared custom calculation');
+    assert.ok(Number.isFinite(Number(cell.match(/<v>(.*?)<\/v>/)?.[1])),'A numeric cached total is retained, including zero');
+    checked++;
+   }
+  }
+  assert.equal(checked,report.summary.length*2,'Every income and expense table is checked');
+ }
+ const noCategories={...empty,summary:[],categories:[]};
+ const workbook=buildAccountingWorkbook(noCategories,ExcelJS);assert.equal(workbook.worksheets.length,2);
+ assert.equal(workbook.getWorksheet('Summary').getCell('D6').value.formula,'0');
+ assert.equal([...xlsxParts(await workbook.xlsx.writeBuffer()).keys()].filter(n=>/^xl\/tables\/.*\.xml$/.test(n)).length,0);
 });

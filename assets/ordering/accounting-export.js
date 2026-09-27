@@ -65,9 +65,12 @@ export function buildAccountingWorkbook(report, ExcelJS) {
       const rows=entries.map(e=>[date(e.entry_date),e.source,e.reference||null,e.client_name||null,accountingPaymentMethods[e.payment_method]||(e.source==='Manual'?'Not recorded':null),e.note||null,e.amount_cents/100]);
       if(!rows.length)rows.push([null,'No entries in this timeframe',null,null,null,null,null]);
       const first=titleRow+2,last=first+rows.length-1,totalRow=last+1;
+      // Excel requires the table definition and its totals cell to agree.
+      // Keep SUM (including filtered rows) so the summary remains the period total.
+      const totals={totalsRowFunction:'custom',totalsRowFormula:`SUM(G${first}:G${last})`,totalsRowResult:group[amountKey]/100};
       sheet.addTable({name:`Accounting_${kind}_${index+1}`,ref:`A${titleRow+1}`,headerRow:true,totalsRow:true,
         style:{theme:'TableStyleLight9',showRowStripes:true},
-        columns:columns.map((name,i)=>({name:i===3&&kind==='expense'?'Supplier':name,filterButton:true,...(i===0?{totalsRowLabel:`Total ${title.toLowerCase()}`}:{})})),rows});
+        columns:columns.map((name,i)=>({name:i===3&&kind==='expense'?'Supplier':name,filterButton:true,...(i===0?{totalsRowLabel:`Total ${title.toLowerCase()}`}:i===6?totals:{})})),rows});
       sheet.getRow(titleRow+1).height=25;
       sheet.getRow(titleRow+1).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF764B25'}};cell.font={bold:true,color:{argb:'FFFFFFFF'}};});
       for(let row=first;row<=last;row++) {
@@ -75,7 +78,6 @@ export function buildAccountingWorkbook(report, ExcelJS) {
         for(const col of [2,4,6])r.getCell(col).alignment={wrapText:true,vertical:'top'};
         r.height=Math.min(210,21*Math.max(1,...[2,4,6].map(col=>String(r.getCell(col).value||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/(col===6?58:26))),0))));
       }
-      sheet.getCell(`G${totalRow}`).value={formula:`SUM(G${first}:G${last})`,result:group[amountKey]/100};
       totalStyle(sheet.getRow(totalRow));sheet.getRow(totalRow).height=27;
       subtotal[kind]=totalRow;titleRow=totalRow+3;
     }
