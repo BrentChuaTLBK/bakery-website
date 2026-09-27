@@ -53,6 +53,6 @@
 
 .academy-album-more [hidden],.academy-thumbnail-grid [hidden]{display:none!important}
 
-.academy-album-more>[data-academy-visible-count]{margin-right:auto}.academy-top-button{background:transparent;color:#784c28;border:1px solid #cdb89e}.academy-top-button:hover{background:#f2e6d6}
+.academy-album-more>[data-academy-visible-count]{margin-right:auto}.academy-top-button{background:#784c28;color:#fffaf0!important;border:1px solid #784c28;font-weight:600}.academy-top-button:hover{background:#5b371b;border-color:#5b371b}.academy-top-button:focus-visible{outline:3px solid #784c28;outline-offset:3px}
 
 .academy-album-more{flex-wrap:wrap;gap:12px}.academy-album-more>[data-academy-visible-count]{flex-basis:100%}
