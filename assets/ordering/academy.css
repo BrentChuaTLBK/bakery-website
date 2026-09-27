@@ -43,6 +43,12 @@
 @media(prefers-reduced-motion:reduce){.academy-photo-open img,.academy-class-list a,.academy-album{transition:none}}
 .academy-thumbnail-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .academy-thumbnail-grid .academy-photo-open{border-radius:6px}
+.academy-photo[data-academy-pending]{background:#eee2d2;min-width:0}
+.academy-photo-status{color:var(--academy-brown);font-size:.85rem;margin-top:12px}
+.academy-photo-status[hidden]{display:none}
+.academy-photo-retry{border:1px solid var(--academy-brown);background:var(--academy-brown);color:#fff;border-radius:5px;padding:5px 10px;margin-left:8px}
+#bakers-in-action{scroll-margin-top:100px}
+.academy-light-stage img[hidden]{display:block;visibility:hidden;min-height:40vh}
 .academy-thumbnail-grid .academy-photo-open img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover}
 .academy-album-hint{font-size:.8rem;color:#805c48;margin:0 0 14px}
 .academy-album-more{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;font-size:.78rem;color:#805c48}

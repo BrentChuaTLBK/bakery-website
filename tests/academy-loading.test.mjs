@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import {createAcademyImageCache} from '../assets/ordering/academy-loading.js';
+let clock=0,fail=false;const calls=[];
+const ref=asset_id=>({asset_id});
+const cache=createAcademyImageCache(async photos=>{
+ calls.push(photos.map(p=>p.asset_id));await new Promise(r=>setTimeout(r,5));if(fail)throw Error('Offline');
+ return Object.fromEntries(photos.map(p=>[p.asset_id,{url:'photo:'+p.asset_id+':'+clock,width:800,height:600}]));
+},{now:()=>clock});
+await Promise.all([cache.load([ref('a'),ref('b')]),cache.load([ref('b'),ref('c')])]);
+assert.deepEqual(calls.flat().sort(),['a','b','c'],'Concurrent requests share in-flight photos');
+await cache.load([ref('a'),ref('b')]);assert.equal(calls.length,2,'Returning to a recently viewed album reuses URLs');
+clock=240001;assert.equal(cache.get('a'),undefined,'Expired URLs cannot be reused');
+assert.deepEqual(cache.snapshot(),{});
+await cache.load(ref('b'));assert.deepEqual(calls.at(-1),['b'],'Renew only the requested photo');
+assert.equal(cache.get('a'),undefined,'Do not refresh unseen photos');
+await cache.load(ref('b'),{force:true});assert.deepEqual(calls.at(-1),['b']);
+fail=true;await assert.rejects(cache.load(ref('d')),/Offline/);fail=false;await cache.load(ref('d'));assert.ok(cache.get('d'),'A failed request can be retried');
+const separate=createAcademyImageCache(async()=>({}));assert.deepEqual(separate.snapshot(),{},'Page instances do not share signed URLs');
+console.log('PASS Academy image cache: overlapping requests, cache reuse, expiry, targeted renewal, retry and page isolation');

@@ -1,6 +1,9 @@
 import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,instagramUrl,missingContent} from './academy-model.js';
-import {academyPhoto,bindAcademyInteractions} from './academy-view.js?v=instagram-links-1';
+import {academyPhoto as renderPhoto,bindAcademyInteractions} from './academy-view.js?v=lazy-albums-1';
 import {academyApi,academyImages} from './academy-client.js';
+import {createAcademyImageCache,bindAcademyLazyImages} from './academy-loading.js?v=lazy-albums-1';
+
+const academyPhoto=(photo,images,label,options={})=>renderPhoto(photo,images,label,{...options,deferred:true});
 
 export function albumBrowser(data,images,{preview=false,slug='',batchId=''}={}) {
  const s=data.settings||{},rows=orderedClasses(data.classes||[],s),featured=rows.find(r=>r.id===s.featured_id)||rows[0];
@@ -21,36 +24,41 @@ export function albumBrowser(data,images,{preview=false,slug='',batchId=''}={}) 
  ${creations.length||preview?`<section class="academy-section" id="student-creations"><p class="academy-eyebrow">From their hands, with heart</p><h2>Look what we made</h2>${creations.length?creations.map(x=>`<article class="academy-creation">${x.name?`<h3>${esc(x.name)}</h3>`:''}${x.description?`<p>${plain(x.description)}</p>`:''}${x.photos.length?photos(x.photos,'creation-'+x.id,x.name||c.title):'<p class="academy-placeholder-copy">Creation photos to be added.</p>'}</article>`).join(''):'<p class="academy-placeholder-copy">Finished student creations to be added.</p>'}</section>`:''}
  ${batches.length||preview?`<section class="academy-section" id="class-albums"><p class="academy-eyebrow">Every batch, its own memories</p><h2>Explore the albums</h2><div class="academy-albums">${batches.map(b=>`<button type="button" class="academy-album" data-academy-batch="${esc(b.id)}" aria-pressed="${b.id===batch?.id}"><div>${academyPhoto(b.cover||b.photos[0],images,b.label,{placeholder:preview})}</div><strong>${esc(b.label)} <span aria-hidden="true">${b.id===batch?.id?'✓':'↗'}</span></strong>${b.start_date?`<small>${esc(dateLabel(b.start_date))}${b.end_date&&b.start_date!==b.end_date?' – '+esc(dateLabel(b.end_date)):''}</small>`:''}${b.student_count!=null?`<small>${Number(b.student_count)} students in this batch</small>`:''}</button>`).join('')||'<p class="academy-placeholder-copy">Batch details and album covers to be added.</p>'}</div></section>`:''}
  ${batch||preview?`<section class="academy-section" id="bakers-in-action"><p class="academy-eyebrow">In the kitchen together</p><h2>Our bakers in action</h2>${batch?`<div class="academy-active-batch" aria-live="polite"><h3>${esc(batch.label)}</h3>${batch.description?`<p>${plain(batch.description)}</p>`:''}</div>${batch.photos.length?photos(batch.photos,'batch-'+batch.id,batch.label):'<p class="academy-placeholder-copy">Activity and group photos to be added.</p>'}`:'<p class="academy-placeholder-copy">Add a batch and its activity or group photos in Academy admin.</p>'}</section>`:''}
- ${videos.length?`<section class="academy-section"><p class="academy-eyebrow">A little glimpse of class</p><h2>Class videos</h2><div class="academy-videos">${videos.map(v=>{let url;try{url=instagramUrl(v.url);}catch{return '';}const cover=v.cover?academyPhoto(v.cover,images,v.title||c.title):'';return `<a class="academy-video academy-video-link" data-instagram-link href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="Watch ${esc(v.title||c.title+' class video')} on Instagram (opens in a new tab)"><div class="academy-video-cover">${cover||'<span class="academy-video-placeholder" aria-hidden="true">A little glimpse of class</span>'}<span class="academy-video-external" aria-hidden="true">↗</span></div>${v.title?`<h3>${esc(v.title)}</h3>`:''}<span class="academy-video-cta">Watch on Instagram <span aria-hidden="true">↗</span></span></a>`;}).join('')}</div></section>`:''}`:`<section class="academy-empty"><h1>${slug?'Class not available':'Class stories coming soon'}</h1><p>${slug?'This class may be unpublished. Choose another album from the class browser.':'We’re preparing our Academy albums. Check back soon.'}</p></section>`;
+ ${videos.length?`<section class="academy-section" id="academy-class-videos"><p class="academy-eyebrow">A little glimpse of class</p><h2>Class videos</h2><div class="academy-videos">${videos.map(v=>{let url;try{url=instagramUrl(v.url);}catch{return '';}const cover=v.cover?academyPhoto(v.cover,images,v.title||c.title):'';return `<a class="academy-video academy-video-link" data-instagram-link href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="Watch ${esc(v.title||c.title+' class video')} on Instagram (opens in a new tab)"><div class="academy-video-cover">${cover||'<span class="academy-video-placeholder" aria-hidden="true">A little glimpse of class</span>'}<span class="academy-video-external" aria-hidden="true">↗</span></div>${v.title?`<h3>${esc(v.title)}</h3>`:''}<span class="academy-video-cta">Watch on Instagram <span aria-hidden="true">↗</span></span></a>`;}).join('')}</div></section>`:'<section id="academy-class-videos" hidden></section>'}`:`<section class="academy-empty"><h1>${slug?'Class not available':'Class stories coming soon'}</h1><p>${slug?'This class may be unpublished. Choose another album from the class browser.':'We’re preparing our Academy albums. Check back soon.'}</p></section>`;
  return {html:`${preview?'<div class="academy-preview-note">Owner draft preview · not public <a href="manage.html#academy">Edit in Academy admin</a></div>':''}<div class="academy-layout">${browser}<div class="academy-content">${s.heading?`<div class="academy-welcome"><strong>${esc(s.heading)}</strong>${s.description?`<p>${plain(s.description)}</p>`:''}</div>`:''}${preview&&c&&missingContent(c).length?`<details class="academy-missing"><summary>Missing content for this class</summary><ul>${missingContent(c).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></details>`:''}${content}${link?`<section class="academy-enquiry"><h2>${esc(s.enquiry_heading||'Your next sweet adventure?')}</h2>${s.enquiry_text?`<p>${plain(s.enquiry_text)}</p>`:''}<a class="academy-button" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Enquire about classes ↗</a></section>`:''}</div></div>`,content:c,batchId:batch?.id||''};
 }
 
 const root=document.querySelector('[data-academy-root]');
 if(root){
- let data,images={},renderId=0;
+ let data,lazy,activeSlug=null;
+ const cache=createAcademyImageCache(academyImages);
  const preview=new URLSearchParams(location.search).get('preview')==='1';
  function navigate(slug,batch=''){
   const url=new URL(location.href);url.pathname=url.pathname.replace('academy-class.html','academy.html');url.searchParams.set('class',slug);if(batch)url.searchParams.set('batch',batch);else url.searchParams.delete('batch');
-  history.pushState({},'',url);render(true);
+  if(url.href===location.href)return;
+  history.pushState({},'',url);render(true,!!batch);
  }
- async function render(focus=false){
-  const id=++renderId,params=new URLSearchParams(location.search),slug=params.get('class')||'';
-  const selected=data.classes.find(r=>r.content.slug===slug)||(!slug?(data.classes.find(r=>r.id===data.settings.featured_id)||orderedClasses(data.classes,data.settings)[0]):null);
-  const needed=[...data.classes.map(r=>r.content.thumbnail),selected?.content];
-  let imageError=false;try{images={...images,...await academyImages(needed)};}catch(e){imageError=true;}
-  if(id!==renderId)return;
-  const view=albumBrowser(data,images,{preview,slug,batchId:params.get('batch')||''});root.innerHTML=view.html;
-  if(imageError)root.insertAdjacentHTML('afterbegin','<p class="academy-preview-note" role="status">Some photos could not load. Refresh to try again.</p>');
+ function render(focus=false,scrollToBatch=false){
+  const params=new URLSearchParams(location.search),slug=params.get('class')||'';
+  const view=albumBrowser(data,cache.snapshot(),{preview,slug,batchId:params.get('batch')||''});
+  lazy?.dispose();
+  if(view.content&&activeSlug===view.content.slug&&root.querySelector('#bakers-in-action')){
+   const template=document.createElement('template');template.innerHTML=view.html;
+   for(const selector of ['#bakers-in-action','#academy-class-videos']){
+    const current=root.querySelector(selector),next=template.content.querySelector(selector);if(current&&next)current.replaceWith(next);
+   }
+   root.querySelectorAll('[data-academy-batch]').forEach(button=>{const selected=button.dataset.academyBatch===view.batchId;button.setAttribute('aria-pressed',String(selected));button.querySelector('strong span').textContent=selected?'✓':'↗';});
+   root.querySelector('.academy-lightbox')?.remove();
+  }else root.innerHTML=view.html;
+  activeSlug=view.content?.slug||null;
   document.title=(view.content?.title||'Academy')+' · TLB Kitchen';
-  bindAcademyInteractions(root,{content:view.content,images,onBatch:b=>navigate(view.content.slug,b)});
+  bindAcademyInteractions(root,{content:view.content,images:cache.images,onBatch:b=>navigate(view.content.slug,b),onMore:scope=>lazy?.observe(scope),loadPhoto:async(p,options)=>{await cache.load(p,options);return cache.get(p.asset_id);}});
+  lazy=bindAcademyLazyImages(root,cache);
   const picker=root.querySelector('.academy-picker');picker.open=matchMedia('(min-width: 900px)').matches;
-  if(focus)root.querySelector('h1')?.focus({preventScroll:true});
+  if(focus){const heading=root.querySelector(scrollToBatch?'#bakers-in-action h3':'h1');heading?.setAttribute('tabindex','-1');heading?.focus({preventScroll:true});}
+  if(scrollToBatch)root.querySelector('#bakers-in-action')?.scrollIntoView({block:'start'});
  }
  root.addEventListener('click',e=>{const a=e.target.closest('[data-academy-class]');if(a&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){e.preventDefault();navigate(a.dataset.academyClass);}});
- // Long visits may reach a lazy photo after its five-minute signed URL expires.
- // Refresh only that asset, without resetting the selected class, batch or scroll.
- const retryAt=new Map();
- root.addEventListener('error',async e=>{const asset=e.target.dataset?.academyAsset;if(!asset||Date.now()-(retryAt.get(asset)||0)<60000)return;retryAt.set(asset,Date.now());try{const fresh=await academyImages({asset_id:asset});if(!fresh[asset]?.url)return;images[asset]=fresh[asset];root.querySelectorAll(`[data-academy-asset="${asset}"]`).forEach(img=>img.src=fresh[asset].url);}catch{/* Keep alt text if access was revoked or the network is unavailable. */}},true);
  window.addEventListener('popstate',()=>render());
  matchMedia('(min-width: 900px)').addEventListener('change',e=>{const picker=root.querySelector('.academy-picker');if(picker)picker.open=e.matches;});
  async function load(){try{root.innerHTML='<p class="academy-loading" role="status">Opening our class albums…</p>';if(preview){const r=await academyApi('admin');data={settings:r.settings.draft,classes:r.classes.map(c=>({id:c.id,content:c.draft}))};}else data=await academyApi('catalog');await render();}catch(e){root.innerHTML=`<section class="academy-empty"><h1>${preview?'Owner preview unavailable':'Our albums could not load'}</h1><p>${esc(e.message)}</p>${preview?'<a class="academy-button" href="account.html?next=academy.html%3Fpreview%3D1">Sign in as owner</a>':'<button class="academy-button" type="button" data-academy-retry>Try again</button>'}</section>`;root.querySelector('[data-academy-retry]')?.addEventListener('click',load);}}
