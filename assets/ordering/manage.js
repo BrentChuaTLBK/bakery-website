@@ -1,7 +1,7 @@
 import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=newsletter-photos-1';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
-import { mountAcademy } from './academy-manager.js?v=album-browser-2';
+import { mountAcademy } from './academy-manager.js?v=instagram-links-1';
 import { renderNewsletterPromos } from './newsletter-promos.js?v=newsletter-settings-1';
 import { prepareProductImage, productImageAccept } from './product-image.js?v=heic-2';
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=academy-1';
