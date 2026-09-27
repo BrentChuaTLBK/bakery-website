@@ -48,6 +48,7 @@
 .academy-photo-status[hidden]{display:none}
 .academy-photo-retry{border:1px solid var(--academy-brown);background:var(--academy-brown);color:#fff;border-radius:5px;padding:5px 10px;margin-left:8px}
 #bakers-in-action{scroll-margin-top:100px}
+.academy-light-stage{min-height:min(62dvh,680px)}
 .academy-light-stage img[hidden]{display:block;visibility:hidden;min-height:40vh}
 .academy-thumbnail-grid .academy-photo-open img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover}
 .academy-album-hint{font-size:.8rem;color:#805c48;margin:0 0 14px}

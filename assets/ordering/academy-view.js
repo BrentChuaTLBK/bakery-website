@@ -7,13 +7,14 @@ export function academyPhoto(photo,images,label,{hero=false,placeholder=false,de
  return `<img class="academy-photo" data-academy-asset="${esc(photo.asset_id)}" src="${esc(image.url)}" alt="${esc(photo.alt||label)}" width="${image.width}" height="${image.height}" style="object-position:${Number(photo.focal_x??50)}% ${Number(photo.focal_y??50)}%" ${hero?'fetchpriority="high"':'loading="lazy"'} decoding="async">`;
 }
 function enquiry(settings){const href=enquiryUrl(settings.enquiry_url);return href?`<section class="academy-enquiry"><div><h2>${esc(settings.enquiry_heading||'Your next sweet adventure?')}</h2>${settings.enquiry_text?`<p>${plain(settings.enquiry_text)}</p>`:''}</div><a class="academy-button" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Enquire about classes <span aria-hidden="true">↗</span></a></section>`:'';}
-export function bindAcademyInteractions(root,{content,images,batchId='',onBatch,onMore,loadPhoto}={}){
+export function bindAcademyInteractions(root,{content,images,batchId='',onBatch,onMore,loadPhoto,onPhoto}={}){
  let active=[],index=0,opener=null,requestId=0;
  const dialog=document.createElement('dialog');dialog.className='academy-lightbox';dialog.setAttribute('aria-label','Academy photo gallery');
  dialog.innerHTML='<button type="button" class="academy-light-close" aria-label="Close photo gallery">Close ×</button><div class="academy-light-stage"><button type="button" data-light-step="-1" aria-label="Previous photo">‹</button><img alt="" draggable="false"><button type="button" data-light-step="1" aria-label="Next photo">›</button></div><p data-light-status role="status"></p><p data-light-caption></p><p data-light-count aria-live="polite"></p>';
  root.append(dialog);
  async function show(force=false){
   const id=++requestId,p=active[index],element=dialog.querySelector('img'),status=dialog.querySelector('[data-light-status]');
+  onPhoto?.(p);
   element.dataset.academyAsset=p.asset_id;element.removeAttribute('src');element.alt=p.alt||p.caption||content.title;element.hidden=true;
   dialog.querySelector('[data-light-caption]').textContent=p.caption||'';dialog.querySelector('[data-light-count]').textContent=`${index+1} of ${active.length}`;
   status.textContent='Loading photo…';

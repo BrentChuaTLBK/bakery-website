@@ -8,6 +8,7 @@ const result = spawnSync(process.execPath, [
   fileURLToPath(new URL('./newsletter.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./newsletter-welcome.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./branded-emails.test.mjs', import.meta.url)),
+  fileURLToPath(new URL('./newsletter-broadcast.test.mjs', import.meta.url)),
 ], { stdio: 'inherit' });
 if (result.error) {
   console.error(`Unable to run Edge tests: ${result.error.message}`);
