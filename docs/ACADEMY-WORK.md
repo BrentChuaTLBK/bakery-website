@@ -17,8 +17,7 @@ owner session and local image storage. QA fixture images are never part of a rel
 
 Implemented: Album Browser with sticky desktop class list and an expandable mobile
 picker; shareable class/batch URLs and browser history; class-wide creations; batch
-albums, lightbox, swipe, captions and focal points; opt-in Instagram embeds with
-permanent fallback links; owner-only upload/reuse/reorder/editor and separate draft
+albums, lightbox, swipe, captions and focal points; Instagram cover cards that link directly to each Reel or post in a new tab; owner-only upload/reuse/reorder/editor and separate draft
 and published snapshots. PNG/JPEG/HEIC uploads reuse the existing WebP converter.
 
 Run the local preview with Node and the existing PGlite dependency directory:
@@ -31,7 +30,7 @@ server intentionally uses synthetic photos and must not be mistaken for class co
 Validation: owner/staff/customer permissions; private media before publication;
 draft/save/publish/edit/republish/unpublish/delete; optimistic revisions; invalid
 embeds/focal positions; actual PNG-to-WebP upload and media reuse; class URLs,
-refresh/back/forward; batch selection; lightbox; Instagram failure fallback; layouts
+refresh/back/forward; batch selection; lightbox; direct Instagram links; layouts
 at 1440, 768, 390 and 320px. Existing backend tests also run unchanged.
 
 Missing assets: all three classes still need verified thumbnails, hero photographs,

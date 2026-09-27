@@ -1,6 +1,6 @@
 import {createRequire} from 'node:module';import {join,resolve} from 'node:path';import {mkdir} from 'node:fs/promises';import assert from 'node:assert/strict';
 const require=createRequire(join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'package.json')),{chromium}=require('playwright');
-const base='http://127.0.0.1:4176',out=resolve('test-results/academy');await mkdir(out,{recursive:true});
+const base=process.env.ACADEMY_TEST_BASE||'http://127.0.0.1:4176',out=resolve('test-results/academy');await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE_PATH}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
 page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
 const api=(action,payload={})=>page.evaluate(async({action,payload})=>{const r=await fetch('/__preview/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'academy:'+action,payload})});const data=await r.json();if(!r.ok)throw Error(data.error);return data;},{action,payload});
@@ -32,7 +32,9 @@ await view.locator('[data-academy-class="cookies-and-brownies"]').click();await 
 await view.goBack({waitUntil:'domcontentloaded'});await view.locator('.academy-class-heading h1').filter({hasText:'2nd Summer'}).waitFor();await view.goForward({waitUntil:'domcontentloaded'});await view.locator('.academy-class-heading h1').filter({hasText:'Cookies & Brownies'}).waitFor();
 await view.locator(`[data-academy-batch="${batch2}"]`).click();await view.locator('.academy-active-batch h3').filter({hasText:'Session Two'}).waitFor();assert.ok(view.url().includes('batch='));assert.equal(await view.locator('#student-creations .academy-photo-open').count(),1);assert.equal(await view.locator('#bakers-in-action .academy-photo-open').count(),1);
 await view.locator('#student-creations .academy-photo-open').click();assert.equal(await view.locator('.academy-lightbox').evaluate(el=>el.open),true);await view.keyboard.press('Escape');assert.equal(await view.locator('.academy-lightbox').evaluate(el=>el.open),false);
-await view.route('https://www.instagram.com/embed.js',r=>r.abort());await view.locator('[data-instagram-load]').click();await view.locator('[data-instagram-status]').filter({hasText:'could not load'}).waitFor();assert.equal(await view.locator('a[href="https://www.instagram.com/reel/TEST_QA_ONLY/"]').last().isVisible(),true);
+const videoLink=view.locator('[data-instagram-link]');assert.equal(await videoLink.getAttribute('href'),'https://www.instagram.com/reel/TEST_QA_ONLY/');assert.equal(await videoLink.getAttribute('target'),'_blank');assert.equal(await view.locator('[data-instagram-load],iframe[src^="https://www.instagram.com/"],script[src^="https://www.instagram.com/"]').count(),0);
+await pub.route('https://www.instagram.com/reel/TEST_QA_ONLY/',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Instagram link fixture</title>'}));
+const originalVideoPage=view.url(),opened=pub.waitForEvent('page');await videoLink.focus();await view.keyboard.press('Enter');const instagramPage=await opened;await instagramPage.waitForURL('https://www.instagram.com/reel/TEST_QA_ONLY/');assert.equal(view.url(),originalVideoPage);await instagramPage.close();
 for(const width of [1440,768,390,320]){
  await view.setViewportSize({width,height:1000});
  await view.waitForFunction(width=>document.querySelector('.academy-picker')?.open===(width>=900),width);
@@ -43,4 +45,4 @@ for(const width of [1440,768,390,320]){
  await view.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await view.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await view.screenshot({path:join(out,`album-browser-${width}.png`),fullPage:true});
 }
-assert.deepEqual(errors,[]);await browser.close();console.log('PASS owner PNG→WebP upload, reuse, boolean placeholder option and public placeholder rendering; Academy header replaces Blogs; published class URLs/back/forward, batches, lightbox, Instagram fallback, 1440/768/390/320px.');
+assert.deepEqual(errors,[]);await browser.close();console.log('PASS owner PNG→WebP upload, reuse, boolean placeholder option and public placeholder rendering; Academy header replaces Blogs; published class URLs/back/forward, batches, lightbox, direct Instagram links, 1440/768/390/320px.');

@@ -1,4 +1,4 @@
-import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,instagramUrl,missingContent} from './academy-model.js';
+import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,missingContent} from './academy-model.js';
 
 export function academyPhoto(photo,images,label,{hero=false,placeholder=false}={}){
  const image=images[photo?.asset_id];
@@ -6,7 +6,6 @@ export function academyPhoto(photo,images,label,{hero=false,placeholder=false}={
  return `<img class="academy-photo" data-academy-asset="${esc(photo.asset_id)}" src="${esc(image.url)}" alt="${esc(photo.alt||label)}" width="${image.width}" height="${image.height}" style="object-position:${Number(photo.focal_x??50)}% ${Number(photo.focal_y??50)}%" ${hero?'fetchpriority="high"':'loading="lazy"'} decoding="async">`;
 }
 function enquiry(settings){const href=enquiryUrl(settings.enquiry_url);return href?`<section class="academy-enquiry"><div><h2>${esc(settings.enquiry_heading||'Your next sweet adventure?')}</h2>${settings.enquiry_text?`<p>${plain(settings.enquiry_text)}</p>`:''}</div><a class="academy-button" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Enquire about classes <span aria-hidden="true">↗</span></a></section>`:'';}
-let instagramScript;
 export function bindAcademyInteractions(root,{content,images,batchId='',onBatch}={}){
  let active=[],index=0,opener=null;
  const dialog=document.createElement('dialog');dialog.className='academy-lightbox';dialog.setAttribute('aria-label','Academy photo gallery');
@@ -20,19 +19,13 @@ export function bindAcademyInteractions(root,{content,images,batchId='',onBatch}
  stage.addEventListener('pointerdown',e=>{if(e.target.closest('button')||!e.isPrimary||e.button!==0)return;swipe={x:e.clientX,y:e.clientY,id:e.pointerId};stage.setPointerCapture(e.pointerId);});
  stage.addEventListener('pointerup',e=>{if(!swipe||e.pointerId!==swipe.id)return;const dx=e.clientX-swipe.x,dy=e.clientY-swipe.y;swipe=null;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.25){index=(index+(dx<0?1:-1)+active.length)%active.length;show();}});
  stage.addEventListener('pointercancel',()=>swipe=null);
- root.onclick=async e=>{
+ root.onclick=e=>{
   if(e.target.closest('[data-academy-top]')){root.querySelector('h1')?.focus({preventScroll:true});window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});return;}
   const more=e.target.closest('[data-academy-more]');
   if(more){const grid=[...root.querySelectorAll('[data-academy-thumbnails]')].find(g=>g.dataset.academyThumbnails===more.dataset.academyMore);if(!grid)return;const hidden=[...grid.querySelectorAll('figure[hidden]')];hidden.slice(0,24).forEach(f=>f.hidden=false);const remaining=Math.max(0,hidden.length-24),total=grid.children.length;more.parentElement.querySelector('[data-academy-visible-count]').textContent=`Showing ${total-remaining} of ${total}`;if(!remaining){more.hidden=true;grid.querySelector('figure:last-child button')?.focus({preventScroll:true});}return;}
   const batch=e.target.closest('[data-academy-batch]');if(batch){onBatch?.(batch.dataset.academyBatch);return;}
   const button=e.target.closest('[data-academy-gallery]');
   if(button){const key=button.dataset.academyGallery;const item=key.startsWith('creation-')?content.creations.find(c=>'creation-'+c.id===key):content.batches.find(b=>'batch-'+b.id===key);active=(item?.photos||[]).filter(p=>!key.startsWith('creation-')||!batchId||!p.batch_id||p.batch_id===batchId);if(!active.length)return;index=Number(button.dataset.photoIndex);opener=button;show();dialog.showModal();return;}
-  const video=e.target.closest('[data-instagram-load]');if(!video)return;
-  const card=video.closest('[data-instagram-card]'),status=card.querySelector('[data-instagram-status]'),slot=card.querySelector('[data-instagram-embed]');video.disabled=true;status.textContent='Loading from Instagram…';
-  try{
-   const url=instagramUrl(video.dataset.instagramLoad);slot.innerHTML=`<blockquote class="instagram-media" data-instgrm-permalink="${esc(url)}" data-instgrm-version="14"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Watch on Instagram</a></blockquote>`;
-   if(!instagramScript)instagramScript=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://www.instagram.com/embed.js';s.async=true;s.onload=resolve;s.onerror=()=>{instagramScript=null;s.remove();reject(Error());};document.head.append(s);});
-   await instagramScript;window.instgrm?.Embeds?.process();status.textContent='If the video does not load, use Watch on Instagram.';video.hidden=true;
-  }catch{status.textContent='Instagram could not load here. Use Watch on Instagram below.';video.disabled=false;}
+
  };
 }
