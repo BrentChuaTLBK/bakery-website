@@ -1,6 +1,6 @@
 @font-face{font-family:'Chelsea Market';src:url('../fonts/BCawqZsHqfr89WNP_IApC8tzKChiJg8MKVWl.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
 .party-packages{color:#342923;--party-line:#e1d6c7;--party-brown:#805335;font-family:'Chelsea Market',serif}
-.party-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin:30px 0}
+.party-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin:24px 0}
 .party-card{box-sizing:border-box;display:flex;flex-direction:column;min-width:0;text-align:left;border:1px solid var(--party-line,#e1d6c7);border-radius:14px;background:#fffdf8;padding:24px;color:#342923;overflow-wrap:anywhere;font-family:'Chelsea Market',serif}
 .party-card--featured{border-color:#ac7b55;background:#fcf1e3}
 .party-card-heading{min-width:0}
@@ -13,7 +13,7 @@
 .party-features{list-style:none;padding:20px 0 0;margin:0 0 25px;border-top:1px solid #e1d6c7;display:grid;gap:18px}
 .party-features li{display:flex;gap:9px;min-width:0}
 .party-features li>div{min-width:0}.party-features li>span{color:#805335;font-size:13px}.party-features strong{font-size:13px;font-weight:600;line-height:1.6}
-.party-feature-detail{font-size:12px;line-height:1.8;white-space:pre-line;margin:6px 0 0;color:#746053}
+.party-feature-detail{font-size:14px;line-height:1.65;white-space:pre-line;margin:6px 0 0;color:#655345}
 .party-inquire{display:flex;justify-content:space-between;gap:12px;margin-top:auto;padding:13px 16px;border:1px solid #805335;border-radius:8px;color:#805335!important;text-decoration:none!important;font-size:13px;font-weight:700;line-height:1.6}
 .party-card--featured .party-inquire{color:#fff!important;background:#805335}.party-inquire:hover{background:#ead9c6}.party-card--featured .party-inquire:hover{background:#664225}
 .party-inquire:focus-visible{outline:3px solid #aa7548;outline-offset:4px}
@@ -28,3 +28,16 @@
 @media(max-width:650px){.party-editor-layout{grid-template-columns:1fr}.party-editor-layout aside{position:static}.manage-page dialog.party-editor{padding:18px}.party-grid{grid-template-columns:1fr;gap:18px}.party-inclusions{padding:24px}.party-admin-item{padding:18px;gap:15px}.party-admin-item-actions strong{font-size:20px}.party-price{font-size:30px}}
 .party-admin-item{align-items:center}.party-admin-item-info{flex:1;min-width:0}.party-order-handle{align-self:center;font-size:26px}.party-order-help{font-size:12px}.party-admin-item.catalog-drop-target{outline:3px solid #805335;outline-offset:2px}.party-admin-item.catalog-dragging{opacity:.35}.party-admin-item.catalog-order-ghost{margin:0}.party-admin-item-actions .row-actions{justify-content:flex-end;flex-wrap:wrap}
 @media(max-width:650px){.party-admin-item{display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;padding:16px}.party-order-handle{width:36px;grid-column:1;grid-row:1/3}.party-admin-item-info,.party-admin-item-actions{grid-column:2}.party-admin-item-actions{align-items:flex-start;gap:10px}.party-admin-item-actions .row-actions{justify-content:flex-start;gap:8px}.party-admin-item-actions .button{padding:10px 12px}.party-admin-item-info h2{margin-top:8px}}
+
+/* Categories remain open; jump links only scroll, so every inclusion is readable. */
+.party-category-links{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:28px 0 36px;font:14px/1.5 Arial,sans-serif}
+.party-category-links>span{color:#655345;margin-right:6px}.party-category-links a{border:1px solid #cfb99f;border-radius:999px;padding:10px 18px;min-height:44px;box-sizing:border-box;color:#70451f;text-decoration:none;background:#fffdf8;font-weight:600;overflow-wrap:anywhere;max-width:100%}
+.party-category-links a:hover{background:#efe5d5}.party-category-links a:focus-visible{outline:3px solid #805335;outline-offset:3px}
+.party-category{margin:38px 0 52px}.party-category-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:1px solid #d9c6b0;padding-bottom:14px}
+.party-category-heading h2{font:400 28px/1.35 'Chelsea Market',serif;margin:0;color:#70451f;overflow-wrap:anywhere;scroll-margin-top:110px;min-width:0}.party-category-heading>span{font:13px/1.5 Arial,sans-serif;color:#655345;white-space:nowrap}
+.party-features{font-family:Arial,sans-serif;gap:20px}.party-features strong{font-size:15px;line-height:1.5;color:#342923}.party-features li>span{font-size:14px;padding-top:2px}
+.party-card h3{font-size:21px;line-height:1.45}.party-price{font-size:29px;font-variant-numeric:tabular-nums}.party-price small{font-family:Arial,sans-serif;font-size:12px}
+.party-admin-group{min-width:0}.party-admin-group-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:18px 0 14px;border-bottom:1px solid #e1d6c7;padding-bottom:12px}.party-admin-group-heading h3{margin:0;font-size:22px;overflow-wrap:anywhere}.party-admin-group-heading span{font-size:12px;color:#78614f;white-space:nowrap}.party-admin-group-list{display:grid;gap:14px}
+.party-editor .field select{box-sizing:border-box;width:100%;min-width:0;min-height:44px;border:1px solid #d9c9b8;border-radius:7px;padding:10px 12px;font:inherit;background:#fff;color:#342923}
+.manage-page dialog.party-editor--categories{max-width:680px}.party-editor--categories .party-editor-layout{display:block}.party-editor--categories aside{display:none}.party-category-row{display:flex;align-items:center;gap:18px;border:1px solid #e1d6c7;border-radius:9px;padding:16px;margin-bottom:12px;background:#fff}.party-category-row>.field{flex:1;min-width:0;margin:0}.party-category-row .row-actions{flex-wrap:wrap;gap:6px}.party-category-row .button{padding:10px 12px;min-height:44px}
+@media(max-width:650px){.party-category-links{gap:8px}.party-category-links>span{width:100%}.party-category-links a{padding:10px 16px}.party-category-heading h2{font-size:24px}.party-category{margin:32px 0 42px}.party-category-row{display:block}.party-category-row .row-actions{margin-top:12px}.party-card h3{min-height:0}.party-admin-group-heading h3{font-size:20px}}

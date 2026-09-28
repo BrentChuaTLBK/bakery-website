@@ -12,7 +12,7 @@ export default async function({ db, check, state }) {
     assert.deepEqual(publicData.items.map(p => [p.name,p.price_cents,p.features.length]), [['Package 1',900000,3],['Package 2',900000,2],['Package 3',1050000,4],['Package 4',900000,2]]);
     assert.equal(publicData.items[2].badge, 'Most Popular');
     assert(publicData.items[3].features[1].detail.includes("S'mores"));
-    assert.deepEqual(Object.keys(publicData.items[0]).sort(), ['badge','features','id','name','price_cents','subtitle']);
+    assert.deepEqual(Object.keys(publicData.items[0]).sort(), ['badge','category_id','features','id','name','price_cents','subtitle']);
     assert.deepEqual(Object.keys(publicData.settings), ['inclusions']);
     assert.equal(publicData.settings.inclusions[3].detail, 'Excluding Novaliches & Payatas');
   })();

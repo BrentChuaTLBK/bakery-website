@@ -9,7 +9,7 @@ export default async function({ db, check, state }) {
   const before = await partySnapshot();
   let item, settings, photos, cart;
   await check('dessert bar: starts empty with independent settings and invoker public APIs', async () => {
-    assert.deepEqual(await api('packages','browse',{},null), { items:[], settings:{inclusions:[]} });
+    assert.deepEqual(await api('packages','browse',{},null), { categories:[], items:[], settings:{inclusions:[]} });
     assert.deepEqual(await api('items','browse',{},null), {items:[]});
     assert.deepEqual(await api('photos','browse',{},null), {items:[]});
     settings = (await api('packages','admin_list')).settings;
