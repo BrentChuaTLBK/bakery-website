@@ -2,10 +2,11 @@ import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
 import { catalogProductGroups, orderedCatalogProducts } from './catalog-ordering.js?v=multi-category-1';
 
 const grip = '<svg width="16" height="24" viewBox="0 0 16 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="6" r="1.6"/><circle cx="11" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="11" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="11" cy="18" r="1.6"/></svg>';
+export { grip as orderDragGrip };
 
 // Pointer events support mouse and touch without interfering with page scrolling
 // outside the handles. Escape and drops outside the list leave the draft intact.
-function bindOrderDrag(list, canMove, onMove, signal) {
+export function bindOrderDrag(list, canMove, onMove, signal) {
   let drag, frame;
   const rows = () => [...list.querySelectorAll('[data-order-item]')];
   function clear() {
@@ -29,9 +30,10 @@ function bindOrderDrag(list, canMove, onMove, signal) {
   function scroll() {
     if (!drag?.ghost) return;
     if (!list.isConnected || !canMove()) { clear(); return; }
-    const dialog = list.closest('dialog'), box = dialog.getBoundingClientRect();
-    if (drag.y < Math.max(0,box.top)+55) dialog.scrollTop -= 12;
-    if (drag.y > Math.min(innerHeight,box.bottom)-55) dialog.scrollTop += 12;
+    const dialog = list.closest('dialog'), box = dialog?.getBoundingClientRect() || {top:0,bottom:innerHeight};
+    const offset = drag.y < Math.max(0,box.top)+55 ? -12 : drag.y > Math.min(innerHeight,box.bottom)-55 ? 12 : 0;
+    if (dialog) dialog.scrollTop += offset;
+    else if (offset) window.scrollBy(0,offset);
     preview(); frame = requestAnimationFrame(scroll);
   }
   list.addEventListener('pointerdown', event => {
@@ -49,10 +51,10 @@ function bindOrderDrag(list, canMove, onMove, signal) {
     event.preventDefault();
     if (!drag.ghost) {
       drag.ghost = drag.row.cloneNode(true); drag.ghost.removeAttribute('data-order-item');
-      drag.ghost.className = 'catalog-order-row catalog-order-ghost'; drag.ghost.setAttribute('aria-hidden','true');
+      drag.ghost.classList.add('catalog-order-ghost'); drag.ghost.setAttribute('aria-hidden','true');
       drag.ghost.querySelectorAll('button').forEach(b => { b.disabled=true; b.tabIndex=-1; });
       drag.ghost.style.width = `${drag.width}px`; drag.ghost.style.height = `${drag.height}px`;
-      list.closest('dialog').append(drag.ghost); drag.row.classList.add('catalog-dragging');
+      (list.closest('dialog') || document.body).append(drag.ghost); drag.row.classList.add('catalog-dragging');
       frame = requestAnimationFrame(scroll);
     }
     drag.ghost.style.left = `${drag.x-drag.offsetX}px`; drag.ghost.style.top = `${drag.y-drag.offsetY}px`; preview();
