@@ -24,6 +24,16 @@ export default async function({db,check,state}) {
   assert.deepEqual(await h.scalar("select data->'option_groups' from tlb.products where id=$1",[product.id]),groups);
   for(const signature of ['pos_flavor_usage(uuid,uuid)','pos_event_options(uuid,uuid)','pos_save_flavor_stock(uuid,jsonb)','pos_check_flavor_stock(uuid,jsonb)'])assert.equal(await h.scalar(`select has_function_privilege('authenticated','tlb.${signature}','execute')`),false);
  })();
+ await check('Event flavors: unused saved extras can be removed without changing catalog choices',async()=>{
+  const spareId='event-'+randomUUID(),added=structuredClone(stock);
+  added.option_groups[0].choices.push({id:spareId,label:'Spare flavor',capacity:4,surcharge_cents:0,active:true});
+  event=await edit(added);assert.equal(choice(spareId).remaining,4);
+  event=await edit();assert.equal(choice(spareId),undefined);
+  await assert.rejects(api('pos_quote',payload([line({[spareId]:2})]),ids.staff),/unknown/i);
+  const removedCatalog=structuredClone(stock);removedCatalog.option_groups[0].choices.splice(1,1);
+  await assert.rejects(edit(removedCatalog),/keep existing catalog/i);
+  await refresh();assert.equal(choice('vanilla').remaining,4);
+ })();
  await check('Event flavors: quote uses authoritative event labels, surcharges and exact choice counts',async()=>{
   const q=await api('pos_quote',payload([{...line({[extraId]:2}),unit_price_cents:1}]),ids.staff);
   assert.equal(q.total_cents,10000);assert.equal(q.items[0].selection_labels[0].label,'Ube');
