@@ -1,5 +1,5 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
-import { packageCard, packagePrice, packageEscape as esc, packageInclusions } from './party-packages-view.js?v=dessert-bar-1';
+import { packageCard, packageGroups, packagePrice, packageEscape as esc, packageInclusions } from './party-packages-view.js?v=package-categories-1';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 import { bindOrderDrag, orderDragGrip } from './catalog-order.js?v=package-order-1';
 
@@ -8,11 +8,11 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
   if (!connected || role !== 'owner') {
     root.innerHTML = `<h1>${esc(service.adminTitle)}</h1><p class="notice">Sign in with the owner account to add or edit ${service.packageName}s.</p>`; return;
   }
-  let items = [], settings, cart, draft, mode, busy = false, operation;
+  let items = [], categories = [], settings, cart, draft, mode, busy = false, operation, dragBindings;
   let loaded = false, dirty = false, returnFocus;
   root.innerHTML = `<div class="view-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>${esc(service.adminTitle)}</h1><p>Manage the packages and inclusions on your ${service.pageName} page.</p></div><a class="button button-secondary" href="${service.pageUrl}" target="_blank" rel="noopener">View ${service.pageName.toLowerCase()} ↗</a></div>
-    <div class="row-actions party-manager-actions"><button class="button" type="button" data-party-new disabled>Add package</button><button class="button button-secondary" type="button" data-party-settings disabled>Edit shared inclusions</button><button class="button button-secondary" type="button" data-party-refresh>Refresh</button></div>
-    <p class="muted party-order-help" id="party-order-help">Drag the handles to rearrange packages. Use arrow keys when a handle is focused. Changes save automatically.</p><p data-party-message role="status" aria-live="polite"></p><div data-party-list class="party-admin-list" role="list" aria-label="Package order"></div><div data-party-shared></div>
+    <div class="row-actions party-manager-actions"><button class="button" type="button" data-party-new disabled>Add package</button><button class="button button-secondary" type="button" data-party-categories disabled>Manage categories</button><button class="button button-secondary" type="button" data-party-settings disabled>Edit shared inclusions</button><button class="button button-secondary" type="button" data-party-refresh>Refresh</button></div>
+    <p class="muted party-order-help" id="party-order-help">Drag the handles to rearrange packages within a category. Use arrow keys when a handle is focused. Order saves automatically. Edit a package to change its category.</p><p data-party-message role="status" aria-live="polite"></p><div data-party-list class="party-admin-list"></div><div data-party-shared></div>
     <section class="panel party-cart-admin"><div class="section-heading"><div><h2>Customize your own ${service.customName}</h2><p>Edit the treats customers can choose for a custom ${service.customName}.</p></div><button type="button" class="button button-secondary" data-party-cart disabled>Edit ${service.customName} items</button></div><p data-party-cart-message role="status"></p><ul data-party-cart-list class="party-cart-admin-list"></ul></section>
     <dialog closedby="none" class="party-editor" aria-labelledby="party-editor-title"><form data-party-form><div class="party-editor-top"><h2 id="party-editor-title"></h2><button type="button" class="icon-button" data-party-close aria-label="Close editor">×</button></div><div class="party-editor-layout"><div data-party-fields></div><aside><p class="eyebrow">Preview</p><div class="party-preview" data-party-preview></div></aside></div><p data-party-error role="alert"></p><div class="row-actions"><button type="submit" class="button">Save changes</button><button type="button" class="button button-secondary" data-party-close>Cancel</button></div></form></dialog>`;
   const $ = selector => root.querySelector(selector);
@@ -20,22 +20,28 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
   function message(text, error = false) { $('[data-party-message]').textContent = text; $('[data-party-message]').className = error ? 'notice danger' : ''; }
   function lock(value) {
     busy = value; root.dataset.busy = String(value);
-    root.querySelectorAll('button,input,textarea').forEach(el => { el.disabled = value; });
+    root.querySelectorAll('button,input,textarea,select').forEach(el => { el.disabled = value; });
     $('[data-party-new]').disabled = value || !loaded;
     $('[data-party-settings]').disabled = value || !loaded;
+    $('[data-party-categories]').disabled = value || !loaded;
     $('[data-party-cart]').disabled = value || !cart;
-    root.querySelectorAll('[data-order-handle]').forEach(el=>{el.disabled=value || items.length<2;});
+    root.querySelectorAll('[data-order-handle]').forEach(el=>{el.disabled=value || el.closest('[data-package-group]').querySelectorAll('[data-order-item]').length<2;});
     if (!value && dialog.open) syncFeatureButtons();
   }
   function markDirty(value) { dirty = value; root.dataset.dirty = String(value); }
   function paint() {
     items.sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-    $('[data-party-list]').innerHTML = items.map((p,i) => `<article class="party-admin-item panel" role="listitem" data-order-item="${i}"><button type="button" class="catalog-order-handle party-order-handle" data-order-handle="${i}" aria-label="Rearrange ${esc(p.name)}" aria-describedby="party-order-help">${orderDragGrip}</button><div class="party-admin-item-info"><span class="badge">${p.published ? 'Visible' : 'Hidden'}</span>${p.badge ? `<span class="party-admin-badge">${esc(p.badge)}</span>` : ''}<h2>${esc(p.name)}</h2><p>${esc(p.subtitle || p.features[0]?.label || '')}</p><small>${p.features.length} inclusions</small></div><div class="party-admin-item-actions"><strong>${esc(packagePrice(p.price_cents))}</strong><div class="row-actions"><button class="button button-secondary" type="button" data-party-edit="${esc(p.id)}">Edit<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-secondary" type="button" data-party-duplicate="${esc(p.id)}">Duplicate<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-danger" type="button" data-party-delete="${esc(p.id)}">Delete<span class="sr-only"> ${esc(p.name)}</span></button></div></div></article>`).join('') || '<p class="notice">No packages yet. Add your first package.</p>';
+    dragBindings?.abort(); dragBindings = new AbortController();
+    const groups = packageGroups(items, categories);
+    const card = (p,i) => `<article class="party-admin-item panel" role="listitem" data-order-item="${i}"><button type="button" class="catalog-order-handle party-order-handle" data-order-handle="${i}" aria-label="Rearrange ${esc(p.name)}" aria-describedby="party-order-help">${orderDragGrip}</button><div class="party-admin-item-info"><span class="badge">${p.published ? 'Visible' : 'Hidden'}</span>${p.badge ? `<span class="party-admin-badge">${esc(p.badge)}</span>` : ''}<h2>${esc(p.name)}</h2><p>${esc(p.subtitle || p.features[0]?.label || '')}</p><small>${p.features.length} inclusions</small></div><div class="party-admin-item-actions"><strong>${esc(packagePrice(p.price_cents))}</strong><div class="row-actions"><button class="button button-secondary" type="button" data-party-edit="${esc(p.id)}">Edit<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-secondary" type="button" data-party-duplicate="${esc(p.id)}">Duplicate<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-danger" type="button" data-party-delete="${esc(p.id)}">Delete<span class="sr-only"> ${esc(p.name)}</span></button></div></div></article>`;
+    $('[data-party-list]').innerHTML = (!items.length ? '<p class="notice">No packages yet. Add your first package.</p>' : '') + groups.map((group,gi) => `<section class="party-admin-group">${categories.length ? `<header class="party-admin-group-heading"><h3>${esc(group.id ? group.name : 'Uncategorized')}</h3><span>${group.items.length} package${group.items.length===1?'':'s'}</span></header>` : ''}<div data-package-group="${gi}" class="party-admin-group-list" role="list" aria-label="${esc(group.id ? group.name : 'Packages')} order">${group.items.map(card).join('') || (items.length ? '<p class="muted">No packages here yet. Choose this category when adding or editing a package.</p>' : '')}</div></section>`).join('');
+    groups.forEach((group,gi) => bindOrderDrag(root.querySelector(`[data-package-group="${gi}"]`),()=>loaded&&!busy&&!dialog.open,(from,to)=>void movePackage(group.items[from]?.id,group.items[to]?.id),dragBindings.signal));
     $('[data-party-shared]').innerHTML = packageInclusions(settings.inclusions);
     $('[data-party-cart-list]').innerHTML = cart?.items.map(item => `<li>${esc(item)}</li>`).join('') || '';
     if (cart) $('[data-party-cart-message]').textContent = cart.items.length ? `${cart.items.length} items · shown in this order on the website` : `No items listed. Use Edit ${service.customName} items to add treats.`;
   }
-  async function movePackage(from,to) {
+  async function movePackage(fromId,toId) {
+    const from=items.findIndex(p=>p.id===fromId), to=items.findIndex(p=>p.id===toId);
     if (busy || from===to || !items[from] || !items[to]) return;
     const previous=items.slice(), moved=items[from], next=items.slice();
     next.splice(to,0,next.splice(from,1)[0]);
@@ -44,7 +50,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
       const result=await api('reorder',{ids:items.map(p=>p.id),expected:previous.map(p=>({id:p.id,revision:p.revision}))});
       items=result.items;paint();message('Package order saved.');
     } catch(error) {items=previous;paint();message(error.message || 'Could not save the order. Refresh and try again.',true);}
-    finally {lock(false);root.querySelector(`[data-order-handle="${items.findIndex(p=>p.id===moved.id)}"]`)?.focus({preventScroll:true});}
+    finally {lock(false);root.querySelector(`[data-party-edit="${moved.id}"]`)?.closest('.party-admin-item').querySelector('[data-order-handle]')?.focus({preventScroll:true});}
   }
   function duplicatePackage(item) {
     if (!item) return;
@@ -61,7 +67,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
       const result = packageResult.value;
       cart = cartResult.status === 'fulfilled' ? cartResult.value : null;
       if (!cart) $('[data-party-cart-message]').textContent = 'Customization items could not load. Use Refresh to try again.';
-      items = result.items; settings = result.settings; loaded = true; paint(); message(`Saved changes appear on the ${service.pageName} page. Hidden packages stay here for later.`);
+      items = result.items; categories = result.categories || []; settings = result.settings; loaded = true; paint(); message(`Saved changes appear on the ${service.pageName} page. Hidden packages stay here for later.`);
     } catch (error) { message(error.message || 'Packages could not load. Try Refresh.', true); }
     finally { lock(false); }
   }
@@ -86,6 +92,15 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     return `<div class="party-feature-row" data-party-feature><label class="field">Inclusion<input data-feature-label value="${esc(feature.label)}" required maxlength="200"></label><label class="field"><span>Details <span class="muted">(optional)</span></span><textarea data-feature-detail rows="2" maxlength="1600">${esc(feature.detail)}</textarea></label><div class="row-actions"><button class="button button-secondary" type="button" data-feature-up aria-label="Move inclusion up">↑</button><button class="button button-secondary" type="button" data-feature-down aria-label="Move inclusion down">↓</button><button class="button button-secondary" type="button" data-feature-remove>Remove</button></div></div>`;
   }
   function syncFeatureButtons() {
+    if (mode === 'categories') {
+      const rows = [...form.querySelectorAll('[data-category-row]')];
+      rows.forEach((row,i)=>{
+        row.querySelector('[data-category-up]').disabled=i===0;
+        row.querySelector('[data-category-down]').disabled=i===rows.length-1;
+      });
+      $('[data-category-add]').disabled=rows.length>=30;
+      return;
+    }
     const rows = [...form.querySelectorAll('[data-party-feature]')];
     rows.forEach((row, i) => {
       row.querySelector('[data-feature-up]').disabled = i === 0;
@@ -96,29 +111,44 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
   }
   function readFeatures() { return [...form.querySelectorAll('[data-party-feature]')].map(row => ({ label: row.querySelector('[data-feature-label]').value.trim(), detail: row.querySelector('[data-feature-detail]').value.trim() })); }
   function readDraft() {
+    if (mode === 'categories') return {categories:[...form.querySelectorAll('[data-category-row]')].map(row=>({id:row.dataset.categoryRow,name:row.querySelector('input').value.trim()})),expected:draft};
     if (mode === 'cart') return { ...draft, items: [...form.querySelectorAll('[data-feature-label]')].map(input => input.value.trim()) };
     if (mode === 'settings') return { ...draft, inclusions: readFeatures() };
     const data = new FormData(form);
-    return { ...draft, name: data.get('name').trim(), subtitle: data.get('subtitle').trim(), price_cents: Math.round(Number(data.get('price')) * 100), badge: data.get('badge').trim(), sort_order: Number(data.get('sort_order')), published: data.has('published'), features: readFeatures() };
+    return { ...draft, category_id: data.get('category_id') || null, name: data.get('name').trim(), subtitle: data.get('subtitle').trim(), price_cents: Math.round(Number(data.get('price')) * 100), badge: data.get('badge').trim(), sort_order: Number(data.get('sort_order')), published: data.has('published'), features: readFeatures() };
   }
   function preview() {
+    if (mode === 'categories') return;
     const next = readDraft();
     $('[data-party-preview]').innerHTML = mode === 'cart' ? `<ul class="party-cart-preview">${next.items.map(item => `<li>${esc(item)}</li>`).join('')}</ul>${next.items.length ? '' : '<p>No items listed.</p>'}` : mode === 'settings' ? packageInclusions(next.inclusions) : packageCard(next, { preview: true });
   }
   function edit(item, shared = false) {
+    dialog.classList.remove('party-editor--categories');
     mode = shared ? 'settings' : 'package';
     draft = structuredClone(item); operation = crypto.randomUUID(); markDirty(false); returnFocus = document.activeElement;
     $('#party-editor-title').textContent = shared ? 'Shared inclusions' : item.revision === 0 ? `Add ${service.packageName}` : `Edit ${item.name}`;
     const features = shared ? item.inclusions : item.features;
-    $('[data-party-fields]').innerHTML = (shared ? '<p>These inclusions appear once above all packages.</p>' : `${field('name', 'Package name', item.name, 'required maxlength="120"')}${field('subtitle', 'Subtitle <span class="muted">(optional)</span>', item.subtitle, 'maxlength="200"')}<div class="field-row">${field('price', 'Price (PHP)', (item.price_cents / 100).toFixed(2), 'type="number" min="0.01" max="1000000" step="0.01" required')}${field('sort_order', 'Display order', item.sort_order, 'type="number" min="0" max="10000" step="1" required')}</div><p class="muted">Lower display order appears first.</p>${field('badge', 'Badge <span class="muted">(optional)</span>', item.badge, 'maxlength="32" placeholder="Most Popular, New…"')}<label class="check-field"><input type="checkbox" name="published" ${item.published ? 'checked' : ''}>Show on website</label><h3>Package inclusions</h3><p class="muted">Add each serving, flavor choice or extra as an inclusion. Details are optional.</p>`) + `<div data-party-features>${features.map(featureRow).join('')}</div><button class="button button-secondary" type="button" data-feature-add>Add inclusion</button>`;
+    $('[data-party-fields]').innerHTML = (shared ? '<p>These inclusions appear once above all packages.</p>' : `<label class="field">Category<select name="category_id"><option value="">Uncategorized</option>${categories.map(c=>`<option value="${esc(c.id)}" ${c.id===item.category_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>${field('name', 'Package name', item.name, 'required maxlength="120"')}${field('subtitle', 'Subtitle <span class="muted">(optional)</span>', item.subtitle, 'maxlength="200"')}<div class="field-row">${field('price', 'Price (PHP)', (item.price_cents / 100).toFixed(2), 'type="number" min="0.01" max="1000000" step="0.01" required')}${field('sort_order', 'Display order', item.sort_order, 'type="number" min="0" max="10000" step="1" required')}</div><p class="muted">Lower display order appears first within its category.</p>${field('badge', 'Badge <span class="muted">(optional)</span>', item.badge, 'maxlength="32" placeholder="Most Popular, New…"')}<label class="check-field"><input type="checkbox" name="published" ${item.published ? 'checked' : ''}>Show on website</label><h3>Package inclusions</h3><p class="muted">Add each serving, flavor choice or extra as an inclusion. Details are optional.</p>`) + `<div data-party-features>${features.map(featureRow).join('')}</div><button class="button button-secondary" type="button" data-feature-add>Add inclusion</button>`;
     $('[data-party-error]').textContent = ''; preview(); syncFeatureButtons(); dialog.showModal(); dialog.scrollTop = 0; form.querySelector('input')?.focus();
   }
   function editCart() {
     if (!cart) return;
+    dialog.classList.remove('party-editor--categories');
     mode = 'cart'; draft = structuredClone(cart); operation = crypto.randomUUID(); markDirty(false); returnFocus = document.activeElement;
     $('#party-editor-title').textContent = `Customize your own ${service.customName} items`;
     $('[data-party-fields]').innerHTML = `<p class="muted">Add, edit, remove, or move items to set the order customers see on your ${service.pageName} page.</p><div data-party-features>${cart.items.map(label => featureRow({ label })).join('')}</div><button class="button button-secondary" type="button" data-feature-add>Add item</button>`;
     $('[data-party-error]').textContent = ''; preview(); syncFeatureButtons(); dialog.showModal(); dialog.scrollTop = 0; (form.querySelector('input') || $('[data-feature-add]')).focus();
+  }
+  function categoryRow(category) {
+    const count=items.filter(p=>p.category_id===category.id).length;
+    return `<div class="party-category-row" data-category-row="${esc(category.id)}"><label class="field">Category name<input value="${esc(category.name)}" required maxlength="80" placeholder="e.g. 50 pax or Celebrations"><small class="muted">${count} package${count===1?'':'s'}</small></label><div class="row-actions"><button type="button" class="button button-secondary" data-category-up aria-label="Move category up">↑</button><button type="button" class="button button-secondary" data-category-down aria-label="Move category down">↓</button><button type="button" class="button button-secondary" data-category-remove>Remove</button></div></div>`;
+  }
+  function editCategories() {
+    mode='categories';draft=structuredClone(categories);markDirty(false);returnFocus=document.activeElement;
+    dialog.classList.add('party-editor--categories');
+    $('#party-editor-title').textContent='Manage categories';
+    $('[data-party-fields]').innerHTML=`<p class="muted">Use headings such as 50 pax, 100 pax, or any name you prefer. The arrows set their order on the website. Assign packages using the Category field in each package editor.</p><div data-category-rows>${categories.map(categoryRow).join('')}</div><button type="button" class="button button-secondary" data-category-add>Add category</button><p class="muted">Removing a category keeps its packages. They appear under More packages until you assign another category. Empty categories are hidden on the website.</p>`;
+    $('[data-party-error]').textContent='';syncFeatureButtons();dialog.showModal();dialog.scrollTop=0;(form.querySelector('input') || $('[data-category-add]')).focus();
   }
   async function close() {
     if (busy || (dirty && !await confirmDialog('Discard your unsaved package changes?', { title: 'Discard package changes?', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', danger: true, parentDialog: dialog }))) return;
@@ -131,6 +161,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     if (busy) return;
     const target = event.target.closest('button'); if (!target) return;
     if (target.hasAttribute('data-party-new')) edit({ id: crypto.randomUUID(), revision: 0, name: '', subtitle: '', price_cents: 0, badge: '', published: true, sort_order: Math.min(10000, Math.max(0, ...items.map(p => p.sort_order)) + 10), features: [{ label: '', detail: '' }] });
+    else if (target.hasAttribute('data-party-categories')) editCategories();
     else if (target.hasAttribute('data-party-settings')) edit(settings, true);
     else if (target.hasAttribute('data-party-cart')) editCart();
     else if (target.hasAttribute('data-party-refresh')) void load();
@@ -138,6 +169,14 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     else if (target.hasAttribute('data-party-duplicate')) duplicatePackage(items.find(p => p.id === target.dataset.partyDuplicate));
     else if (target.hasAttribute('data-party-delete')) void deletePackage(items.find(p => p.id === target.dataset.partyDelete));
     else if (target.hasAttribute('data-party-close')) void close();
+    else if (target.matches('[data-category-add],[data-category-remove],[data-category-up],[data-category-down]')) {
+      const row=target.closest('[data-category-row]');
+      if(target.hasAttribute('data-category-add')) { $('[data-category-rows]').insertAdjacentHTML('beforeend',categoryRow({id:crypto.randomUUID(),name:''})); $('[data-category-rows]').lastElementChild.querySelector('input').focus(); }
+      if(target.hasAttribute('data-category-remove')) { const next=row.nextElementSibling || row.previousElementSibling; row.remove(); (next?.querySelector('input') || $('[data-category-add]')).focus(); }
+      if(target.hasAttribute('data-category-up') && row.previousElementSibling) row.previousElementSibling.before(row);
+      if(target.hasAttribute('data-category-down') && row.nextElementSibling) row.nextElementSibling.after(row);
+      markDirty(true);syncFeatureButtons();
+    }
     else if (target.matches('[data-feature-add],[data-feature-remove],[data-feature-up],[data-feature-down]')) {
       const row = target.closest('[data-party-feature]');
       if (target.hasAttribute('data-feature-add')) { $('[data-party-features]').insertAdjacentHTML('beforeend', featureRow({ label: '', detail: '' })); $('[data-party-features]').lastElementChild.querySelector('input').focus(); }
@@ -151,15 +190,17 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     event.preventDefault(); if (busy || !form.reportValidity()) return;
     const next = readDraft(); lock(true); $('[data-party-error]').textContent = '';
     try {
-      const result = mode === 'cart' ? await cartApi('save', { ...next, operation_id: operation }) : await api(mode === 'settings' ? 'save_settings' : 'save', mode === 'settings' ? { ...next, operation_id: operation } : { package: next, operation_id: operation });
-      if (mode === 'cart') cart = result;
+      const result = mode === 'categories' ? await api('save_categories',next) : mode === 'cart' ? await cartApi('save', { ...next, operation_id: operation }) : await api(mode === 'settings' ? 'save_settings' : 'save', mode === 'settings' ? { ...next, operation_id: operation } : { package: next, operation_id: operation });
+      if (mode === 'categories') { categories=result.categories; items=result.items; }
+      else if (mode === 'cart') cart = result;
       else if (mode === 'settings') settings = result;
       else { const index = items.findIndex(p => p.id === result.id); if (index < 0) items.push(result); else items[index] = result; }
       markDirty(false); dialog.close(); paint(); message(`Saved. Your ${service.pageName} page now uses these details.`);
-      (mode === 'cart' ? $('[data-party-cart]') : $('[data-party-new]')).focus();
     } catch (error) { $('[data-party-error]').textContent = error.message || 'Could not save. Your edits are still here; try again.'; }
-    finally { lock(false); }
+    finally {
+      lock(false);
+      if (!dialog.open) (mode === 'categories' ? $('[data-party-categories]') : mode === 'cart' ? $('[data-party-cart]') : $('[data-party-new]')).focus();
+    }
   });
-  bindOrderDrag($('[data-party-list]'),()=>loaded&&!busy&&!dialog.open,(from,to)=>void movePackage(from,to),new AbortController().signal);
   void load();
 }

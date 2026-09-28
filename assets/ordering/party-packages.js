@@ -1,6 +1,6 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { config } from './config.js';
-import { packageCard, packageInclusions, packageEscape } from './party-packages-view.js?v=dessert-bar-1';
+import { packageSections, packageInclusions, packageEscape } from './party-packages-view.js?v=package-categories-1';
 
 const service = eventPage(document.body.dataset.eventService);
 const root = document.querySelector('[data-party-packages]');
@@ -18,7 +18,7 @@ if (root) {
       });
       if (!response.ok) throw new Error('Packages unavailable');
       const data = await response.json();
-      results.innerHTML = data.items.length ? packageInclusions(data.settings.inclusions) + `<div class="party-grid">${data.items.map(item => packageCard(item)).join('')}</div>` : '';
+      results.innerHTML = data.items.length ? packageInclusions(data.settings.inclusions) + packageSections(data.items, data.categories) : '';
       status.textContent = data.items.length ? '' : `We’re updating our ${service.packageName}s. Please contact us to plan your ${service.customName}.`;
     } catch {
       status.textContent = 'Packages could not load. Please try again, or contact us for current packages and prices.';
