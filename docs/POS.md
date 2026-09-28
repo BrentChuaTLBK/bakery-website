@@ -6,6 +6,8 @@ Open **Admin → Point of sale**. Verified staff can record sales; owners can al
 
 Create an event with its dates, location, products, total stock and event prices. Total stock includes units already sold. It cannot be reduced below those units. Event stock and prices are separate from website daily quantities and catalog prices.
 
+Event setup starts empty. Use **Choose from lineup** to search and add selected website products, or **+ Custom product** for an event-only name, details, stock and price. Only selected products appear on the event counter. Custom event products have their own limited event stock and never create website listings. Removing a product from the event stops new sales of it while keeping past receipts and stock history.
+
 Choose the event, add products, adjust quantities or apply a fixed/percentage discount, then review the sale. Record the full payment using Cash, GCash, BDO or EastWest. Cash shows the change due. Only the order total is recorded as revenue; the cash tender does not inflate sales.
 
 Pop-up sales are completed immediately. Owners can void an erroneous sale, record a reason and explicitly decide whether its items return to event stock. Voiding excludes the sale from accounting; any actual refund is handled separately.
@@ -13,6 +15,8 @@ Pop-up sales are completed immediately. Owners can void an erroneous sale, recor
 ## Direct orders
 
 Choose catalog products, custom items, or both. Custom items have their own name, price, quantity and notes. They do not create catalog products or affect inventory. Catalog items reserve the existing product/date stock.
+
+Website-product prices, including option surcharges, are fixed in direct orders and checked on the server. Custom-item prices remain editable. Adding the same product with the same options increases its quantity; different option selections stay separate. Flavor options use the shop's **− / +** controls with a shared selection limit. Fulfillment and event dates use the branded calendar.
 
 Client name, phone, email, social-media platform/profile, recipient and delivery address are all optional. Add or correct them later under **Client details**. An email is required only when email updates are selected. If the delivery address is blank, the review screen reminds you to add it before arranging a courier.
 

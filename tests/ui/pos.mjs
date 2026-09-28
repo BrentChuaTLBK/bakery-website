@@ -6,7 +6,8 @@ import {completeClientFixture} from '../helpers/client-fixture.mjs';
 const require=createRequire(import.meta.url),{chromium}=require(join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'));
 const root=resolve(import.meta.dirname,'../..'),origin='https://pos.test',out=join(root,'tests/artifacts/pos');
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const products=[{id:'p1',name:'Brownies',price_cents:10000,min_quantity:1,lead_days:0,active:true,option_groups:[],photos:[]},{id:'p2',name:'Cookie box',price_cents:20000,min_quantity:1,lead_days:0,active:true,photos:[],option_groups:[{id:'flavor',label:'Flavor',required_count:1,choices:[{id:'choc',label:'Chocolate',active:true,surcharge_cents:500}]}]}];
+const products=[{id:'p1',name:'Brownies',price_cents:10000,min_quantity:1,lead_days:0,active:true,option_groups:[],photos:[]},{id:'p2',name:'Cookie box',price_cents:20000,min_quantity:1,lead_days:0,active:true,photos:[],option_groups:[{id:'flavor',label:'Flavor',required_count:2,choices:[{id:'choc',label:'Chocolate',active:true,surcharge_cents:500},{id:'vanilla',label:'Vanilla',active:true,surcharge_cents:0}]}]}];
+products.push({id:'p3',name:'Website cake',price_cents:30000,min_quantity:1,lead_days:1,active:true,option_groups:[],photos:[]});
 const fixture={products,categories:[],orders:[],inventory:[],zones:[],promos:[],email_status:[],settings:{site_url:origin,shop_name:'TLB Kitchen',paused:false},events:[{id:'event1',name:'Weekend pop-up',location:'QA mall',starts_on:today,ends_on:today,revision:1,closed:false,stock:[{product_id:'p1',capacity:10,remaining:10,used:0,price_cents:8000,active:true},{product_id:'p2',capacity:10,remaining:10,used:0,price_cents:15000,active:true}],sales:[]}]};
 const original=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=original.slice(original.indexOf('export function money('));
 const mock=completeClientFixture(original,`
@@ -17,8 +18,8 @@ const mock=completeClientFixture(original,`
   if(action==='admin_bootstrap')return {...d,role:window.fixtureRole};
   if(action==='pos_bootstrap')return {events:d.events,orders:d.orders};
   if(action==='pos_quote'){
-   const items=p.items.map(i=>{const product=d.products.find(x=>x.id===i.product_id),s=d.events[0].stock.find(x=>x.product_id===i.product_id);const extra=product?.option_groups.reduce((sum,g)=>sum+g.choices.reduce((sum,c)=>sum+(i.selections?.[g.id]?.[c.id]||0)*c.surcharge_cents,0),0)||0;
-    const unit_price_cents=p.source==='popup'?s.price_cents+extra:i.unit_price_cents;
+   const items=p.items.map(i=>{const product=d.products.find(x=>x.id===i.product_id),event=d.events.find(e=>e.id===p.event_id),s=i.custom_event_item_id?event?.custom_stock.find(x=>x.id===i.custom_event_item_id):event?.stock.find(x=>x.product_id===i.product_id);const extra=product?.option_groups.reduce((sum,g)=>sum+g.choices.reduce((sum,c)=>sum+(i.selections?.[g.id]?.[c.id]||0)*c.surcharge_cents,0),0)||0;
+    const unit_price_cents=p.source==='popup'?s.price_cents+extra:product?product.price_cents+extra:i.unit_price_cents;
     return {...i,name:product?.name||i.name,unit_price_cents,line_total_cents:unit_price_cents*i.quantity};});
    const subtotal_cents=items.reduce((s,i)=>s+i.line_total_cents,0),discount_cents=p.discount.kind==='fixed'?p.discount.value:p.discount.kind==='percent'?Math.round(subtotal_cents*p.discount.value/100):0,delivery_cents=p.method==='delivery'&&!p.delivery_fee_pending?p.delivery_cents:0;
    return {deferred_delivery:p.delivery_fee_pending,delivery_payment_status:p.delivery_fee_pending?'pending':null,items,subtotal_cents,discount_cents,delivery_cents,total_cents:subtotal_cents-discount_cents+delivery_cents,source:p.source,method:p.method,fulfillment_date:p.fulfillment_date,event_id:p.event_id};
@@ -37,7 +38,7 @@ const mock=completeClientFixture(original,`
    if(action==='pos_void_sale')o.fulfillment_status='cancelled';o.revision++;return o;
   }
   if(['pos_delivery_fee','pos_delivery_payment','pos_delivery_reject'].includes(action)){const o=d.orders.find(o=>o.id===p.order_id);if(action==='pos_delivery_fee')Object.assign(o,{delivery_cents:p.amount_cents,total_cents:o.subtotal_cents-o.discount_cents+p.amount_cents,delivery_payment_status:p.amount_cents?'awaiting_payment':'paid'});if(action==='pos_delivery_payment')Object.assign(o,{delivery_payment_status:'paid',delivery_paid_cents:p.payment.amount_cents,delivery_payment_method:p.payment.method,delivery_cash_received_cents:p.payment.received_cents,delivery_change_cents:p.payment.received_cents-p.payment.amount_cents});if(action==='pos_delivery_reject')o.delivery_payment_status='awaiting_payment';o.revision++;return o;}
-  if(action==='pos_save_event'){const old=d.events.find(e=>e.id===p.id);const e={...p,id:p.id||'new-event',revision:(old?.revision||0)+1,stock:p.stock.map(s=>({...s,used:0,remaining:s.capacity})),sales:[]};d.events=d.events.filter(x=>x.id!==e.id);d.events.push(e);return e}
+  if(action==='pos_save_event'){const old=d.events.find(e=>e.id===p.id);const e={...p,id:p.id||'new-event',revision:(old?.revision||0)+1,stock:p.stock.map(s=>({...s,used:0,remaining:s.capacity})),custom_stock:(p.custom_stock||[]).map(s=>({...s,used:0,remaining:s.capacity})),sales:[]};d.events=d.events.filter(x=>x.id!==e.id);d.events.push(e);return e}
   throw Error('Unexpected action '+action);
  }
  export async function upload(){throw Error('Unexpected upload')};export async function websiteVisitorStats(){return {}};
@@ -51,14 +52,26 @@ try{
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/manage.html#pos');await page.locator('[data-pos=add]').first().waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await page.locator('[data-pos=add][data-id=p1]').click();await page.locator('[name=qty_0]').fill('2');await page.locator('[name=discount_kind]').selectOption('percent');await page.locator('[name=discount_value]').fill('10');
+  assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);await page.locator('[data-pos=add][data-id=p1]').click();await page.locator('[data-pos=add][data-id=p1]').click();assert.equal(await page.locator('.pos-cart li').count(),1);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');await page.locator('[name=discount_kind]').selectOption('percent');await page.locator('[name=discount_value]').fill('10');
   await page.screenshot({path:join(out,`counter-${width}.png`)});
   await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.locator('[name=cash_received]').fill('200');assert.match(await page.locator('[data-change]').innerText(),/56\.00/);
   await page.evaluate(()=>window.loseResponse=true);await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();
   assert.equal(await page.evaluate(()=>window.posOrders.length),1);assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),14400);assert.equal(await page.evaluate(()=>window.posOrders[0].email_notifications),false);
   await page.locator('[data-pos=copy]').click();await page.waitForFunction(()=>window.copied);assert.match(await page.evaluate(()=>window.copied),/shop.html#order=order0&token=/);
   await page.locator('[data-pos=print]').click();assert.equal((await page.evaluate(()=>window.printed))[0].source,'popup');
-  await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Custom cake');await page.locator('#pos-custom-form [name=price]').fill('250');await page.getByRole('button',{name:'Add item',exact:true}).click();
+  await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();
+  await page.locator('[data-pos=add][data-id=p1]').click();await page.locator('[data-pos=add][data-id=p1]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.equal(await page.locator('[name=price_0]').count(),0);await page.locator('[data-pos=remove]').click();
+  for(const variant of ['Chocolate','Chocolate','Vanilla']){
+   await page.locator('[data-pos=add][data-id=p2]').click();const plus=page.getByRole('button',{name:`Increase ${variant} quantity`,exact:true});
+   await plus.click();await plus.click();assert.equal(await plus.isDisabled(),true);assert.match(await page.locator('[data-option-count]').innerText(),/2 of 2/);
+   await page.getByRole('button',{name:`Decrease ${variant} quantity`,exact:true}).click();assert.equal(await plus.isDisabled(),false);await plus.click();
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:join(out,`options-${width}.png`)});
+   await page.getByRole('button',{name:'Add to order',exact:true}).click();
+  }
+  assert.equal(await page.locator('[data-pos=remove]').count(),2);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.equal(await page.locator('[name=qty_1]').inputValue(),'1');assert.equal(await page.locator('[name^=price_]').count(),0);
+  await page.locator('[data-pos=remove]').first().click();await page.locator('[data-pos=remove]').first().click();
+  const calendar=page.locator('.accounting-date-picker').filter({has:page.locator('[name=fulfillment_date]')});await calendar.locator('summary').click();await calendar.locator(`[data-date-value="${today}"]`).click();assert.equal(await page.locator('[name=fulfillment_date]').inputValue(),today);assert.equal(await page.locator('input[type=date]').count(),0);
+  await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Custom cake');await page.locator('#pos-custom-form [name=price]').fill('250');await page.getByRole('button',{name:'Add item',exact:true}).click();
   await page.locator('[name=method]').selectOption('delivery');await page.locator('[name=delivery_fee]').fill('50');
   // Every customer field, including recipient and delivery address, stays empty.
   await page.screenshot({path:join(out,`direct-order-${width}.png`)});
@@ -81,7 +94,15 @@ try{
   await page.locator('[data-pos=manage-order]').click();await page.locator('[data-action=pos-open-order]').waitFor();assert.match(await page.locator('#admin-dialog').innerText(),/Delivery fee paid/);assert.doesNotMatch(await page.locator('#admin-dialog').innerText(),/Any difference after an order edit/);await page.locator('[data-action=pos-open-order]').click();await page.locator('[data-pos=new-sale]').waitFor();
   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=popup]').click();
   if(role==='owner'){
-   await page.locator('[data-pos=event-new]').click();await page.locator('#pos-event-form [name=name]').fill('New booth');await page.locator('[name=active_p1]').check();await page.locator('[name=stock_p1]').fill('30');await page.locator('[name=price_p1]').fill('75');await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[name=event_id]').waitFor();assert.equal(await page.locator('[name=event_id]').inputValue(),'new-event');
+   await page.locator('[data-pos=event-new]').click();await page.locator('#pos-event-form [name=name]').fill('New booth');assert.equal(await page.locator('[data-stock-id]').count(),0);assert.equal(await page.locator('[data-pos=event-add]').count(),0);
+   await page.locator('[data-pos=event-picker]').click();await page.locator('[name=event_search]').fill('Brown');await page.locator('[data-pos=event-add][data-id=p1]').click();assert.equal(await page.locator('#pos-event-form [name=name]').inputValue(),'New booth');
+   await page.getByRole('button',{name:'Done',exact:true}).click();await page.locator('[name=stock_p1]').fill('30');await page.locator('[name=event_price_p1]').fill('75');
+   await page.locator('[data-pos=event-custom]').click();await page.locator('[name^=custom_name_]').fill('Event cookie');await page.locator('[name^=custom_description_]').fill('Only here');await page.locator('[name^=stock_]').last().fill('12');await page.locator('[name^=event_price_]').last().fill('35');assert.equal(await page.locator('[name=stock_p1]').inputValue(),'30');assert.equal(await page.locator('[name=event_price_p1]').inputValue(),'75');
+   const eventCalendar=page.locator('.accounting-date-picker').filter({has:page.locator('[name=starts_on]')});await eventCalendar.locator('summary').click();await eventCalendar.locator(`[data-date-value="${today}"]`).click();
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:join(out,`event-setup-${width}.png`)});await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[name=event_id]').waitFor();assert.equal(await page.locator('[name=event_id]').inputValue(),'new-event');
+   assert.equal(await page.locator('[data-pos=add]').count(),1);assert.equal(await page.locator('[data-pos=add-event-custom]').count(),1);assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);
+   await page.locator('[data-pos=event-edit]').click();await page.locator('[data-pos=event-remove][data-id=p1]').click();assert.equal(await page.locator('[data-stock-id]').count(),1);await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[data-pos=add-event-custom]').waitFor();assert.equal(await page.locator('[data-pos=add]').count(),0);
+   await page.locator('[data-pos=add-event-custom]').click();await page.locator('[data-pos=add-event-custom]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),7000);
   }else assert.equal(await page.locator('[data-pos=event-new]').count(),0);
   assert.deepEqual(errors,[]);results.push({width,role,passed:true});await context.close();
  }
