@@ -8,6 +8,7 @@ const root=resolve(import.meta.dirname,'../..'),origin='https://pos.test',out=jo
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const products=[{id:'p1',name:'Brownies',price_cents:10000,min_quantity:1,lead_days:0,active:true,option_groups:[],photos:[]},{id:'p2',name:'Cookie box',price_cents:20000,min_quantity:1,lead_days:0,active:true,photos:[],option_groups:[{id:'flavor',label:'Flavor',required_count:2,choices:[{id:'choc',label:'Chocolate',active:true,surcharge_cents:500},{id:'vanilla',label:'Vanilla',active:true,surcharge_cents:0}]}]}];
 products.push({id:'p3',name:'Website cake',price_cents:30000,min_quantity:1,lead_days:1,active:true,option_groups:[],photos:[]});
+products.push({...products[1],id:'p4',name:'Nori pouch',option_groups:[{...products[1].option_groups[0],required_count:1}]});
 const fixture={products,categories:[],orders:[],inventory:[],zones:[],promos:[],email_status:[],settings:{site_url:origin,shop_name:'TLB Kitchen',paused:false},events:[{id:'event1',name:'Weekend pop-up',location:'QA mall',starts_on:today,ends_on:today,revision:1,closed:false,stock:[{product_id:'p1',capacity:10,remaining:10,used:0,price_cents:8000,active:true},{product_id:'p2',capacity:10,remaining:10,used:0,price_cents:15000,active:true}],sales:[]}]};
 fixture.events.push({...fixture.events[0],id:'closed-event',name:'Closed booth',closed:true},{...fixture.events[0],id:'future-event',name:'Future booth',starts_on:'2099-01-01',ends_on:'2099-01-02'});
 const original=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=original.slice(original.indexOf('export function money('));
@@ -21,7 +22,7 @@ const mock=completeClientFixture(original,`
   if(action==='pos_bootstrap'){if(window.closeEventId){const target=d.events.find(e=>e.id===window.closeEventId);target.closed=true;window.closeEventId=null;}return {events:d.events,orders:d.orders};}
   if(action==='pos_quote'){
    if(p.source==='popup'&&d.events.find(e=>e.id===p.event_id)?.closed)throw Error('Choose an open pop-up event.');
-   const items=p.items.map(i=>{const product=d.products.find(x=>x.id===i.product_id),event=d.events.find(e=>e.id===p.event_id),s=i.custom_event_item_id?event?.custom_stock.find(x=>x.id===i.custom_event_item_id):event?.stock.find(x=>x.product_id===i.product_id);const extra=product?.option_groups.reduce((sum,g)=>sum+g.choices.reduce((sum,c)=>sum+(i.selections?.[g.id]?.[c.id]||0)*c.surcharge_cents,0),0)||0;
+   const items=p.items.map(i=>{const product=d.products.find(x=>x.id===i.product_id),event=d.events.find(e=>e.id===p.event_id),s=i.custom_event_item_id?event?.custom_stock.find(x=>x.id===i.custom_event_item_id):event?.stock.find(x=>x.product_id===i.product_id);const extra=(p.source==='popup'&&s?.options_tracked?s.option_groups:product?.option_groups)?.reduce((sum,g)=>sum+g.choices.reduce((sum,c)=>sum+(i.selections?.[g.id]?.[c.id]||0)*c.surcharge_cents,0),0)||0;
     const unit_price_cents=p.source==='popup'?s.price_cents+extra:product?product.price_cents+extra:i.unit_price_cents;
     return {...i,name:product?.name||i.name,unit_price_cents,line_total_cents:unit_price_cents*i.quantity};});
    const subtotal_cents=items.reduce((s,i)=>s+i.line_total_cents,0),discount_cents=p.discount.kind==='fixed'?p.discount.value:p.discount.kind==='percent'?Math.round(subtotal_cents*p.discount.value/100):0,delivery_cents=p.method==='delivery'&&!p.delivery_fee_pending?p.delivery_cents:0;
@@ -41,7 +42,7 @@ const mock=completeClientFixture(original,`
    if(action==='pos_void_sale')o.fulfillment_status='cancelled';o.revision++;return o;
   }
   if(['pos_delivery_fee','pos_delivery_payment','pos_delivery_reject'].includes(action)){const o=d.orders.find(o=>o.id===p.order_id);if(action==='pos_delivery_fee')Object.assign(o,{delivery_cents:p.amount_cents,total_cents:o.subtotal_cents-o.discount_cents+p.amount_cents,delivery_payment_status:p.amount_cents?'awaiting_payment':'paid'});if(action==='pos_delivery_payment')Object.assign(o,{delivery_payment_status:'paid',delivery_paid_cents:p.payment.amount_cents,delivery_payment_method:p.payment.method,delivery_cash_received_cents:p.payment.received_cents,delivery_change_cents:p.payment.received_cents-p.payment.amount_cents});if(action==='pos_delivery_reject')o.delivery_payment_status='awaiting_payment';o.revision++;return o;}
-  if(action==='pos_save_event'){const old=d.events.find(e=>e.id===p.id);const e={...p,id:p.id||'new-event',revision:(old?.revision||0)+1,stock:p.stock.map(s=>({...s,used:0,remaining:s.capacity})),custom_stock:(p.custom_stock||[]).map(s=>({...s,used:0,remaining:s.capacity})),sales:[]};d.events=d.events.filter(x=>x.id!==e.id);d.events.push(e);return e}
+  if(action==='pos_save_event'){const old=d.events.find(e=>e.id===p.id);const e={...p,id:p.id||'new-event',revision:(old?.revision||0)+1,stock:p.stock.map(s=>({...s,used:0,remaining:s.capacity,option_groups:s.option_groups?.map(g=>({...g,choices:g.choices.map(c=>({...c,used:0,remaining:c.capacity}))}))})),custom_stock:(p.custom_stock||[]).map(s=>({...s,used:0,remaining:s.capacity})),sales:[]};d.events=d.events.filter(x=>x.id!==e.id);d.events.push(e);return e}
   throw Error('Unexpected action '+action);
  }
  export async function upload(){throw Error('Unexpected upload')};export async function websiteVisitorStats(){return {}};
@@ -130,6 +131,33 @@ try{
    await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=popup]').click();await page.locator('[data-pos=add-event-custom]').click();
    const selected=await page.locator('[name=event_id]').inputValue();await page.evaluate(id=>window.closeEventId=id,selected);await page.locator('[data-pos=section][data-section=orders]').click();await page.locator('[data-pos=refresh]').click();await page.locator('[data-pos=section][data-section=sell]').click();assert.match(await page.locator('.pos-products-panel .notice').innerText(),/no longer open/);assert.equal(await page.locator('[name=event_id]').inputValue(),'');await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();assert.match(await page.locator('.pos-error').innerText(),/open pop-up event/);assert.equal(await page.evaluate(()=>window.posCalls.filter(c=>c.action==='pos_quote').at(-1).p.event_id),selected);await page.locator('[data-pos=remove]').click();
 
+  }
+  if(role==='owner'){
+   await page.locator('[data-pos=section][data-section=setup]').click();await page.locator('[data-pos=event-new]').click();await page.locator('#pos-event-form [name=name]').fill('Flavor booth');
+   await page.locator('[data-pos=event-picker]').first().click();await page.locator('[data-pos=event-add][data-id=p2]').click();await page.locator('[data-pos=event-add][data-id=p4]').click();
+   const pouch=page.locator('[data-stock-id=p4]'),box=page.locator('[data-stock-id=p2]');
+   assert.equal(await pouch.locator('[name=stock_p4]').getAttribute('readonly'),'');
+   await pouch.locator('[name=flavor_p4_flavor_choc]').fill('3');await pouch.locator('[name=flavor_p4_flavor_vanilla]').fill('5');assert.equal(await pouch.locator('[name=stock_p4]').inputValue(),'8');
+   await pouch.locator('[name=flavor_p4_flavor_vanilla_active]').uncheck();await pouch.locator('[data-pos=event-flavor-add]').click();
+   const extra=pouch.locator('[data-flavor-id^=event-]');await extra.locator('input[type=text]').fill('Truffle');await extra.locator('input[name$=_price]').fill('10');await extra.locator('input[type=number]').first().fill('2');const extraId=await extra.getAttribute('data-flavor-id');
+   assert.equal(await pouch.locator('[name=stock_p4]').inputValue(),'10');assert.equal(await pouch.locator('[name=flavor_p4_flavor_vanilla_active]').isChecked(),false);
+   await box.locator('[name=stock_p2]').fill('10');await box.locator('[name=flavor_p2_flavor_choc]').fill('1');await box.locator('[name=flavor_p2_flavor_vanilla]').fill('2');
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await pouch.screenshot({path:join(out,`flavor-stock-${width}.png`)});
+   await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[data-pos=event-edit][data-id=new-event]').click();
+   assert.equal(await page.locator('[name=stock_p4]').inputValue(),'10');assert.equal(await page.locator(`[data-flavor-id="${extraId}"] input[type=text]`).inputValue(),'Truffle');await page.getByRole('button',{name:'Save event',exact:true}).click();
+   const savedStock=await page.evaluate(()=>window.posCalls.filter(c=>c.action==='pos_save_event').at(-1).p.stock);
+   assert.equal(savedStock.find(s=>s.product_id==='p4').options_tracked,true);assert.equal(savedStock.find(s=>s.product_id==='p4').option_groups[0].choices[2].surcharge_cents,1000);
+   await page.locator('[data-pos=event-sell][data-id=new-event]').click();assert.match(await page.locator('[data-pos=add][data-id=p4]').innerText(),/5 left/);
+   for(let n=0;n<2;n++){
+    await productView();await page.locator('[data-pos=add][data-id=p4]').click();assert.equal(await page.locator('[name="flavor:vanilla"]').count(),0);
+    await page.getByRole('button',{name:'Increase Truffle quantity',exact:true}).click();await page.getByRole('button',{name:'Add to order',exact:true}).click();
+   }
+   await basket();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.match(await page.locator('.pos-basket-panel').innerText(),/Truffle/);
+   await productView();await page.locator('[data-pos=add][data-id=p4]').click();assert.equal(await page.getByRole('button',{name:'Increase Truffle quantity',exact:true}).isDisabled(),true);
+   await page.locator('[data-pos=back]').click();await page.locator('[data-pos=add][data-id=p2]').click();await page.getByRole('button',{name:'Increase Chocolate quantity',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Increase Chocolate quantity',exact:true}).isDisabled(),true);
+   await page.getByRole('button',{name:'Increase Vanilla quantity',exact:true}).click();await page.getByRole('button',{name:'Add to order',exact:true}).click();await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();
+   assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),62500);
+   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();await page.locator('[data-pos=add][data-id=p4]').click();assert.equal(await page.getByRole('button',{name:'Increase Truffle quantity',exact:true}).count(),0);assert.equal(await page.locator('[name="flavor:vanilla"]').count(),1);await page.locator('[data-pos=back]').click();
   }
   await page.locator('[data-pos=section][data-section=orders]').click();await page.locator('.pos-recent').waitFor();assert.equal(await page.locator('.pos-products-panel').count(),0);assert.equal(await page.locator('[data-pos=event-new]').count(),0);
   await page.locator('.pos-dashboard').click();await page.waitForFunction(()=>!document.body.classList.contains('pos-workspace'));assert.equal(await page.locator('.admin-sidebar').isVisible(),true);

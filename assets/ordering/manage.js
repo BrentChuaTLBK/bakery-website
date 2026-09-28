@@ -30,7 +30,7 @@ import { mountCatalogOrder } from './catalog-order.js?v=branded-dialogs-1';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=branded-dialogs-1';
 
-import {mountPOS} from './pos-manager.js?v=pos-workspace-1';
+import {mountPOS} from './pos-manager.js?v=pos-flavors-1';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
