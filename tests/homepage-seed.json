@@ -1,0 +1,155 @@
+{
+  "hero": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "photo_url": "assets/img/products-webp/HomePage1-1600w.webp",
+      "alt": "The Little Baker Kitchen",
+      "title": "The Little Baker Kitchen",
+      "description": "We specialize in crafting delicious pastries and custom cakes for your special occasions.",
+      "buttons": [
+        {
+          "label": "View Portfolio",
+          "href": "customorders.html"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "photo_url": "assets/img/products-webp/Home_Page_2-1600w.webp",
+      "alt": "Custom Cakes and Pastries",
+      "title": "Custom Cakes and Pastries",
+      "description": "Choose from our vast selection of designs or create your own!",
+      "buttons": [
+        {
+          "label": "View Pastries",
+          "href": "pastries.html"
+        },
+        {
+          "label": "View Designs",
+          "href": "customorders.html"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "photo_url": "assets/img/products-webp/Home_Page_3-1600w.webp",
+      "alt": "Perfect for Any Occasion",
+      "title": "Perfect for Any Occasion",
+      "description": "We're excited to help make your celebration extra special.",
+      "buttons": [
+        {
+          "label": "View Party Carts",
+          "href": "partycarts.html"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "photo_url": "assets/img/products-webp/HomePage4-1600w.webp",
+      "alt": "Ready to plan your event?",
+      "title": "Ready to plan your event?",
+      "description": "Just send us a message on any of our social media accounts, viber, or email.",
+      "buttons": [
+        {
+          "label": "Contact Us!",
+          "href": "contactus.html"
+        }
+      ]
+    }
+  ],
+  "specialties": [
+    {
+      "id": "custom",
+      "title": "Custom Orders",
+      "href": "customorders.html",
+      "photos": [
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "photo_url": "assets/img/products-webp/IMG_3958-1600w.webp",
+          "alt": "Custom Orders"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000006",
+          "photo_url": "assets/img/products-webp/Custom%20Orders%202-1600w.webp",
+          "alt": "Custom Orders"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000007",
+          "photo_url": "assets/img/products-webp/Custom_Orders_3-1600w.webp",
+          "alt": "Custom Orders"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000008",
+          "photo_url": "assets/img/products-webp/reviews3-1600w.webp",
+          "alt": "Custom Orders"
+        }
+      ]
+    },
+    {
+      "id": "pastries",
+      "title": "Pastries",
+      "href": "pastries.html",
+      "photos": [
+        {
+          "id": "00000000-0000-4000-8000-000000000009",
+          "photo_url": "assets/img/products-webp/IMG_7181-1600w.webp",
+          "alt": "Pastries"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000010",
+          "photo_url": "assets/img/products-webp/Pastries_2-1600w.webp",
+          "alt": "Pastries"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "photo_url": "assets/img/products-webp/Pastries_3-1600w.webp",
+          "alt": "Pastries"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000012",
+          "photo_url": "assets/img/products-webp/Pastries_4-1600w.webp",
+          "alt": "Pastries"
+        }
+      ]
+    },
+    {
+      "id": "party",
+      "title": "Party Carts & Events",
+      "href": "partycarts.html",
+      "photos": [
+        {
+          "id": "00000000-0000-4000-8000-000000000013",
+          "photo_url": "assets/img/products-webp/Party_Cart_1-1600w.webp",
+          "alt": "Party Carts & Events"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "photo_url": "assets/img/products-webp/Party_Cart_2-1600w.webp",
+          "alt": "Party Carts & Events"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000015",
+          "photo_url": "assets/img/products-webp/Party_Cart_3-1600w.webp",
+          "alt": "Party Carts & Events"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000016",
+          "photo_url": "assets/img/products-webp/Party_Cart_4-1600w.webp",
+          "alt": "Party Carts & Events"
+        }
+      ]
+    },
+    {
+      "id": "academy",
+      "title": "Baking Classes",
+      "href": "academy.html",
+      "photos": [
+        {
+          "id": "00000000-0000-4000-8000-000000000017",
+          "photo_url": "assets/img/baking-classes.webp",
+          "alt": "Baking Classes"
+        }
+      ]
+    }
+  ]
+}
