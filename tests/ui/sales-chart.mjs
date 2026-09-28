@@ -47,6 +47,13 @@ try {
       assert.equal(await popup.locator('[data-chart-orders]').textContent(), orders);
       const box = await popup.boundingBox();
       assert.ok(box.x >= 0 && box.x+box.width <= width+1, 'Popup stays inside the screen');
+      const amountLayout = await popup.locator('[data-chart-sales]').evaluate(el => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return {lines:range.getClientRects().length, fits:el.scrollWidth <= el.clientWidth};
+      });
+      assert.equal(amountLayout.lines,1,'The complete currency amount stays on one line');
+      assert.equal(amountLayout.fits,true,'The currency amount is not clipped');
     };
     assert.equal(await bars.count(),24);
     assert.equal(await popup.isVisible(),false);
