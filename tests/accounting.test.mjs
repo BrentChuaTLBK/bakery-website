@@ -62,6 +62,31 @@ test('Delivery exports one category with separate income and expense tables and 
  const reopened=new ExcelJS.Workbook();await reopened.xlsx.load(await wb.xlsx.writeBuffer());assert.ok(reopened.getWorksheet('Delivery'));
 });
 
+test('exported table borders and alignment survive saving, including blank cells and totals',async()=>{
+ const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
+ const workbook=buildAccountingWorkbook(fixture,ExcelJS),saved=new ExcelJS.Workbook();
+ await saved.xlsx.load(await workbook.xlsx.writeBuffer());
+ for(const sheet of saved.worksheets){
+  const summary=sheet.name==='Summary',delivery=sheet.name==='Delivery comparison';
+  const ranges=summary?[[5,12]]:delivery?[[5,7]]:[[6,8],[12,14]];
+  const amounts=summary?[2,3,4]:delivery?[4,5,6]:[7],width=summary?4:7;
+  for(const [first,last] of ranges)for(let row=first;row<=last;row++)for(let column=1;column<=width;column++){
+   const cell=sheet.getCell(row,column),label=`${sheet.name}!${cell.address}`;
+   for(const side of ['top','bottom','left','right'])assert.equal(cell.border[side]?.style,'thin',`${label} has its ${side} border`);
+   assert.equal(cell.alignment.vertical,'middle',label);
+   assert.equal(cell.alignment.horizontal,cell.value==='No entries in this timeframe'?'center':amounts.includes(column)?'right':'left',label);
+   if(!delivery&&row===last)assert.equal(cell.fill.fgColor.argb,'FFF1E6D6',`${label} is part of the complete total band`);
+  }
+  assert.equal(sheet.getCell('A4').border?.bottom,undefined,'Spacing above tables has no added grid');
+ }
+ const cake=saved.getWorksheet('Custom cakes');
+ assert.equal(cake.getCell('F13').value,'No entries in this timeframe');
+ assert.equal(cake.getCell('B13').value,null);
+ assert.equal(cake.getCell('G14').value.formula,'SUM(G13:G13)');
+ assert.ok(cake.getRow(8).height>=40,'The total label has room to wrap without shrinking the font');
+ assert.equal(cake.getCell('A13').isMerged,false,'Empty rows remain valid filterable table rows');
+});
+
 test('a shared category exports two independently filterable tables and one summary row',async()=>{
  const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
  const report=structuredClone(fixture);report.entries.push({id:'mixed',category_id:'cakes',entry_date:'2026-09-24',kind:'expense',amount_cents:12525,note:'Ingredients for cakes',source:'Manual'});

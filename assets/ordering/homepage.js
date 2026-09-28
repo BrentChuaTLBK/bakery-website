@@ -1,5 +1,6 @@
 import { config } from './config.js';
-import { heroMarkup, specialtyMarkup } from './homepage-view.js?v=homepage-1';
+import { heroMarkup, specialtyMarkup } from './homepage-view.js?v=synced-photos-1';
+import { startSynchronizedCarousels } from './homepage-carousels.js?v=synced-photos-1';
 
 const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(resolve => window.addEventListener('load', resolve, { once: true }));
 const settings = fetch(`${config.supabaseUrl}/rest/v1/rpc/homepage_api`, {
@@ -12,7 +13,7 @@ function startCarousels() {
   const Carousel = window.bootstrap?.Carousel;
   if (!Carousel) return;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  document.querySelectorAll('#carousel-1,.home-specialties .carousel').forEach(el => {
+  document.querySelectorAll('#carousel-1').forEach(el => {
     const count = el.querySelectorAll('.carousel-item').length;
     const warmNext = () => {
       const slides = [...el.querySelectorAll('.carousel-item')], active = slides.findIndex(s => s.classList.contains('active'));
@@ -27,6 +28,7 @@ function startCarousels() {
     el.addEventListener('focusin', () => instance.pause());
     el.addEventListener('focusout', e => { if(!reduced && !el.contains(e.relatedTarget)) instance.cycle(); });
   });
+  startSynchronizedCarousels(document.querySelector('.specialty-grid'), Carousel);
 }
 
 try {

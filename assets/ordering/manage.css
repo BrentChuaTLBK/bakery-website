@@ -170,3 +170,5 @@
 .email-delivery-alert p{flex:1 1 340px;min-width:0;margin:0;overflow-wrap:anywhere}
 .email-delivery-alert button{flex-shrink:0}
 .email-delivery-acknowledged{margin:16px 0}
+
+.product-card-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}.manage-page .product-delete-button{color:#984439}.product-delete-section{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}.product-delete-section h3{margin:0 0 10px}.product-delete-section .help-text{margin:0;max-width:480px}.product-delete-section>button{flex-shrink:0}@media(max-width:600px){.product-delete-section{align-items:flex-start;flex-direction:column}}
