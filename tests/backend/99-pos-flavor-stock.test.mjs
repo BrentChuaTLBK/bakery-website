@@ -1,3 +1,4 @@
+import {withCashSession} from './pos-fixtures.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 
@@ -15,7 +16,7 @@ export default async function({db,check,state}) {
  const choice=(id)=>event.stock[0].option_groups[0].choices.find(c=>c.id===id);
  const line=(selections,qty=1)=>h.item(product,qty,{flavor:selections});
  const payload=(items,extra={})=>({source:'popup',event_id:event.id,method:'pickup',fulfillment_date:today,items,buyer:{},discount:{kind:'none'},email_notifications:false,...extra});
- const create=async p=>{const q=await api('pos_quote',p,ids.staff),req={...p,expected_quote:q,idempotency_key:randomUUID(),payment:{method:'cash',amount_cents:q.total_cents,received_cents:q.total_cents}};return {order:await api('pos_create_order',req,ids.staff),req}};
+ const create=async p=>{const q=await api('pos_quote',p,ids.staff),req=await withCashSession(h,{...p,expected_quote:q,idempotency_key:randomUUID(),payment:{method:'cash',amount_cents:q.total_cents,received_cents:q.total_cents}});return {order:await api('pos_create_order',req,ids.staff),req}};
  await check('Event flavors: owner configures stock and event-only choices without changing the catalog',async()=>{
   await assert.rejects(api('pos_save_event',input,ids.staff),/owner/i);
   event=await api('pos_save_event',input,ids.owner);

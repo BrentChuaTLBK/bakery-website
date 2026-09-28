@@ -1,3 +1,4 @@
+import {withCashSession} from './pos-fixtures.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 
@@ -11,7 +12,7 @@ export default async function({db,check,state}) {
  let event, sale, dm;
  const eventDraft={name:'QA event',location:'QA booth',starts_on:today,ends_on:today,stock:[{product_id:product.id,capacity:5,price_cents:8000,active:true}]};
  const request=(source,extra={})=>({source,event_id:event?.id,fulfillment_date:date,method:'pickup',items:[h.item(product)],buyer:{name:'QA POS',phone:'09171234567',email:''},discount:{kind:'none'},email_notifications:false,...extra});
- const create=async p=>{const q=await api('pos_quote',p,ids.owner);return api('pos_create_order',{...p,expected_quote:q,idempotency_key:randomUUID()},ids.owner)};
+ const create=async p=>{p=await withCashSession(h,p);const q=await api('pos_quote',p,ids.owner);return api('pos_create_order',{...p,expected_quote:q,idempotency_key:randomUUID()},ids.owner)};
  const pay=(amount,method='cash',received=amount)=>({method,amount_cents:amount,received_cents:received});
  await check('POS: only verified staff can view or quote; owners manage events',async()=>{
   for(const u of [null,ids.customer,ids.unverified]) await assert.rejects(api('pos_bootstrap',{},u),/access|verify/i);
@@ -76,7 +77,7 @@ export default async function({db,check,state}) {
   assert.equal((await api('pos_payment',p,ids.staff)).revision,dm.revision);
   assert.equal((await h.allocations(dm.id))[0].state,'committed');
   const rows=(await db.query('select * from tlb.accounting_rows_v2($1,$1) where order_id=$2',[today,dm.id])).rows;
-  assert.equal(rows.length,3); assert(rows.every(r=>r.source==='Direct message'&&r.payment_method==='bdo'));
+  assert.equal(rows.length,3); assert(rows.every(r=>r.source==='Direct message'&&r.payment_method==='BDO'));
  })();
  await check('POS: owner date override requires a reason; does not bypass stock or pickup-only',async()=>{
   const p=request('direct_message',{fulfillment_date:today,override_dates:true,override_reason:'Agreed with customer'});

@@ -38,7 +38,7 @@ export default async function({db,check,state}){
   assert.equal(await h.scalar('select amount_cents from tlb.payments where order_id=$1',[o.id]),10000);
   assert.equal(await h.scalar('select sum(amount_cents)::int from tlb.accounting_rows_v2($1,$1) where order_id=$2',[today,o.id]),11200);
   const entries=(await db.query('select payment_method,amount_cents::int from tlb.accounting_rows_v2($1,$1) where order_id=$2 order by amount_cents',[today,o.id])).rows;
-  assert.deepEqual(entries,[{payment_method:'cash',amount_cents:1200},{payment_method:'gcash',amount_cents:10000}]);
+  assert.deepEqual(entries,[{payment_method:'Cash',amount_cents:1200},{payment_method:'GCash',amount_cents:10000}]);
   await assert.rejects(h.action('pos_delivery_fee',o,{amount_cents:1500}),/already paid/i);
  })();
  await check('Deferred delivery: fees entered before product payment are still collected separately',async()=>{

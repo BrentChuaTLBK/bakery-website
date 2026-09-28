@@ -125,6 +125,9 @@ try {
   check('Pop-up slip shows the event and correct cash/change, without kitchen pickup details', /IN-PERSON SALE/.test(posSlip)&&posSlip.includes('Weekend booth')&&posSlip.includes('QA mall')&&posSlip.includes('Change: ₱15.00')&&!posSlip.includes('CUSTOMER-PICKUP-GUIDE')&&!posSlip.includes('NEW ADDRESS'));
   check('Pop-up receipt fits within the existing quarter/half-sheet limits',await noOverflow(popup));
   await popup.locator('.slip').screenshot({path:join(output,'pos-slip.png')});await popup.close();
+  popup=await print({...small,source:'popup',method:'pickup',payment_method:'pos-private-id',payment_method_label:'Card <terminal>',deferred_delivery:true,delivery_paid_cents:1000,delivery_payment_method:'pos-other-id',delivery_payment_method_label:'Maya wallet'});
+  const customTender=await popup.locator('#slips').innerText();
+  check('Printed POS receipts retain custom payment names and escape labels',customTender.includes('Card <terminal>')&&customTender.includes('Maya wallet')&&!customTender.includes('pos-private-id')&&await popup.locator('terminal').count()===0);await popup.close();
   popup = await print({...small,source:'direct_message',buyer:{},items:[{name:'Custom birthday cake',description:'CUSTOM DESIGN: blue icing',quantity:1,unit_price_cents:68500,line_total_cents:68500}]});
   check('Direct order slip keeps custom item notes and permits empty client details',(await popup.locator('#slips').innerText()).includes('CUSTOM DESIGN: blue icing')&&await noOverflow(popup));await popup.close();
   popup=await print({...small,source:'direct_message',deferred_delivery:true,delivery_payment_status:'pending',delivery_cents:0});

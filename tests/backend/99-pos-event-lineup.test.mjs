@@ -1,3 +1,4 @@
+import {withCashSession} from './pos-fixtures.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 
@@ -14,7 +15,7 @@ export default async function({db,check,state}) {
  const edit=extra=>api('pos_save_event',{...eventInput,id:event.id,revision:event.revision,...extra},ids.owner);
  const request=(items,extra={})=>({source:'popup',event_id:event.id,method:'pickup',fulfillment_date:today,items,buyer:{},email_notifications:false,discount:{kind:'none'},...extra});
  const customLine=(quantity=1)=>({custom_event_item_id:customId,quantity});
- const create=async payload=>{const quote=await api('pos_quote',payload,ids.staff);return api('pos_create_order',{...payload,expected_quote:quote,idempotency_key:randomUUID(),payment:{method:'cash',amount_cents:quote.total_cents,received_cents:quote.total_cents}},ids.staff)};
+ const create=async payload=>{const quote=await api('pos_quote',payload,ids.staff);return api('pos_create_order',await withCashSession(h,{...payload,expected_quote:quote,idempotency_key:randomUUID(),payment:{method:'cash',amount_cents:quote.total_cents,received_cents:quote.total_cents}}),ids.staff)};
  await check('Event lineup: selected catalog and custom stock save without public products',async()=>{
   await assert.rejects(api('pos_save_event',eventInput,ids.staff),/owner/i);
   event=await api('pos_save_event',eventInput,ids.owner);

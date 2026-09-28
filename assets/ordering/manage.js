@@ -11,7 +11,7 @@ import { confirmOrderTotalChange } from './order-edit-confirmation.js?v=custom-c
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=pos-2';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
-import { printOrderSlips } from './order-slips.js?v=pos-1';
+import { printOrderSlips } from './order-slips.js?v=pos-cash-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
 import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
@@ -20,7 +20,7 @@ import { analyticsDateRange, buildAnalytics } from './analytics.js?v=pos-1';
 import { renderAnalytics } from './analytics-view.js?v=pos-1';
 import { bindSalesChart } from './sales-chart.js?v=sales-tooltip-1';
 import { renderPickupReminder } from './pickup-reminder.js?v=pickup-reminder-1';
-import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=excel-borders-3';
+import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=pos-cash-1';
 import { monthRange } from './accounting.js?v=accounting-1';
 import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-2';
 import { mountGalleryManager } from './gallery-manager.js?v=gallery-thumbnails-1';
@@ -30,7 +30,7 @@ import { mountCatalogOrder } from './catalog-order.js?v=branded-dialogs-1';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=branded-dialogs-1';
 
-import {mountPOS} from './pos-manager.js?v=pos-flavors-1';
+import {mountPOS} from './pos-manager.js?v=pos-cash-1';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
