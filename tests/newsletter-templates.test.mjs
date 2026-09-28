@@ -16,6 +16,14 @@ test('promo offer is readable without images, escaped, and included in Broadcast
  assert.match(text,/15% OFF\n\nSWEET15<unsafe>/);assert.match(text,/{{{RESEND_UNSUBSCRIBE_URL}}}/);
  assert.equal(sampleNewsletter('promo').offer_code,'','New draft must not invent a working code');
 });
+test('promo cards keep the code and terms without an empty optional offer heading',()=>{
+ for(const offer_heading of ['', '   ', undefined]){
+  const {html,text}=renderNewsletterCampaign({...sampleNewsletter('offer'),offer_heading,offer_code:'TEST10',offer_terms:'Test terms'});
+  assert.doesNotMatch(html,/<h[1-6][^>]*>\s*<\/h[1-6]>/);
+  assert.match(html,/TEST10/);assert.match(text,/TEST10/);assert.match(html,/Test terms/);
+ }
+});
+
 test('launch leads with the photo, Academy leads with invitation and has a relevant destination',()=>{
  const c=sampleNewsletter('launch'),r=renderNewsletterCampaign(c);
  assert.ok(r.html.indexOf('<img')<r.html.indexOf('<h1'));

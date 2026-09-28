@@ -83,6 +83,11 @@ body:has(#pos-options-dialog[open]) { overflow:hidden; }
 }
 .pos-section-nav { overflow-x:auto; }
 .pos-section-nav button { flex-shrink:0; white-space:nowrap; }
+@media(max-width:600px) {
+ .pos-section-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); overflow:visible; }
+ .pos-section-nav button { grid-column:span 2; min-width:0; padding:10px 6px; white-space:normal; }
+ .pos-section-nav button:nth-child(n+4) { grid-column:span 3; }
+}
 .pos-tender { border:0; padding:0; margin:0 0 1rem; min-width:0; }
 .pos-tender legend { font-weight:600; margin-bottom:.65rem; }
 .pos-tender-buttons { display:grid; grid-template-columns:repeat(auto-fit,minmax(95px,1fr)); gap:8px; }

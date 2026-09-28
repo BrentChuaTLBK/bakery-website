@@ -49,6 +49,7 @@ try {
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin === origin) return route.continue();
+      if (url.pathname === '/rest/v1/rpc/homepage_api' && route.request().postDataJSON()?.p_action === 'browse') return route.fulfill({contentType:'application/json',body:'null'});
       if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:true,kind:'percent',value:5,min_subtotal_cents:30000,cap_cents:10000,valid_days:30,expires_at:null})});
       if (url.pathname === '/auth/v1/settings') return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({external:{google:false}})});
       if (url.pathname === '/functions/v1/newsletter') {
