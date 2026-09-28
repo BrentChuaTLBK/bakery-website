@@ -22,6 +22,38 @@ test('delivery never includes pickup instructions and uses the saved recipient a
  assert.doesNotMatch(html,/Saved pickup notes|Pickup details/);
 });
 
+test('POS receipts show event, payment and cash change without kitchen pickup instructions',()=>{
+ for(const email_design_version of [1,2]){
+  const rendered=renderEmail({...base,email_design_version,event_type:'pos_receipt',order:{...base.order,source:'popup',event_name:'Weekend <booth>',event_location:'QA mall',payment_method:'cash',cash_received_cents:30000,change_cents:1500}});
+  for(const content of Object.values(rendered)){assert.match(content,/In-person sale/);assert.match(content,/QA mall/);assert.match(content,/Cash received/);assert.match(content,/Change/);assert.match(content,/₱15\.00/);assert.doesNotMatch(content,/Saved pickup notes|Opening hours/)}
+  assert.doesNotMatch(rendered.html,/<booth>/);
+ }
+});
+test('DM confirmations have no invented payment deadline and keep the private link',()=>{
+ for(const email_design_version of [1,2]){
+  const rendered=renderEmail({...base,email_design_version,event_type:'order_submitted',order:{...base.order,source:'direct_message',payment_deadline:null}});
+  for(const content of Object.values(rendered)){assert.match(content,/reservation stays active until our team cancels it/);assert.doesNotMatch(content,/1970|Invalid Date|Payment-proof deadline:|before the deadline/);assert.match(content,/token=private-token/)}
+ }
+});
+
+test('deferred delivery emails distinguish unknown, unpaid and separately paid courier fees',()=>{
+ for(const email_design_version of [1,2]){
+  const order={...base.order,source:'direct_message',method:'delivery',deferred_delivery:true,payment_deadline:null,payment_status:'paid',payment_method:'gcash',total_cents:10000,delivery_cents:0,delivery_payment_status:'pending'};
+  const pending=renderEmail({...base,email_design_version,event_type:'payment_approved',order});
+  for(const content of Object.values(pending)){assert.match(content,/full product payment of ₱100\.00/);assert.match(content,/Pending/);assert.match(content,/after courier booking/);assert.doesNotMatch(content,/1970|Invalid Date/)}
+  const due=renderEmail({...base,email_design_version,event_type:'delivery_fee_due',order:{...order,delivery_cents:1550,total_cents:11550,delivery_payment_status:'awaiting_payment'}});
+  for(const content of Object.values(due)){assert.match(content,/Your products are already paid/);assert.match(content,/₱15\.50/);assert.match(content,/token=private-token/)}
+  const paid=renderEmail({...base,email_design_version,event_type:'delivery_fee_paid',order:{...order,delivery_cents:1550,total_cents:11550,delivery_payment_status:'paid',delivery_paid_cents:1550,delivery_payment_method:'cash',delivery_cash_received_cents:2000,delivery_change_cents:450}});
+  for(const content of Object.values(paid)){assert.match(content,/Delivery change/);assert.match(content,/₱4\.50/);assert.match(content,/full delivery payment of ₱15\.50/)}
+ }
+});
+test('delivery review emails target the dashboard without exposing the customer link',()=>{
+ for(const email_design_version of [1,2]){
+  const rendered=renderEmail({...base,email_design_version,event_type:'order_review_required',order:{...base.order,proof_stage:'delivery',delivery_cents:1550}});
+  for(const content of Object.values(rendered)){assert.match(content,/separate delivery fee of ₱15\.50/);assert.match(content,/products are already paid/);assert.match(content,/manage\.html/);assert.doesNotMatch(content,/private-token/)}
+ }
+});
+
 test('tracking adds a usable escaped customer button and plaintext URL only to delivery emails',()=>{
  const url='https://web.lalamove.com/track?order=sample&lang=en';
  for(const event_type of ['out_for_delivery','delivery_tracking_updated','order_updated']){

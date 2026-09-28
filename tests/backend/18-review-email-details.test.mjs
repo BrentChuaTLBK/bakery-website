@@ -49,7 +49,10 @@ export default async function ({db,check,state}) {
     await db.query("insert into tlb.outbox(event_key,event_type,order_id,to_email,subject,payload,status,attempts,first_attempt_at) values($1,'order_review_required',$2,'owner@example.test','Legacy local fixture',$3,'pending',1,now())",[`legacy-review:${randomUUID()}`,submitted.id,JSON.stringify(legacy)]);
     const snapshot=()=>db.query("select event_key,payload,status,attempts,first_attempt_at from tlb.outbox where event_type='order_review_required' order by event_key").then(r=>r.rows);
     const before=await snapshot();
-    await db.exec(await readFile(new URL('../../supabase/migrations/20260918200638_review_email_order_details.sql',import.meta.url),'utf8'));
-    assert.deepEqual(await snapshot(),before);
+    await db.exec('begin');
+    try {
+      await db.exec(await readFile(new URL('../../supabase/migrations/20260918200638_review_email_order_details.sql',import.meta.url),'utf8'));
+      assert.deepEqual(await snapshot(),before);
+    } finally { await db.exec('rollback'); }
   })();
 }

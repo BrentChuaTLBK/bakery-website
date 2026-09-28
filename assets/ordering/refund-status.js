@@ -14,6 +14,7 @@ export function isActiveFulfillment(order) {
 }
 
 export function needsPaymentReview(order) {
+  if(order.deferred_delivery&&order.delivery_payment_status==='under_review'&&!order.refund_label&&!['cancelled','expired'].includes(order.fulfillment_status))return true;
   return order.payment_status === 'under_review'
     && order.fulfillment_status === 'pending_confirmation'
     && !order.refund_label;

@@ -251,6 +251,31 @@ test('proof race failure removes uploaded object and never reports success', asy
   assert.equal(removed, true);
 });
 
+test('delivery proof forwards the exact stage and fee to both checks and cleans up a changed-fee race', async () => {
+ for(const reject of [false,true]){
+  const actions=[];
+  globalThis.fetch=async(url,options)=>{
+   if(String(url).includes('/rpc/')){
+    const body=JSON.parse(options.body);actions.push(body.p_action);
+    assert.equal(body.p_payload.payment_stage,'delivery');assert.equal(body.p_payload.delivery_fee_cents,'1550');
+    if(body.p_action==='authorize_upload')return reply({allowed:true});
+    return reject?reply({message:'The delivery fee changed. Refresh the order.'},400):reply({id:orderId,payment_status:'paid',delivery_payment_status:'under_review'});
+   }
+   actions.push(options.method==='DELETE'?'cleanup':'storage');return reply({});
+  };
+  const body=form();body.set('payment_stage','delivery');body.set('delivery_fee_cents','1550');
+  const response=await upload(request('proof-upload',body));assert.equal(response.status,reject?400:201);
+  assert.deepEqual(actions,['authorize_upload','storage','commit_proof',...(reject?['cleanup']:[])]);
+ }
+});
+test('malformed delivery proof fields never reach database or storage',async()=>{
+ globalThis.fetch=async()=>{throw Error('Unexpected network request')};
+ for(const [stage,amount] of [['products','1550'],['delivery',''],['delivery','1.5'],['delivery','-1'],['delivery','1000000000']]){
+  const body=form();body.set('payment_stage',stage);body.set('delivery_fee_cents',amount);
+  assert.equal((await upload(request('proof-upload',body))).status,400);
+ }
+});
+
 test('admin proof identity is verified remotely and signed access lasts five minutes', async () => {
   globalThis.fetch = async (url, options) => {
     if (String(url).includes('/auth/v1/user')) return reply({ id: userId });

@@ -100,7 +100,7 @@ test('promo code labels are escaped and an empty report contains zero customer a
 
 test('pickup and delivery percentages use the eligible paid-order denominator', () => {
   const html = view([order(), order({method: 'delivery'}), order({method: 'delivery', payment_status: 'under_review'}), order({method: 'pickup', refund_label: true})]);
-  const methodPanel = html.match(/<h2>Pickup versus delivery<\/h2>[\s\S]*?<\/section>/)?.[0];
+  const methodPanel = html.match(/<h2>Sales fulfillment<\/h2>[\s\S]*?<\/section>/)?.[0];
   assert.equal(metric(html, 'orders'), '4');
   assert.match(methodPanel, /Paid orders/);
   assert.match(methodPanel, /Pickup<\/span><strong>1<\/strong><small>50\.0% of paid orders/);

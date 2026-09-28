@@ -120,6 +120,17 @@ try {
   check('Preview can reopen printing after cancellation', await popup.evaluate(() => window.printCalls === 2));
   await popup.close();
 
+  popup = await print({...small,source:'popup',method:'pickup',event_name:'Weekend booth',event_location:'QA mall',payment_method:'cash',cash_received_cents:70000,change_cents:1500});
+  const posSlip=await popup.locator('#slips').innerText();
+  check('Pop-up slip shows the event and correct cash/change, without kitchen pickup details', /IN-PERSON SALE/.test(posSlip)&&posSlip.includes('Weekend booth')&&posSlip.includes('QA mall')&&posSlip.includes('Change: ₱15.00')&&!posSlip.includes('CUSTOMER-PICKUP-GUIDE')&&!posSlip.includes('NEW ADDRESS'));
+  check('Pop-up receipt fits within the existing quarter/half-sheet limits',await noOverflow(popup));
+  await popup.locator('.slip').screenshot({path:join(output,'pos-slip.png')});await popup.close();
+  popup = await print({...small,source:'direct_message',buyer:{},items:[{name:'Custom birthday cake',description:'CUSTOM DESIGN: blue icing',quantity:1,unit_price_cents:68500,line_total_cents:68500}]});
+  check('Direct order slip keeps custom item notes and permits empty client details',(await popup.locator('#slips').innerText()).includes('CUSTOM DESIGN: blue icing')&&await noOverflow(popup));await popup.close();
+  popup=await print({...small,source:'direct_message',deferred_delivery:true,delivery_payment_status:'pending',delivery_cents:0});
+  check('Delivery-pending slip does not imply the courier is free',(await popup.locator('#slips').innerText()).includes('Delivery fee pending')&&await noOverflow(popup));await popup.close();
+  popup=await print({...small,source:'direct_message',deferred_delivery:true,delivery_payment_status:'paid',delivery_cents:1550,delivery_paid_cents:1550,delivery_payment_method:'cash',delivery_cash_received_cents:2000,delivery_change_cents:450});
+  check('Separate delivery payment and change remain readable on a compact slip',(await popup.locator('#slips').innerText()).includes('Change: ₱4.50')&&await noOverflow(popup));await popup.close();
   popup = await print(large, { role: 'staff' });
   check('Six-line pickup order fits one compact slip instead of two', await popup.locator('.slip').count() === 1);
   check('Each item appears once, in the saved order', await popup.locator('.slip-item[data-continued="false"]').count() === 6 && (await popup.locator('.slip-item').evaluateAll(cards => cards.map(card => Number(card.dataset.itemIndex)))).join() === '0,1,2,3,4,5');

@@ -4,6 +4,9 @@ import {readFile} from 'node:fs/promises';
 export default async function({db,check,state}){
  const h=state.harness,today=await h.day(0);
  const migration=await readFile(new URL('../../supabase/migrations/20260927204856_accounting_delivery_category.sql',import.meta.url),'utf8');
+ // The historical migration replaces this report function. Restore the latest
+ // definition afterwards so its replay cannot undo newer features for other suites.
+ const reportDefinition=await h.scalar("select pg_get_functiondef('tlb.accounting_rows_v2(date,date)'::regprocedure)");
  await db.exec(migration);
  const call=(action,payload={})=>h.api('accounting_'+action,{report_version:2,...payload},h.ids.owner);
  const report=()=>call('report',{start:today,end:today});
@@ -41,4 +44,5 @@ export default async function({db,check,state}){
    await db.exec(sql);assert.deepEqual((await report()).entries,after.entries);assert.equal((await report()).categories.filter(c=>c.name==='Delivery').length,1);
   }finally{await db.exec('rollback;');}
  })();
+ await db.exec(reportDefinition);
 }

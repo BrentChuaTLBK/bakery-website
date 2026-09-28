@@ -1,5 +1,7 @@
 import { escapeHtml as esc, money, formatDate } from './client.js?v=academy-1';
 
+import {deliveryStatusText} from './pos.js?v=pos-1';
+
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
 const text = value => String(value ?? '').trim();
 const lines = values => values.map(text).filter(Boolean).join('\n');
@@ -26,12 +28,13 @@ function variations(item, product) {
 // Only fields intended for the package are copied into the print document.
 // Prices and labels come from the saved order; catalog data supplies its current photo.
 function printModel(order, products, settings) {
+  const popup = order.source === 'popup';
   const pickup = order.method === 'pickup';
   const buyer = order.buyer || {};
   const social = buyer.social_platform === 'na' ? 'Social contact: N/A' :
     buyer.social_username ? `${label(buyer.social_platform) || 'Social contact'}: ${buyer.social_username}` : 'Social contact: Not recorded';
   const details = [];
-  details.push({ title: pickup ? 'Pickup details' : 'Deliver to', value: pickup ? lines([
+  details.push({ title: popup ? 'Event' : pickup ? 'Pickup details' : 'Deliver to', value: popup ? lines([order.event_name,order.event_location]) : pickup ? lines([
     `Collector: ${buyer.name || 'Not recorded'}`, order.pickup_address ?? settings.pickup_address,
     order.pickup_hours ?? settings.pickup_hours,
   ]) : lines([
@@ -39,19 +42,21 @@ function printModel(order, products, settings) {
     order.address?.line1, order.address?.line2, [order.address?.locality, order.address?.postal_code].filter(Boolean).join(' '),
   ]) || 'Not recorded' });
   details.push({ title: 'Instructions', value: text(order.instructions) || 'None' });
+  if(order.payment_method) details.push({title:'Payment received',value:lines([({cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'})[order.payment_method]||order.payment_method,order.payment_method==='cash'?`Cash: ${money(order.cash_received_cents)} | Change: ${money(order.change_cents)}`:''])});
+  if(order.deferred_delivery) details.push({title:'Delivery payment',value:lines([deliveryStatusText(order),order.delivery_paid_cents?`Received: ${money(order.delivery_paid_cents)} via ${label(order.delivery_payment_method)}`:'',order.delivery_payment_method==='cash'?`Cash: ${money(order.delivery_cash_received_cents)} | Change: ${money(order.delivery_change_cents)}`:''])});
   const status = [order.refund_label ? 'Refund label' : '', ['cancelled', 'expired'].includes(order.fulfillment_status) ? label(order.fulfillment_status) : '', `Payment: ${label(order.payment_status) || 'Not recorded'}`].filter(Boolean).join(' | ');
   return {
     shop: text(settings.shop_name) || 'The Little Baker Kitchen', reference: text(order.reference) || 'Order',
-    date: formatDate(order.fulfillment_date), method: pickup ? 'Pickup' : 'Delivery', status,
-    window: text(pickup ? order.pickup_hours ?? settings.pickup_hours : order.delivery_window ?? settings.delivery_window),
+    date: formatDate(order.fulfillment_date), method: popup ? 'In-person sale' : pickup ? 'Pickup' : 'Delivery', status,
+    window: popup ? '' : text(pickup ? order.pickup_hours ?? settings.pickup_hours : order.delivery_window ?? settings.delivery_window),
     buyer: { name: text(buyer.name) || 'Not recorded', phone: text(buyer.phone) || 'Not recorded', social }, details,
     items: (order.items || []).map((item, index) => {
       const product = products.find(entry => entry.id === item.product_id);
       return { index, name: text(item.name) || product?.name || 'Product', quantity: item.quantity,
-        variation: variations(item, product) || 'Standard', photo: photoUrl(product?.photos?.[0]),
+        variation: lines([item.description,variations(item, product)]) || 'Standard', photo: photoUrl(product?.photos?.[0]),
         unit: money(item.unit_price_cents), total: money(item.line_total_cents ?? item.quantity * item.unit_price_cents) };
     }),
-    subtotal: money(order.subtotal_cents), discount: money(order.discount_cents), fee: money(order.delivery_cents),
+    subtotal: money(order.subtotal_cents), discount: money(order.discount_cents), fee: order.deferred_delivery&&order.delivery_payment_status==='pending'?'Pending':money(order.delivery_cents),
     total: money(order.total_cents), promo: text(order.promo_snapshot?.code),
   };
 }
@@ -85,7 +90,7 @@ function detailCard(doc, title, value, continued = false) {
 function paymentCard(doc, model) {
   return element(doc, `<section class="slip-payment"><h2 class="slip-heading">Payment breakdown - entire order</h2><dl>
     <div><dt>Subtotal</dt><dd>${esc(model.subtotal)}</dd></div><div><dt>Discount${model.promo ? ` (${esc(model.promo)})` : ''}</dt><dd>−${esc(model.discount)}</dd></div>
-    <div><dt>${model.method === 'Pickup' ? 'Pickup' : 'Delivery'} fee</dt><dd>${esc(model.fee)}</dd></div><div class="slip-total"><dt>Order total</dt><dd>${esc(model.total)}</dd></div></dl></section>`);
+    <div><dt>${model.method === 'Delivery' ? 'Delivery' : 'Pickup'} fee</dt><dd>${esc(model.fee)}</dd></div><div class="slip-total"><dt>Order total</dt><dd>${esc(model.total)}</dd></div></dl></section>`);
 }
 
 const fits = column => column.scrollHeight <= column.clientHeight + 1;

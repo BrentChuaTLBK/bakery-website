@@ -181,7 +181,7 @@ export async function websiteVisitorStats({ signal } = {}) {
   return edge('website-analytics', {}, { signal, timeout: 45_000 });
 }
 
-export async function upload(file, { kind = 'proof', order_id, token, payment_reference } = {}) {
+export async function upload(file, { kind = 'proof', order_id, token, payment_reference, payment_stage, delivery_fee_cents } = {}) {
   if (!(file instanceof File) || !file.size) throw new Error('Choose a photo to upload.');
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Choose a JPG, PNG, or WebP image.');
   if (file.size > 5 * 1024 * 1024) throw new Error('The image must be 5 MB or smaller.');
@@ -191,6 +191,7 @@ export async function upload(file, { kind = 'proof', order_id, token, payment_re
   if (order_id) body.set('order_id', order_id);
   if (token) body.set('token', token);
   if (payment_reference) body.set('payment_reference', payment_reference.trim());
+  if (payment_stage === 'delivery') { body.set('payment_stage','delivery');body.set('delivery_fee_cents',String(delivery_fee_cents)); }
   return edge('proof-upload', body);
 }
 
