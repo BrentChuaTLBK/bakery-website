@@ -30,7 +30,7 @@ import { mountCatalogOrder } from './catalog-order.js?v=branded-dialogs-1';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=branded-dialogs-1';
 
-import {mountPOS} from './pos-manager.js?v=pos-lineup-1';
+import {mountPOS} from './pos-manager.js?v=pos-workspace-1';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -178,6 +178,7 @@ async function refresh() {
   render();
 }
 function render() {
+  document.body.classList.toggle('pos-workspace',state.view==='pos');
   clearSalesChart();
   const newsletterLink=$('[data-view=newsletters]');if(newsletterLink)newsletterLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='newsletters'&&state.role!=='owner')state.view='overview';

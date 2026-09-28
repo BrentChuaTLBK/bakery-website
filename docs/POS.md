@@ -2,6 +2,16 @@
 
 Open **Admin → Point of sale**. Verified staff can record sales; owners can also create/edit pop-up events and approve date overrides.
 
+The POS has three separate areas:
+
+- **Sell:** take a pop-up sale or direct order. Only events open today appear in the counter selector.
+- **Orders:** open previous POS orders, record outstanding payments, and access customer details or receipts.
+- **Event setup** (owner): prepare events, select products, edit prices/stock, and view event sales totals. Saving stays in setup; choose **Open counter** when ready to sell.
+
+On phones, **Products** and **Basket** are separate views. The bottom bar keeps the basket total and review action within reach. Tablet and desktop layouts show products and the basket together. Dashboard navigation is tucked away on phones/tablets; **Dashboard** returns to the full admin area. Switching POS areas preserves the current sale draft unless you explicitly discard it. Event edits and unconfirmed saves are protected against accidental navigation.
+
+The separation between selling and product management takes inspiration from [Cococart's POS product-management workflow](https://support.cococart.co/en/articles/15549448-how-do-i-add-products-and-categories-to-the-pos-app). TLB retains its existing brand, event-specific stock and payment rules.
+
 ## Pop-up sales
 
 Create an event with its dates, location, products, total stock and event prices. Total stock includes units already sold. It cannot be reduced below those units. Event stock and prices are separate from website daily quantities and catalog prices.
