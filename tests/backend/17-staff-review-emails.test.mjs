@@ -117,8 +117,17 @@ export default async function ({db,check,state}) {
       const definition=await scalar("select pg_get_functiondef('public.shop_service(text,jsonb)'::regprocedure)");
       const count=await scalar('select count(*) from tlb.outbox');
       const installedQueue=await scalar("select pg_get_functiondef('tlb.queue_order_review_emails(uuid)'::regprocedure)");
-      await db.exec(migration.replace(/\r\n/g,'\n'));
-      await db.exec(migration.replace(/\r?\n/g,'\r\n'));
+      // Replay this historical migration against its original review predicate,
+      // then roll back so later delivery-stage extensions remain installed.
+      const legacy=definition.replace(/if \(case when e\.payload#>>'\{order,proof_stage\}'.*?end\) then/,"if o.payment_status<>'under_review' or o.fulfillment_status<>'pending_confirmation' then");
+      await db.exec('begin');
+      try {
+        await db.exec(legacy);
+        const replay=migration.replace(/^begin;\s*$/mi,'').replace(/^commit;\s*$/mi,'');
+        await db.exec(replay.replace(/\r\n/g,'\n'));
+        await db.exec(replay.replace(/\r?\n/g,'\r\n'));
+        assert.equal(await scalar("select pg_get_functiondef('public.shop_service(text,jsonb)'::regprocedure)"),legacy);
+      } finally { await db.exec('rollback'); }
       assert.equal(await scalar("select pg_get_functiondef('public.shop_service(text,jsonb)'::regprocedure)"),definition);
       assert.equal(await scalar('select count(*) from tlb.outbox'),count);
       for(const role of ['anon','authenticated'])assert.equal(await scalar("select has_function_privilege($1,'public.shop_service(text,jsonb)','execute')",[role]),false);

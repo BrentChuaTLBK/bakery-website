@@ -31,7 +31,7 @@ function products(order:any,photos:any[],site:string):string {
 }
 function totals(o:any):string {
  const discount=`Discount${o.promo_code||o.promo_snapshot?.code?' ('+(o.promo_code||o.promo_snapshot.code)+')':''}`;
- const rows=[['Product subtotal',money(o.subtotal_cents)],[discount,(Number(o.discount_cents)>0?'−':'')+money(o.discount_cents)],['Delivery fee',money(o.delivery_cents)]];
+ const rows=[['Product subtotal',money(o.subtotal_cents)],[discount,(Number(o.discount_cents)>0?'−':'')+money(o.discount_cents)],['Delivery fee',o.deferred_delivery&&o.delivery_payment_status==='pending'?'Pending':money(o.delivery_cents)]];
  return sectionTitle('Payment breakdown')+`<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.6">${rows.map(([k,v])=>`<tr><th scope="row" align="left" style="padding:5px 10px 5px 0;font-weight:normal;overflow-wrap:anywhere">${esc(k)}</th><td align="right" style="padding:5px 0;white-space:nowrap">${esc(v)}</td></tr>`).join('')}<tr><th scope="row" align="left" style="padding:14px 10px 0 0;border-top:1px solid #ddcdbd">Order total</th><td align="right" style="padding:14px 0 0;border-top:1px solid #ddcdbd;font-size:20px;font-weight:bold;white-space:nowrap">${esc(money(o.total_cents))}</td></tr></table>`;
 }
 function newsletter(payload:any,text:string):{html:string;text:string} {
@@ -72,16 +72,30 @@ export function renderBrandedEmail(payload:any,text:string):{html:string;text:st
   delivery_tracking_updated:['Your delivery tracking link was updated',tracking?'Your courier tracking link has changed. Use the new link below to follow your delivery. Your order page always shows the latest saved link.':'Courier tracking is temporarily unavailable. Open your order page for the latest delivery details, or contact us if you need help.'],
   order_review_required:['An order is ready for review','A customer submitted payment proof. Sign in with your staff or owner account to review it before approving or rejecting payment.'],
  };
+ if(o.source==='direct_message'&&!o.payment_deadline)copy.order_submitted=['Your order has been received','Your order is awaiting full payment. Use your private order link to view payment details and upload proof. Your reservation stays active until our team cancels it. Payment is confirmed after our team reviews your proof.'];
+ if(o.source==='popup')copy.pos_receipt=['Thank you for visiting our pop-up','Your payment has been recorded and your sale is complete. Keep this receipt for your records.'];
+ if(o.deferred_delivery){
+  const productsTotal=Number(o.total_cents)-Number(o.delivery_cents);
+  const deliveryLine=o.delivery_payment_status==='pending'?'The exact delivery fee will be added after courier booking.':`Delivery fee: ${money(o.delivery_cents)} · ${o.delivery_payment_status==='paid'?'paid':o.delivery_payment_status==='under_review'?'payment under review':'awaiting separate payment'}.`;
+  copy.order_submitted=['Your order has been received',`Pay the full product amount of ${money(productsTotal)} through your private order link. Delivery is collected separately. ${deliveryLine} Your reservation stays active until our team cancels it.`];
+  copy.payment_approved=['Your products are paid',`Your full product payment of ${money(productsTotal)} is confirmed. ${deliveryLine}`];
+  copy.delivery_fee_due=[Number(o.delivery_cents)>0?'Your exact delivery fee is ready':'No delivery fee is due',`${deliveryLine} ${o.payment_status==='paid'?'Your products are already paid.':'Pay the products first, then the delivery fee separately.'} Use your private order link for the current payment details and receipt upload.`];
+  copy.delivery_fee_paid=['Your delivery payment is confirmed',`We recorded your full delivery payment of ${money(o.delivery_paid_cents)}. Your product payment remains recorded separately.`];
+ }
+ if(review&&o.proof_stage==='delivery')copy.order_review_required=['Delivery payment is ready for review',`A customer submitted proof for the separate delivery fee of ${money(o.delivery_cents)}. The products are already paid. Sign in to review the receipt and record the delivery payment in Point of sale.`];
  const [title,message]=copy[payload.event_type]||['Your order has been updated','Open your secure order page to review the current details and history. For an order already paid, payment remains recorded and our team handles any difference directly with you.'];
  let alert='';
- if(payload.event_type==='order_submitted')alert=emailPanel(sectionTitle('Payment instructions')+paragraph(s.payment_instructions||'Open your order page for payment instructions.')+`<p style="margin:0"><strong>Payment-proof deadline</strong><br>${esc(date(o.payment_deadline,true))}</p>`,'#f4ded2');
+ if(payload.event_type==='order_submitted')alert=emailPanel(sectionTitle('Payment instructions')+paragraph(s.payment_instructions||'Open your order page for payment instructions.')+`<p style="margin:0">${o.source==='direct_message'&&!o.payment_deadline?'Your reservation stays active until our team cancels it.':`<strong>Payment-proof deadline</strong><br>${esc(date(o.payment_deadline,true))}`}</p>`,'#f4ded2');
  if(['payment_rejected','order_expired'].includes(payload.event_type))alert=emailPanel(paragraph('You may place a new order, subject to current prices and availability. If you already transferred funds, contact us about that payment before making any further payment.'),'#f4ded2');
  if(payload.event_type==='order_cancelled')alert=emailPanel(paragraph('Cancellation does not confirm a refund. Our team handles any refund directly with you; contact us with questions about an existing payment.'),'#f4ded2');
  const pickup=o.method!=='delivery';
- let fulfillment=sectionTitle(pickup?'Pickup details':'Delivery details')+`<p style="margin:0 0 14px;font-weight:bold">${esc(date(o.fulfillment_date))}</p>`;
+ let fulfillment=sectionTitle(o.source==='popup'?'In-person sale':pickup?'Pickup details':'Delivery details')+`<p style="margin:0 0 14px;font-weight:bold">${esc(date(o.fulfillment_date))}</p>`;
  if(review)fulfillment+=paragraph(`Customer: ${o.buyer_name||'See the order in the dashboard'}`);
+ else if(o.source==='popup')fulfillment+=paragraph([o.event_name,o.event_location].filter(Boolean).join(' · '));
  else if(pickup)fulfillment+=paragraph(s.pickup_address||'See your order page for the pickup address.')+(s.pickup_hours?paragraph('Opening hours: '+s.pickup_hours):'')+(s.pickup_instructions?paragraph(s.pickup_instructions):'');
  else fulfillment+=paragraph([o.recipient?.name,o.recipient?.phone,o.address?.line1,o.address?.line2,o.address?.locality,o.address?.postal_code].filter(Boolean).join('\n'))+paragraph('Delivery window: '+(s.delivery_window||'See your order page')+'. Arrival can be anytime within this window; no exact time is guaranteed.')+(o.delivery_zone_name?paragraph('Delivery zone: '+o.delivery_zone_name):'')+(o.delivery_zone_description?paragraph(o.delivery_zone_description):'');
+ if(o.source&&o.source!=='website'&&o.payment_method)fulfillment+=sectionTitle('Payment received')+paragraph(({cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'} as Record<string,string>)[o.payment_method]||o.payment_method)+(o.payment_method==='cash'?paragraph(`Cash received: ${money(o.cash_received_cents)}\nChange: ${money(o.change_cents)}`):'');
+ if(o.deferred_delivery&&o.delivery_paid_cents)fulfillment+=sectionTitle('Delivery payment received')+paragraph(`${money(o.delivery_paid_cents)} · ${({cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'} as Record<string,string>)[o.delivery_payment_method]||o.delivery_payment_method}`)+(o.delivery_payment_method==='cash'?paragraph(`Delivery cash received: ${money(o.delivery_cash_received_cents)}\nDelivery change: ${money(o.delivery_change_cents)}`):'');
  if(tracking)fulfillment+=emailButton('Track delivery',tracking);
  // Keep every existing payload without tracking byte-identical for provider
  // retries. The legacy renderer remains unchanged, including v1 payloads.

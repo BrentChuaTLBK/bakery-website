@@ -44,6 +44,9 @@ function nonnegativeInteger(value) {
 }
 
 const cents = value => nonnegativeInteger(value) ?? 0;
+const deliveryCollected = order => order.deferred_delivery&&order.delivery_payment_status!=='paid'?0:cents(order.delivery_cents);
+const reportTotal = order => cents(order.total_cents)-cents(order.delivery_cents)+deliveryCollected(order);
+const approvedTotal = order => cents(order.paid_amount_cents)+cents(order.delivery_paid_cents);
 const monthNumber = date => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
 const monthStart = number => `${String(Math.floor(number / 12)).padStart(4, '0')}-${String(number % 12 + 1).padStart(2, '0')}-01`;
 
@@ -69,10 +72,10 @@ function makeTrend(rows, start, end, today) {
     bucket.orderCount++;
     if (order.payment_status === 'paid') {
       bucket.paidOrderCount++;
-      bucket.approvedPaymentsCents += cents(order.paid_amount_cents);
+      bucket.approvedPaymentsCents += approvedTotal(order);
       if (!CLOSED.has(order.fulfillment_status) && order.refund_label !== true) {
         bucket.activePaidOrderCount++;
-        bucket.currentOrderValueCents += cents(order.total_cents);
+        bucket.currentOrderValueCents += reportTotal(order);
       }
     }
   }
@@ -97,7 +100,7 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
     currentProductValueCents: 0, currentDiscountCents: 0, currentDeliveryCents: 0,
     additionalPaymentCents: 0, refundDifferenceCents: 0,
     awaitingPaymentCount: 0, underReviewCount: 0, expiredCount: 0, cancelledCount: 0,
-    refundFlaggedCount: 0, paidAdjustmentCount: 0, pickupCount: 0, deliveryCount: 0,
+    refundFlaggedCount: 0, paidAdjustmentCount: 0, pickupCount: 0, deliveryCount: 0, popupCount:0,
     refundedPaidOrderCount: 0, fullRefundOrderValueCents: 0,
     customerCount: 0, repeatCustomerCount: 0, completedOrderCount: 0, toFulfillCount: 0,
     promoUseCount: 0, distinctPromoCodeCount: 0, promoCodes: [],
@@ -125,8 +128,8 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
     if (!closed && order.refund_label !== true && order.payment_status === 'under_review') result.underReviewCount++;
     if (order.payment_status !== 'paid') return;
     result.paidOrderCount++;
-    const approved = nonnegativeInteger(order.paid_amount_cents);
-    const current = nonnegativeInteger(order.total_cents);
+    const approved = nonnegativeInteger(order.paid_amount_cents)===null?null:approvedTotal(order);
+    const current = nonnegativeInteger(order.total_cents)===null?null:reportTotal(order);
     if (approved === null) result.missingApprovedAmountCount++;
     else {
       result.approvedAmountOrderCount++;
@@ -156,13 +159,14 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
       promo.discountCents += discount;
       result.promoUseCount++;
     }
-    if (order.method === 'pickup') result.pickupCount++;
+    if (order.source === 'popup') result.popupCount++;
+    else if (order.method === 'pickup') result.pickupCount++;
     if (order.method === 'delivery') result.deliveryCount++;
     result.activePaidOrderCount++;
     result.currentOrderValueCents += current ?? 0;
     result.currentProductValueCents += cents(order.subtotal_cents);
     result.currentDiscountCents += cents(order.discount_cents);
-    result.currentDeliveryCents += cents(order.delivery_cents);
+    result.currentDeliveryCents += deliveryCollected(order);
     if (approved !== null && current !== null) {
       result.additionalPaymentCents += Math.max(0, current - approved);
       result.refundDifferenceCents += Math.max(0, approved - current);

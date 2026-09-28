@@ -21,7 +21,12 @@ Deno.serve(endpoint(async (request, headers) => {
   const suppliedReference = form.get("payment_reference");
   if (suppliedReference !== null && typeof suppliedReference !== "string") throw new HttpError(400, "Payment reference must be text.");
   const paymentReference = field(suppliedReference, "Payment reference", 200);
-  const authorization = await service("authorize_upload", { kind, order_id: orderId, token, user_id: userId });
+  const stage = field(form.get("payment_stage"),"Payment stage",16);
+  if(stage && stage !== "delivery") throw new HttpError(400,"Invalid payment stage.");
+  const deliveryFee = stage === "delivery" ? field(form.get("delivery_fee_cents"),"Delivery amount",10,true) : "";
+  if(stage === "delivery" && (kind !== "proof" || !/^[0-9]{1,9}$/.test(deliveryFee))) throw new HttpError(400,"Invalid delivery amount.");
+  const delivery = stage === "delivery" ? {payment_stage:stage,delivery_fee_cents:deliveryFee} : {};
+  const authorization = await service("authorize_upload", { kind, order_id: orderId, token, user_id: userId,...delivery });
   if (!authorization?.allowed) throw new HttpError(403, "You cannot upload an image for this request.");
   const bucket = kind === "proof" ? "payment-proofs" : "product-images";
   const path = `${kind === "proof" ? orderId : userId}/${crypto.randomUUID()}.${image.extension}`;
@@ -31,7 +36,7 @@ Deno.serve(endpoint(async (request, headers) => {
   }
   try {
     // Locks and validates the order again, closing the upload/expiry/rejection race.
-    const order = await service("commit_proof", { order_id: orderId, token, user_id: userId, path, payment_reference: paymentReference });
+    const order = await service("commit_proof", { order_id: orderId, token, user_id: userId, path, payment_reference: paymentReference,...delivery });
     return json({ order }, 201, headers);
   } catch (error) {
     try { await storageRequest(`object/${bucket}`, "DELETE", JSON.stringify({ prefixes: [path] }), "application/json"); }

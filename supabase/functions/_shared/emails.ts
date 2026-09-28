@@ -29,13 +29,13 @@ const selections = (item: any): string => (Array.isArray(item.selection_labels) 
 function renderReviewEmail(order: any, settings: any, site: URL): { html: string; text: string } {
   const link = new URL("manage.html", site).toString();
   const shop = settings.shop_name || "The Little Baker Kitchen";
-  const heading = "An order is ready for review";
-  const message = "A customer has submitted payment proof. Sign in with your staff or owner account, open the order below, and review the proof before approving or rejecting payment.";
+  const heading = order.proof_stage==='delivery'?"Delivery payment is ready for review":"An order is ready for review";
+  const message = order.proof_stage==='delivery'?`A customer submitted proof for the separate delivery fee of ${money(order.delivery_cents)}. The products are already paid. Sign in to review the receipt and record the delivery payment in Point of sale.`:"A customer has submitted payment proof. Sign in with your staff or owner account, open the order below, and review the proof before approving or rejecting payment.";
   // Older queued messages must keep their original provider retry body.
   const detailed = Array.isArray(order.items) && ["subtotal_cents", "discount_cents", "delivery_cents", "total_cents"]
     .every(key => order[key] !== null && order[key] !== undefined && Number.isFinite(Number(order[key])));
   const items = detailed ? order.items : [];
-  const details = `Order reference: ${order.reference}\nCustomer: ${order.buyer_name || "See the order in the dashboard"}\nFulfillment: ${date(order.fulfillment_date)} · ${order.method}${detailed ? "" : `\nOrder total: ${money(order.total_cents)}`}`;
+  const details = `Order reference: ${order.reference}\nCustomer: ${order.buyer_name || "See the order in the dashboard"}\nFulfillment: ${date(order.fulfillment_date)} · ${order.source === "popup" ? "In-person sale" : order.method}${detailed ? "" : `\nOrder total: ${money(order.total_cents)}`}`;
   const discountLabel = `Discount${order.promo_code ? ` (${order.promo_code})` : ""}`;
   const discount = `${Number(order.discount_cents) > 0 ? "−" : ""}${money(order.discount_cents)}`;
   const itemText = items.map((item: any) => `${item.quantity} × ${item.name}${selections(item) ? `\n  ${selections(item)}` : ""}\n  ${money(item.unit_price_cents)} each · Line total: ${money(item.line_total_cents)}`).join("\n\n");
@@ -81,14 +81,20 @@ function renderLegacyEmail(payload: any): { html: string; text: string } {
   const link = access.toString();
   const contact = [settings.contact_email, settings.contact_phone].filter(Boolean).join(" · ");
   const reason = [...(order.history || [])].reverse().find((event: any) => event.reason && !event.private)?.reason || payload.reason || "See your order page for details.";
+  const direct = order.source === 'direct_message' && !order.payment_deadline;
+  const popup = order.source === 'popup';
   let heading: string;
   let message: string;
   let instructions = "";
   switch (payload.event_type) {
     case "order_submitted":
       heading = "Your order has been received";
-      message = "Your order is awaiting full initial payment and manual approval. Upload your proof of payment through the secure order link before the deadline. A payment reference is optional. Uploading proof places the payment under review; it does not confirm payment.";
-      instructions = `Payment instructions:\n${settings.payment_instructions || "Open your order page for payment instructions."}\n\nPayment-proof deadline: ${date(order.payment_deadline, true)}.`;
+      message = direct ? "Your order is awaiting full payment. Use your private order link to view payment details and upload proof. Your reservation stays active until our team cancels it. Payment is confirmed after our team reviews your proof." : "Your order is awaiting full initial payment and manual approval. Upload your proof of payment through the secure order link before the deadline. A payment reference is optional. Uploading proof places the payment under review; it does not confirm payment.";
+      instructions = `Payment instructions:\n${settings.payment_instructions || "Open your order page for payment instructions."}${direct ? '\n\nThis reservation has no automatic payment deadline.' : `\n\nPayment-proof deadline: ${date(order.payment_deadline, true)}.`}`;
+      break;
+    case "pos_receipt":
+      heading = "Thank you for visiting our pop-up";
+      message = "Your payment has been recorded and your sale is complete. Keep this receipt for your records.";
       break;
     case "payment_approved":
       heading = "Payment approved · order confirmed";
@@ -130,17 +136,29 @@ function renderLegacyEmail(payload: any): { html: string; text: string } {
       message = "Our team updated your order. Open the secure order page to review the current details and history. For an order already paid, payment remains recorded and our team handles any difference directly with you.";
   }
   // Zone details belong to the saved order, not the zone's current configuration.
+  if(order.deferred_delivery){
+    const productsTotal=Number(order.total_cents)-Number(order.delivery_cents);
+    const deliveryLine=order.delivery_payment_status==='pending'?'The exact delivery fee will be added after courier booking.':`Delivery fee: ${money(order.delivery_cents)} · ${order.delivery_payment_status==='paid'?'paid':order.delivery_payment_status==='under_review'?'payment under review':'awaiting separate payment'}.`;
+    if(payload.event_type==='order_submitted')message=`Pay the full product amount of ${money(productsTotal)} through your private order link. Delivery is collected separately. ${deliveryLine} Your reservation stays active until our team cancels it.`;
+    if(payload.event_type==='payment_approved')message=`Your full product payment of ${money(productsTotal)} is confirmed. ${deliveryLine}`;
+    if(payload.event_type==='delivery_fee_due'){
+      heading=Number(order.delivery_cents)>0?'Your exact delivery fee is ready':'No delivery fee is due';
+      message=`${deliveryLine} ${order.payment_status==='paid'?'Your products are already paid.':'Pay the products first, then the delivery fee separately.'} Use your private order link for the current payment details and receipt upload.`;
+    }
+    if(payload.event_type==='delivery_fee_paid'){heading='Your delivery payment is confirmed';message=`We recorded your full delivery payment of ${money(order.delivery_paid_cents)}. Your product payment remains recorded separately.`;}
+  }
   const deliveryZone = [
     typeof order.delivery_zone_name === "string" && order.delivery_zone_name.trim() ? `Delivery zone: ${order.delivery_zone_name}` : "",
     typeof order.delivery_zone_description === "string" && order.delivery_zone_description.trim() ? order.delivery_zone_description : "",
   ].filter(Boolean).join("\n");
-  const fulfillment = order.method === "delivery"
+  const fulfillment = popup ? [order.event_name, order.event_location].filter(Boolean).join("\n") : order.method === "delivery"
     ? [`Delivery window: ${settings.delivery_window || "See your order page"}. Arrival can be anytime within this window; no exact time is guaranteed.`, [order.recipient?.name, order.recipient?.phone, order.address?.line1, order.address?.line2, order.address?.locality, order.address?.postal_code].filter(Boolean).join("\n"), deliveryZone].filter(Boolean).join("\n")
     : [settings.pickup_address, settings.pickup_hours && `Opening hours: ${settings.pickup_hours}`, settings.pickup_instructions].filter(Boolean).join("\n");
   const items = Array.isArray(order.items) ? order.items : [];
   const itemText = items.map((item: any) => `${item.quantity} × ${item.name}${selections(item) ? ` (${selections(item)})` : ""} — ${money(item.line_total_cents)}`).join("\n");
-  const totals = `Product subtotal: ${money(order.subtotal_cents)}\nDiscount: ${money(order.discount_cents)}\nDelivery fee: ${money(order.delivery_cents)}\nCurrent order total: ${money(order.total_cents)}`;
-  const text = `${settings.shop_name || "The Little Baker Kitchen"}\n${heading}\nOrder reference: ${order.reference}\n\n${message}\n\n${instructions ? `${instructions}\n\n` : ""}Fulfillment: ${date(order.fulfillment_date)} · ${order.method}\n${fulfillment}\n\n${itemText}\n\n${totals}\n\nView your order securely:\n${link}\n\nKeep this link private; it grants access to this order.\nFor changes, cancellations, or payment concerns, contact us${contact ? `: ${contact}` : " using the details on your order page"}.`;
-  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#fff8f2;font-family:Arial,sans-serif;color:#342320"><table role="presentation" width="100%" style="padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" style="max-width:600px;background:white;border:1px solid #eedbd2;border-radius:12px"><tr><td style="padding:28px"><p style="color:#af4947;font-weight:bold">${escape(settings.shop_name || "The Little Baker Kitchen")}</p><h1 style="font-size:25px;line-height:1.25">${escape(heading)}</h1><p><strong>Order ${escape(order.reference)}</strong></p><p style="line-height:1.6">${escape(message)}</p>${instructions ? `<p style="line-height:1.6;background:#fff8f2;padding:16px">${lines(instructions)}</p>` : ""}<h2 style="font-size:18px">${escape(date(order.fulfillment_date))} · ${escape(order.method)}</h2><p style="line-height:1.6">${lines(fulfillment)}</p><table width="100%" style="border-collapse:collapse">${items.map((item: any) => `<tr><td style="padding:10px 0;border-bottom:1px solid #eedbd2">${escape(item.quantity)} × ${escape(item.name)}${selections(item) ? `<br><small>${escape(selections(item))}</small>` : ""}</td><td align="right" style="padding:10px 0;border-bottom:1px solid #eedbd2;white-space:nowrap">${escape(money(item.line_total_cents))}</td></tr>`).join("")}</table><p style="line-height:1.7">${lines(totals)}</p><p style="margin:28px 0"><a href="${escape(link)}" style="background:#af4947;color:#fff;padding:13px 20px;text-decoration:none;border-radius:6px;display:inline-block">View your order</a></p><p style="font-size:12px;color:#695955;line-height:1.5">Keep this link private; it grants access to this order.</p><p style="font-size:14px;line-height:1.6">For changes, cancellations, or payment concerns, contact us${contact ? `: ${escape(contact)}` : " using the details on your order page"}.</p></td></tr></table></td></tr></table></body></html>`;
+  const totals = `Product subtotal: ${money(order.subtotal_cents)}\nDiscount: ${money(order.discount_cents)}\nDelivery fee: ${order.deferred_delivery&&order.delivery_payment_status==='pending'?'Pending':money(order.delivery_cents)}\nCurrent order total: ${money(order.total_cents)}${order.source && order.source !== "website" && order.payment_method ? `\nPayment method: ${({cash:"Cash",gcash:"GCash",bdo:"BDO",eastwest:"EastWest"} as Record<string,string>)[order.payment_method] || order.payment_method}${order.payment_method === "cash" ? `\nCash received: ${money(order.cash_received_cents)}\nChange: ${money(order.change_cents)}` : ""}` : ""}`;
+  const deliveryPayment = order.deferred_delivery&&order.delivery_paid_cents?`\nDelivery payment received: ${money(order.delivery_paid_cents)} · ${order.delivery_payment_method}${order.delivery_payment_method==='cash'?`\nDelivery cash received: ${money(order.delivery_cash_received_cents)}\nDelivery change: ${money(order.delivery_change_cents)}`:''}`:'';
+  const text = `${settings.shop_name || "The Little Baker Kitchen"}\n${heading}\nOrder reference: ${order.reference}\n\n${message}\n\n${instructions ? `${instructions}\n\n` : ""}Fulfillment: ${date(order.fulfillment_date)} · ${order.source === "popup" ? "In-person sale" : order.method}\n${fulfillment}\n\n${itemText}\n\n${totals}${deliveryPayment}\n\nView your order securely:\n${link}\n\nKeep this link private; it grants access to this order.\nFor changes, cancellations, or payment concerns, contact us${contact ? `: ${contact}` : " using the details on your order page"}.`;
+  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#fff8f2;font-family:Arial,sans-serif;color:#342320"><table role="presentation" width="100%" style="padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" style="max-width:600px;background:white;border:1px solid #eedbd2;border-radius:12px"><tr><td style="padding:28px"><p style="color:#af4947;font-weight:bold">${escape(settings.shop_name || "The Little Baker Kitchen")}</p><h1 style="font-size:25px;line-height:1.25">${escape(heading)}</h1><p><strong>Order ${escape(order.reference)}</strong></p><p style="line-height:1.6">${escape(message)}</p>${instructions ? `<p style="line-height:1.6;background:#fff8f2;padding:16px">${lines(instructions)}</p>` : ""}<h2 style="font-size:18px">${escape(date(order.fulfillment_date))} · ${escape(order.source === "popup" ? "In-person sale" : order.method)}</h2><p style="line-height:1.6">${lines(fulfillment)}</p><table width="100%" style="border-collapse:collapse">${items.map((item: any) => `<tr><td style="padding:10px 0;border-bottom:1px solid #eedbd2">${escape(item.quantity)} × ${escape(item.name)}${selections(item) ? `<br><small>${escape(selections(item))}</small>` : ""}</td><td align="right" style="padding:10px 0;border-bottom:1px solid #eedbd2;white-space:nowrap">${escape(money(item.line_total_cents))}</td></tr>`).join("")}</table><p style="line-height:1.7">${lines(totals+deliveryPayment)}</p><p style="margin:28px 0"><a href="${escape(link)}" style="background:#af4947;color:#fff;padding:13px 20px;text-decoration:none;border-radius:6px;display:inline-block">View your order</a></p><p style="font-size:12px;color:#695955;line-height:1.5">Keep this link private; it grants access to this order.</p><p style="font-size:14px;line-height:1.6">For changes, cancellations, or payment concerns, contact us${contact ? `: ${escape(contact)}` : " using the details on your order page"}.</p></td></tr></table></td></tr></table></body></html>`;
   return { html, text };
 }

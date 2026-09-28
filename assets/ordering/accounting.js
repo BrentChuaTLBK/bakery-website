@@ -1,4 +1,4 @@
-export const accountingPaymentMethods = {gcash: 'GCash', cash: 'Cash', bank_transfer: 'Bank Transfer'};
+export const accountingPaymentMethods = {gcash: 'GCash', cash: 'Cash', bdo:'BDO', eastwest:'EastWest', bank_transfer: 'Bank Transfer'};
 
 export function accountingTotals(report) {
   const summary = report.summary || [];

@@ -37,9 +37,14 @@ export default async function({db,check,state}) {
  })();
  await check('entry-details migration can be replayed without losing saved names or payment methods',async()=>{
   const e=await call('save_entry',{...base(),client_name:'Replay fixture',payment_method:'cash'});
-  await db.exec(await readFile(new URL('../../supabase/migrations/20260926024704_accounting_shared_categories.sql',import.meta.url),'utf8'));
+  // Keep the historical function replacements local to this replay test.
+  await db.exec('begin;');
+  try {
+  const migration=await readFile(new URL('../../supabase/migrations/20260926024704_accounting_shared_categories.sql',import.meta.url),'utf8');
+  await db.exec(migration.replace(/^begin;\s*/,'').replace(/commit;\s*$/,''));
   const r=await call('report',{start:today,end:today}),entry=r.entries.find(x=>x.id===e.id);
   assert.equal(entry.client_name,'Replay fixture');assert.equal(entry.payment_method,'cash');assert.equal(entry.revision,1);
   assert.equal(await h.scalar("select has_function_privilege('authenticated','tlb.accounting_api(uuid,text,jsonb)','execute')"),false);
+  } finally {await db.exec('rollback;');}
  })();
 }
