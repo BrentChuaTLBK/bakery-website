@@ -22,16 +22,10 @@ function startCarousels() {
     const instance = Carousel.getOrCreateInstance(el, { interval: 4000, pause: 'hover', touch: true });
     if (reduced || count < 2) instance.pause(); else instance.cycle();
     if (count < 2) return;
-    const pause = document.createElement('button');
-    pause.type = 'button'; pause.className = 'home-carousel-pause'; pause.setAttribute('aria-label','Pause slideshow');
-    let stopped = reduced;
-    const paint = () => { pause.textContent = stopped ? 'Play' : 'Pause'; pause.setAttribute('aria-label',`${stopped?'Play':'Pause'} slideshow`); };
-    pause.addEventListener('click', () => { stopped = !stopped; if(stopped) instance.pause(); else instance.cycle(); paint(); });
-    el.addEventListener('slid.bs.carousel', () => { if(stopped) instance.pause(); });
-    el.addEventListener('mouseleave', () => { if(stopped) instance.pause(); });
+    el.addEventListener('slid.bs.carousel', () => { if(reduced) instance.pause(); });
+    el.addEventListener('mouseleave', () => { if(reduced) instance.pause(); });
     el.addEventListener('focusin', () => instance.pause());
-    el.addEventListener('focusout', e => { if(!stopped && !el.contains(e.relatedTarget)) instance.cycle(); });
-    paint(); el.append(pause);
+    el.addEventListener('focusout', e => { if(!reduced && !el.contains(e.relatedTarget)) instance.cycle(); });
   });
 }
 

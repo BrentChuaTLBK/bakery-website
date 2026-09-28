@@ -74,12 +74,13 @@ try{
   assert.equal(await page.locator('#carousel-1 .carousel-item').count(),4);assert.equal(await page.locator('#home-specialty-3 .carousel-item').count(),2);
   assert.equal(await page.locator('#carousel-1 summer').count(),0);assert.equal(await page.locator('#carousel-1 .carousel-item').nth(1).locator('h1').innerText(),'Baking classes <summer>');
   await page.waitForFunction(()=>document.querySelector('#carousel-1 .carousel-item.active')!==document.querySelector('#carousel-1 .carousel-item'),{},{timeout:7500});
-  await page.locator('#carousel-1 .home-carousel-pause').click();
+  assert.equal(await page.getByRole('button',{name:/^(pause|play) slideshow$/i}).count(),0);
   await page.evaluate(()=>document.querySelectorAll('.carousel').forEach(el=>window.bootstrap.Carousel.getInstance(el)?.pause()));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#carousel-1').screenshot({path:join(out,`banner-${width}.png`)});
   await page.locator('.home-specialties').scrollIntoViewIfNeeded();await page.locator('.home-specialties').screenshot({path:join(out,`categories-${width}.png`)});
-  offline=true;await page.reload();await page.waitForFunction(()=>document.querySelector('#carousel-1 .home-carousel-pause'));
+  offline=true;await page.reload();await page.waitForLoadState('networkidle');
+  assert.equal(await page.getByRole('button',{name:/^(pause|play) slideshow$/i}).count(),0);
   assert.equal(await page.locator('#carousel-1 .carousel-item').count(),4);assert.equal(await page.locator('.specialty-grid>.col').count(),4);assert.equal(await page.locator('.home-managed-banner').count(),0);
   assert.deepEqual(errors,[]);results.push({width,role,passed:true,uploads:uploads.length,calls});await context.close();console.log('PASS Home page editor, navigation, upload, save, carousel and outage fallback: '+width);
  }
