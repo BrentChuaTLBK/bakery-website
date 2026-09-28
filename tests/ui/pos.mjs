@@ -87,6 +87,7 @@ try{
   };
   await page.goto(origin+'/manage.html#pos');await page.locator('[data-pos=add]').first().waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  assert.equal(await page.locator('.pos-section-nav button').evaluateAll(buttons=>buttons.every(button=>{const r=button.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.height>=44})),true,'Every POS section is visible and touch-sized without horizontal scrolling');
   assert.equal(await page.locator('[data-pos=event-new]').count(),0);assert.equal(await page.locator('[data-pos=event-edit]').count(),0);assert.equal(await page.locator('.pos-recent').count(),0);
   assert.equal(await page.locator('[data-pos=section][data-section=setup]').count(),role==='owner'?1:0);
   if(width<760){assert.equal(await page.locator('.admin-sidebar').isVisible(),false);assert.equal(await page.locator('.pos-basket-panel').isVisible(),false);const dock=await page.locator('.pos-mobile-dock').boundingBox();assert.ok(dock.y+dock.height<=845);assert.ok(dock.y>700)}

@@ -1,6 +1,6 @@
 import {uploadNewsletterImage,newsletterImageAccept} from './newsletter-image.js?v=newsletter-photos-1';
 import {newsletterAdmin} from './newsletter-admin-client.js';
-import {newsletterTemplates,renderNewsletterCampaign,sampleNewsletter} from './newsletter-templates.js?v=offer-templates-1';
+import {newsletterTemplates,renderNewsletterCampaign,sampleNewsletter} from './newsletter-templates.js?v=offer-heading-2';
 import {newsletterPromos,newsletterPromoOffer} from './newsletter-promo-offer.js?v=offer-templates-1';
 import {offerLabel,offerTerms} from './newsletter-offer.js?v=newsletter-settings-1';
 import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';

@@ -1,5 +1,5 @@
 import {paymentSettingsMarkup,readPaymentSettings,bindPaymentSettings} from './payment-options-manager.js?v=settings-layout-2';
-import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=offer-templates-1';
+import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=offer-heading-2';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
 import { mountAcademy } from './academy-manager.js?v=admin-lazy-1';
