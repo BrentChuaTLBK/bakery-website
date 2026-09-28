@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {createRequire} from 'node:module';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
@@ -49,8 +50,8 @@ try{
  await page.locator('#review-order').click();assert.match(await page.locator('#place-order').innerText(),/810\.00/);
  await page.goto(origin+'/manage.html',{waitUntil:'networkidle'});
  await shot(page,'manage-desktop.png',{ fullPage:true });
- for(const view of ['orders','products','inventory','promos','settings','team']){await page.locator(`[data-view="${view}"]`).click();assert.ok((await page.locator('#workspace').innerText()).length>100)}
- await page.locator('[data-view="products"]').click();await page.getByRole('button',{name:'Add product',exact:false}).first().click();await shot(page,'product-admin.png',{  });
+ for(const view of ['orders','products','inventory','promos','settings','team']){await selectDashboardSection(page, view);assert.ok((await page.locator('#workspace').innerText()).length>100)}
+ await selectDashboardSection(page, 'products');await page.getByRole('button',{name:'Add product',exact:false}).first().click();await shot(page,'product-admin.png',{  });
  await page.locator('#dialog-close').click();await page.setViewportSize({width:390,height:844});await shot(page,'manage-mobile.png',{ fullPage:true });assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
  await page.goto(origin+'/account.html',{waitUntil:'networkidle'});await shot(page,'account-mobile.png',{ fullPage:true });assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);
  await page.goto(origin+'/shop.html',{waitUntil:'networkidle'});assert.equal(await page.locator('.product-card').count(),0);assert.match(await page.locator('#app').innerText(),/backend setup pending/);

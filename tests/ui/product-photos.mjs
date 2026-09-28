@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Exercise real mouse, keyboard and touch gestures against the product editor.
 // APIs and uploads are local fixtures; no production requests are allowed.
@@ -53,7 +54,7 @@ async function context(options={}) {
 }
 async function openEditor(page) {
   await page.goto(`${origin}/manage.html`,{waitUntil:'networkidle'});
-  await page.locator('[data-view="products"]').first().click();
+  await selectDashboardSection(page, 'products');
   await page.locator('[data-action="edit-product"]').first().click();
   await page.locator('.photo-list').scrollIntoViewIfNeeded();
 }

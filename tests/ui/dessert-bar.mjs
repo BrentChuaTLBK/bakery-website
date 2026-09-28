@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Browser fixtures only. No production sign-in, uploads or content writes.
 import { createRequire } from 'node:module';
@@ -94,15 +95,15 @@ try {
   await admin.locator('[data-cart-photo-upload]').setInputFiles([{name:'dessert-one.png',mimeType:'image/png',buffer:png},{name:'dessert-two.png',mimeType:'image/png',buffer:png}]);
   await admin.locator('[data-cart-photo-message]').filter({hasText:'2 photos ready'}).waitFor();assert(uploads.every(f=>f.type==='image/webp'&&f.name.endsWith('.webp')));
   await admin.locator('[data-cart-photo-caption="0"]').fill('Dessert table');await admin.locator('[data-photo-move="0"]').press('ArrowRight');
-  await admin.locator('[data-view="packages"]').click();await admin.getByRole('dialog').getByRole('button',{name:'Keep editing'}).click();assert.equal(await admin.locator('#party-package-manager h1').innerText(),'Dessert bar');
+  await selectDashboardSection(admin, 'packages');await admin.getByRole('dialog').getByRole('button',{name:'Keep editing'}).click();assert.equal(await admin.locator('#party-package-manager h1').innerText(),'Dessert bar');
   await admin.locator('[data-cart-photo-save]').click();await admin.locator('[data-cart-photo-message]').filter({hasText:'Saved.'}).waitFor();
   await publicPage.reload();await publicPage.locator('.party-card').waitFor();await publicPage.locator('[data-cart-thumb]').first().waitFor();
   assert.equal(await publicPage.locator('.party-card h3').innerText(),'Dessert tasting');assert(await publicPage.locator('.party-feature-detail').isVisible());
   assert.equal(await publicPage.locator('summary,[data-slideshow-toggle]').count(),0);
   assert.deepEqual(await publicPage.locator('[data-party-cart-item]').allTextContents(),['Tiramisu cups','Brownie bites']);
   assert.deepEqual(await publicPage.locator('[data-cart-thumb] img').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('src'))),photos.items.map(p=>p.photo_url));
-  await admin.locator('[data-view="packages"]').click();await admin.locator('.party-admin-item h2').filter({hasText:'Party-only package'}).waitFor();
-  await admin.locator('[data-view="dessert"]').click();await admin.locator('.party-admin-item h2').filter({hasText:'Dessert tasting'}).waitFor();
+  await selectDashboardSection(admin, 'packages');await admin.locator('.party-admin-item h2').filter({hasText:'Party-only package'}).waitFor();
+  await selectDashboardSection(admin, 'dessert');await admin.locator('.party-admin-item h2').filter({hasText:'Dessert tasting'}).waitFor();
   await admin.reload();await admin.locator('.party-admin-item h2').filter({hasText:'Dessert tasting'}).waitFor();
   const phoneCtx=await context('owner',true),phone=await phoneCtx.newPage();await phone.goto(origin+'/dessertbar.html');await phone.locator('[data-cart-thumb]').first().waitFor();
   assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // Isolated tracking UI checks. All requests are intercepted; no live orders or email.
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -49,7 +50,7 @@ async function setup(width,role){
 try{
  for(const [width,role] of [[1440,'owner'],[390,'staff']]){
   const {page,context,orders,calls,errors,unexpected}=await setup(width,role);
-  await page.goto(origin+'/manage.html');await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order][data-id=delivery]').waitFor();
+  await page.goto(origin+'/manage.html');await selectDashboardSection(page, 'orders');await page.locator('[data-action=open-order][data-id=delivery]').waitFor();
   await page.locator('[data-action=open-order][data-id=delivery]').click();await page.locator('[data-action=edit-order]').click();
   const form=page.locator('[data-form=order-edit]'),tracking=form.locator('[name=delivery_tracking_url]');
   assert.equal(await tracking.isVisible(),true);assert.equal(await tracking.isEnabled(),true);assert.equal(await tracking.inputValue(),'');

@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // Real HEIC decoding uses the pinned local decoder. All external requests fail.
 // Catalog, authentication and uploaded files remain local fixtures.
 import { createRequire } from 'node:module';
@@ -49,7 +50,7 @@ try {
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${origin}/manage.html`, {waitUntil: 'networkidle'});
     if(errors.length){await page.screenshot({path:join(output,`initialization-error-${mobile?'mobile':'desktop'}.png`)});assert.deepEqual(errors,[],'Dashboard modules must initialize without missing client exports');}
-    await page.locator('[data-view="products"]').first().click();
+    await selectDashboardSection(page, 'products');
     await page.locator('[data-action="edit-product"]').first().click();
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await page.locator('[name="description"]').fill('Preserve this draft');

@@ -1,3 +1,4 @@
+import {bindDashboardNav} from './dashboard-nav.js?v=grouped-nav-1';
 import {paymentSettingsMarkup,readPaymentSettings,bindPaymentSettings} from './payment-options-manager.js?v=settings-layout-2';
 import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=offer-heading-2';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
@@ -30,6 +31,7 @@ import { mountCatalogOrder } from './catalog-order.js?v=branded-dialogs-1';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=branded-dialogs-1';
 
+import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
 import {mountPOS} from './pos-manager.js?v=direct-order-edits-1';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
@@ -58,6 +60,9 @@ let editDraft = null;
 let modalReturnFocus = null;
 let promoStatusTimer = null;
 let clearSalesChart = () => {};
+let calendarController=null;
+state.calendarFilters={};
+if(/^#calendar(?:\?|$)/.test(location.hash))state.view='calendar';
 state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
 const visitorPoller = createVisitorPoller({
   fetchReport: websiteVisitorStats,
@@ -71,9 +76,10 @@ function syncVisitorPolling() { visitorPoller.setActive(state.connected && state
 document.addEventListener('visibilitychange', syncVisitorPolling);
 window.addEventListener('pagehide', () => visitorPoller.setActive(false));
 window.addEventListener('pageshow', syncVisitorPolling);
+window.addEventListener('pageshow', event => {if(event.persisted&&state.view==='calendar')render();});
 document.addEventListener('visibilitychange', syncPromoStatuses);
 window.addEventListener('pageshow', syncPromoStatuses);
-window.addEventListener('pagehide', () => clearTimeout(promoStatusTimer));
+window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();});
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
   if (catalogOrder?.dirty || catalogOrder?.busy || ['#pos-manager','#payment-options-editor','#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
@@ -177,7 +183,9 @@ async function refresh() {
   $('#shop-status').textContent = state.settings.paused ? 'New orders paused' : 'Shop accepting orders';
   render();
 }
+const syncDashboardNav = bindDashboardNav();
 function render() {
+  calendarController?.destroy();calendarController=null;
   document.body.classList.toggle('pos-workspace',state.view==='pos');
   clearSalesChart();
   const newsletterLink=$('[data-view=newsletters]');if(newsletterLink)newsletterLink.style.display=state.connected&&state.role==='owner'?'':'none';
@@ -192,7 +200,8 @@ function render() {
   if (accountingLink) accountingLink.style.display = state.connected && state.role === 'owner' ? '' : 'none';
   if (state.view === 'accounting' && state.connected && state.role !== 'owner') state.view = 'overview';
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
-  const views = { homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
+  syncDashboardNav();
+  const views = { calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if (state.view === 'homepage') {
     const root = $('#homepage-manager'); root.textContent = 'Opening the Home page editor…';
@@ -206,6 +215,7 @@ function render() {
   if (state.view === 'pos') { mountPOS($('#pos-manager'),{api,role:state.role,connected:state.connected,products:state.products,settings:state.settings,printOrderSlips,openOrder,orderId:state.posOrderId,onOrderSaved(o){state.orders=state.orders.filter(x=>x.id!==o.id);state.orders.unshift(o);}});state.posOrderId=null;}
   if (state.view === 'academy') mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
+  if(state.view==='calendar')calendarController=mountCalendar($('#order-calendar-manager'),{api,calendarConnection:async(...args)=>(await import('./client.js?v=fulfillment-calendar-1')).calendarConnection(...args),role:state.role,connected:state.connected,openOrder,toast,esc,filters:state.calendarFilters});
   clearSalesChart = bindSalesChart($('#workspace'));
   if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=pos-2')).galleryApi(...args), upload });
   if (['packages', 'dessert'].includes(state.view)) {
@@ -227,7 +237,7 @@ function overviewView() {
   const reviews = state.orders.filter(needsPaymentReview);
   const upcoming = state.orders.filter(o => o.fulfillment_date >= today && isActiveFulfillment(o)).sort((a, b) => a.fulfillment_date.localeCompare(b.fulfillment_date));
   const activeProducts = state.products.filter(p => p.active).length;
-  return heading('A little overview', `Your kitchen, at a glance. ${humanDate(today)} · Manila`, `<button class="button button-secondary" data-action="refresh" ${locked()}>Refresh</button><a class="button" href="shop.html">Open shop ↗</a>`) +
+  return heading('A little overview', `Your kitchen, at a glance. ${humanDate(today)} · Manila`, `<button class="button button-secondary" data-view="calendar">Order calendar</button><button class="button button-secondary" data-action="refresh" ${locked()}>Refresh</button><a class="button" href="shop.html">Open shop ↗</a>`) +
     `<div class="metric-grid">${[
       ['Today’s orders', todayOrders.length, 'Pickup and delivery, active orders'],
       ['Payments to review', reviews.length, 'Proof received · quantities held'],
@@ -1154,6 +1164,7 @@ async function init() {
       $('#shop-status').textContent = 'Staff sign-in required';
       $('#workspace').innerHTML = heading('Welcome to the kitchen', 'Sign in with your authorized owner or staff account.') + `<section class="panel">${empty('Your dashboard is private', 'Only an owner or authorized staff member can access shop administration.', '<a class="button" href="account.html?next=manage.html">Sign in to manage the shop</a>')}</section>`;
       $('#admin-nav').hidden = true;
+      $('#admin-nav-toggle').hidden = true;
       return;
     }
     await refresh();
@@ -1161,6 +1172,7 @@ async function init() {
   } catch (error) {
     $('#shop-status').textContent = 'Dashboard unavailable';
     $('#admin-nav').hidden = true;
+    $('#admin-nav-toggle').hidden = true;
     $('#workspace').innerHTML = heading('Dashboard access', 'Your shop information is protected.') + `<section class="panel"><p class="notice danger">${esc(error.message)}</p><p class="muted">Sign in using an authorized team account. For a new installation, follow the first-owner setup steps.</p><div class="row-actions"><a class="button" href="account.html?next=manage.html">Open account</a><a class="button button-secondary" href="docs/SETUP.md" target="_blank" rel="noopener">Setup guide</a></div></section>`;
   }
 }

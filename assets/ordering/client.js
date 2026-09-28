@@ -105,6 +105,10 @@ export async function api(action, payload = {}, token = null) {
   return data;
 }
 
+export async function calendarConnection(action,payload={}) {
+  return edge('calendar-sync',{action,...payload});
+}
+
 export async function signedProofUrl(orderId) {
   return edge('proof-url', { order_id: orderId });
 }

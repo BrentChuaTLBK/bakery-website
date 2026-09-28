@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,mkdir} from 'node:fs/promises';
@@ -60,7 +61,7 @@ try{
   await page.getByText(role==='owner'?'Sales & income':'A little overview',{exact:true}).waitFor();
   if(role==='staff'){
    assert.equal(await page.locator('[data-view=accounting]').isVisible(),false);assert.equal(calls.some(c=>c.action.startsWith('accounting_')),false);
-   await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order]').first().click();assert.equal(await page.locator('.delivery-accounting').count(),0);
+   await selectDashboardSection(page, 'orders');await page.locator('[data-action=open-order]').first().click();assert.equal(await page.locator('.delivery-accounting').count(),0);
   }else{
    await pickDate(page.locator('.accounting-filters'),'start','2026-09-01');await pickDate(page.locator('.accounting-filters'),'end','2026-09-30');await page.locator('.accounting-filters [type=submit]').click();
    await page.locator('.accounting-net').getByText('₱3,600.00',{exact:true}).waitFor();
@@ -122,7 +123,7 @@ try{
    await removeEntry.click();await removePrompt.getByRole('button',{name:'Remove entry',exact:true}).click();await removeEntry.waitFor({state:'detached'});assert.equal(calls.filter(c=>c.action==='accounting_delete_entry').length,removeCount+1,'Approval deletes once');
    await pickDate(page.locator('.accounting-filters'),'month','2024-02');assert.equal(await page.locator('.accounting-filters [name=end]').inputValue(),'2024-02-29');
    await pickDate(page.locator('.accounting-filters'),'start','2026-09-26');await pickDate(page.locator('.accounting-filters'),'end','2026-09-25');await page.locator('.accounting-filters [type=submit]').click();await page.getByText('The end date must be on or after the start date.',{exact:true}).waitFor();
-   await page.locator('[data-view=orders]').click();await page.locator('[data-action=open-order][data-id=pickup]').click();await page.locator('#admin-dialog').waitFor();
+   await selectDashboardSection(page, 'orders');await page.locator('[data-action=open-order][data-id=pickup]').click();await page.locator('#admin-dialog').waitFor();
    assert.equal(await page.locator('.delivery-accounting').count(),0,'Pickup orders have no delivery accounting section');
    assert.equal(calls.some(c=>c.action==='accounting_get_delivery'&&c.payload.order_id==='pickup'),false,'Pickup details never request courier accounting');
   }

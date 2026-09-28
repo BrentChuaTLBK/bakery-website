@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Exercise the actual admin page using a local allowlisted fixture only.
 // No live products, settings, orders, or notifications are changed.
@@ -97,7 +98,7 @@ try {
     assert.equal(await picker.getAttribute('data-month'), target);
   };
   const saved = () => page.evaluate(key => JSON.parse(localStorage.getItem(key)), fixtureKey);
-  const openSettings = async () => { await page.locator('[data-view="settings"]').first().click(); await calendar('blocked_dates').waitFor(); };
+  const openSettings = async () => { await selectDashboardSection(page, 'settings'); await calendar('blocked_dates').waitFor(); };
   await page.goto(origin + '/manage.html', { waitUntil: 'networkidle' });
   await openSettings();
   assert.equal(await page.locator('[data-date-calendar]').count(), 3);
@@ -171,7 +172,7 @@ try {
   assert.equal(await page.locator('.zone-card .zone-description').textContent(), description);
   assert.equal(await page.locator('.zone-card .zone-description img').count(), 0);
   assert.equal(await page.locator('.zone-card .zone-description').evaluate(node => getComputedStyle(node).whiteSpace), 'pre-wrap');
-  await page.locator('[data-view="products"]').first().click();
+  await selectDashboardSection(page, 'products');
   await page.locator('[data-action="edit-product"][data-id="cake"]').click();
   assert.equal(await page.locator('[name="pickup_only"]').isChecked(), false, 'Legacy products stay deliverable');
   await page.locator('[name="pickup_only"]').check();
@@ -195,7 +196,7 @@ try {
   assert.equal((await saved()).products[0].allow_same_day, true);
   assert.equal((await saved()).products[0].lead_days, 0);
   await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('[data-view="products"]').first().click();
+  await selectDashboardSection(page, 'products');
   await page.locator('[data-action="edit-product"][data-id="cake"]').click();
   assert.equal(await page.locator('[name="pickup_only"]').isChecked(), true);
   assert.equal(await page.locator('[name="allow_same_day"]').isChecked(), true, 'Same-day setting persists after reload');
@@ -213,7 +214,7 @@ try {
   await openSettings();
   assert.equal(await calendar('blocked_dates').locator('[data-calendar-date]').first().isDisabled(), true);
   assert.equal(await page.locator('[data-form="settings"] button[type="submit"]').isDisabled(), true);
-  await page.locator('[data-view="products"]').first().click();
+  await selectDashboardSection(page, 'products');
   await page.locator('[data-action="edit-product"][data-id="cake"]').click();
   assert.equal(await page.locator('[name="allow_same_day"]').isDisabled(), true, 'Staff cannot change same-day eligibility');
   assert.deepEqual(errors, []);

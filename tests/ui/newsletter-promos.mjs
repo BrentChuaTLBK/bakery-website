@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,mkdir} from 'node:fs/promises';
@@ -27,7 +28,7 @@ try{
     });
     const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.clock.install({time:now});await page.goto(origin+'/manage.html');
-    await page.locator('[data-view="promos"]').click();
+    await selectDashboardSection(page, 'promos');
     await page.locator('#newsletter-promos-title').waitFor();
     assert.equal(await page.locator('#promo-results tbody tr').count(),1);
     assert.match(await page.locator('#promo-results').textContent(),/MANUAL10/);

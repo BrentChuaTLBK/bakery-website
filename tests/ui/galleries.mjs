@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Local browser fixtures only: production auth, uploads and data are never used.
 import { createRequire } from 'node:module';
@@ -93,7 +94,7 @@ try {
   const ctx = await context(), page = await ctx.newPage();
   page.on('dialog', dialog => dialog.accept());
   await page.goto(`${origin}/manage.html`);
-  await page.locator('[data-view="galleries"]').click();
+  await selectDashboardSection(page, 'galleries');
   await page.locator('[data-gallery-count]').filter({ hasText: '24 of 63' }).waitFor();
   await page.screenshot({ path: join(output, 'dashboard.png') });
   const png = await page.evaluate(() => {
@@ -132,7 +133,7 @@ try {
   await page.locator('[data-gallery="pastries"]').click();
   await page.locator('[data-gallery-count]').filter({ hasText: '0 of 0' }).waitFor();
   const staff = await context({ role: 'staff' }), staffPage = await staff.newPage();
-  await staffPage.goto(`${origin}/manage.html`); await staffPage.locator('[data-view="galleries"]').click();
+  await staffPage.goto(`${origin}/manage.html`); await selectDashboardSection(staffPage, 'galleries');
   assert.equal(await staffPage.locator('[data-gallery-upload]').count(), 0);
   const publicPage = await ctx.newPage(); await publicPage.goto(`${origin}/customorders.html`);
   await publicPage.locator('.portfolio-count').filter({ hasText: '24 of 64' }).waitFor();
@@ -166,7 +167,7 @@ try {
   assert(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await phone.screenshot({ path: join(output, 'mobile-gallery.png') });
   await checkPhotoDismissal(phone, true);
-  await phone.goto(`${origin}/manage.html`); await phone.locator('[data-view="galleries"]').click();
+  await phone.goto(`${origin}/manage.html`); await selectDashboardSection(phone, 'galleries');
   await phone.locator('[data-gallery-count]').filter({ hasText: '24 of 65' }).waitFor();
   assert(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   // Pastries has category sections with all metadata pages loaded automatically.

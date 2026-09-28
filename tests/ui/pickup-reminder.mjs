@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -40,7 +41,7 @@ try{
       try{return await route.fulfill({body:await readFile(file),contentType:mime[extname(file)]||'application/octet-stream'});}catch{return route.fulfill({status:404,body:''});}
     });
     const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(origin+'/manage.html');await page.locator('[data-view="orders"]').click();
+    await page.goto(origin+'/manage.html');await selectDashboardSection(page, 'orders');
     const open=async id=>{await page.locator(`[data-action="open-order"][data-id="${id}"]`).click();await page.locator('#dialog-title').filter({hasText:'TLB-A2B3C4'}).waitFor();};
     const button=page.locator('[data-action="send-pickup-reminder"]');
     await open('ready');await button.waitFor();

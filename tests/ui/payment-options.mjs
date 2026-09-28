@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
@@ -60,16 +61,16 @@ try{
   await page.goto(origin+'/shop.html#order=deferred&token=fixture');await page.getByRole('heading',{name:'Pay your delivery fee'}).waitFor();await page.locator('[data-payment-copy=amount]').click();assert.equal(await page.evaluate(()=>window.copiedText),'15.50');assert.match(await page.locator('.order-statuses').innerText(),/Products: Paid/);assert.doesNotMatch(await page.locator('.order-layout').innerText(),/Any agreed adjustment/);
   await page.locator('[name=proof]').setInputFiles(join(root,'assets/img/brands/Hat.png'));await page.locator('#proof-form button[type=submit]').click();await page.getByRole('heading',{name:'Delivery payment is under review'}).waitFor();
   const deliveryUpload=await page.evaluate(()=>window.paymentCalls.filter(c=>c.action==='upload').at(-1));assert.equal(deliveryUpload.opts.payment_stage,'delivery');assert.equal(deliveryUpload.opts.delivery_fee_cents,1550);assert.equal(await page.locator('#proof-form').count(),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await page.goto(origin+'/manage.html');await page.locator('#shop-status').filter({hasText:'Shop accepting orders'}).waitFor({state:'attached'});await page.locator('[data-view=settings]').click();await page.locator('#payment-options-editor').waitFor();
+  await page.goto(origin+'/manage.html');await page.locator('#shop-status').filter({hasText:'Shop accepting orders'}).waitFor({state:'attached'});await selectDashboardSection(page, 'settings');await page.locator('#payment-options-editor').waitFor();
   if(role==='staff'){assert.equal(await page.locator('[data-payment-add]').isDisabled(),true);assert.equal(await page.locator('[data-payment-field=account_number]').first().isDisabled(),true);assert.deepEqual(errors,[]);await context.close();results.push({width,role,passed:true});continue;}
   assert.equal(await page.locator('[data-payment-method]').count(),3);await page.locator('[data-payment-add]').click();const extra=page.locator('[data-payment-method]').last();
   await extra.locator('[data-payment-field=label]').fill('Another bank');await extra.locator('[data-payment-field=account_name]').fill('QA New Account');await extra.locator('[data-payment-field=account_number]').fill('000000000004');
   await page.locator('[data-payment-move="3,-1"]').click();assert.equal(await page.locator('[data-payment-method]').nth(2).locator('[data-payment-field=label]').inputValue(),'Another bank');
   await page.locator('[data-payment-remove="2"]').click();await page.getByRole('button',{name:'Keep option',exact:true}).click();assert.equal(await page.locator('[data-payment-method]').count(),4);
-  await page.locator('[data-view=orders]').click();await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await page.locator('#payment-options-editor').count(),1);
+  await selectDashboardSection(page, 'orders');await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await page.locator('#payment-options-editor').count(),1);
   await page.evaluate(()=>window.failSave=true);await page.getByRole('button',{name:'Save shop settings',exact:true}).click();await page.locator('.form-error').filter({hasText:'another window'}).waitFor();assert.equal(await page.locator('[data-payment-method]').count(),4);await page.evaluate(()=>window.failSave=false);
   await page.getByRole('button',{name:'Save shop settings',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#payment-options-editor')?.dataset.revision==='2');
-  await page.reload();await page.locator('[data-view=settings]').click();await page.locator('[data-payment-method]').nth(3).waitFor();assert.equal(await page.locator('[data-payment-method]').count(),4);
+  await page.reload();await selectDashboardSection(page, 'settings');await page.locator('[data-payment-method]').nth(3).waitFor();assert.equal(await page.locator('[data-payment-method]').count(),4);
   await page.locator('#payment-options-editor').screenshot({path:join(out,`admin-${width}.png`)});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.goto(origin+'/shop.html#order=new&token=fixture');await page.locator('.payment-method').nth(3).waitFor();assert.equal(await page.locator('.payment-method').count(),4);await page.locator('.payment-method').nth(2).click();assert.equal(await page.locator('#payment-number').inputValue(),'000000000004');

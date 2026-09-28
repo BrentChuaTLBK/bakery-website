@@ -39,6 +39,10 @@ verify_jwt = false
 verify_jwt = false
 
 # Explicit Auth user validation and current staff authorization in the handler.
+[functions.calendar-sync]
+# Custom verified owner/worker authentication is enforced in the handler.
+verify_jwt = false
+
 [functions.website-analytics]
 verify_jwt = false
 
