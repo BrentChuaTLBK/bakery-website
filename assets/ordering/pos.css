@@ -120,3 +120,7 @@ body:has(dialog.pos-options-dialog[open]) { overflow:hidden; }
  .pos-cash-form { padding:14px; }
  .pos-method-row { grid-template-columns:1fr; gap:8px; }
 }
+
+.pos-edit-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:16px 0; }
+.pos-edit-heading h2 { margin:0 0 6px; }
+.pos-edit-heading p { margin:0; font-size:13px; color:#705b47; }
