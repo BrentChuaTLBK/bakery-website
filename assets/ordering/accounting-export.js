@@ -41,8 +41,24 @@ export function buildAccountingWorkbook(report, ExcelJS) {
     sheet.pageSetup = {orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9};
     sheet.pageSetup.printTitlesRow = '1:5';
   }
-  function totalStyle(row) {
-    row.eachCell(cell => {cell.font = {bold: true};cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb:'FFF1E6D6'}};});
+  function tableStyle(sheet, first, last, columns, amountColumns, totalRow = null) {
+    for (let number = first; number <= last; number++) {
+      const row = sheet.getRow(number), isHeader = number === first, isTotal = number === totalRow;
+      let lines = 1;
+      // Include blank cells so borders and total-row shading run across the whole table.
+      for (let column = 1; column <= columns; column++) {
+        const cell = row.getCell(column), edge = {style: 'thin', color: {argb: 'FFD9C9B8'}};
+        cell.border = {top: edge, bottom: edge, left: edge, right: edge};
+        cell.font = {name: 'Calibri', size: 11, bold: isHeader || isTotal, color: {argb: isHeader ? 'FFFFFFFF' : 'FF2F2624'}};
+        cell.alignment = {horizontal: amountColumns.includes(column) ? 'right' : 'left', vertical: 'middle', wrapText: true, indent: 1};
+        cell.fill = {type: 'pattern', pattern: 'solid', fgColor: {argb: isHeader ? 'FF764B25' : isTotal ? 'FFF1E6D6' : 'FFFFFFFF'}};
+        if (typeof cell.value === 'string') {
+          const width = Math.max(8, sheet.getColumn(column).width - (isHeader ? 5 : 3));
+          lines = Math.max(lines, cell.value.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / width)), 0));
+        }
+      }
+      row.height = Math.min(210, Math.max(28, lines * 16 + 10));
+    }
   }
   header(summary, 'TLB · Accounting summary', ['Category','Sales / income','Expenses','Net'], [36,24,24,24]);
   const groups = report.summary.slice().sort((a,b) => a.name.localeCompare(b.name));
@@ -63,7 +79,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
       sheet.getRow(titleRow).height=30;
       const entries=report.entries.filter(e=>e.category_id===group.id&&e.kind===kind);
       const rows=entries.map(e=>[date(e.entry_date),e.source,e.reference||null,e.client_name||null,accountingPaymentMethods[e.payment_method]||(e.source==='Manual'?'Not recorded':null),e.note||null,e.amount_cents/100]);
-      if(!rows.length)rows.push([null,'No entries in this timeframe',null,null,null,null,null]);
+      if(!rows.length)rows.push([null,null,null,null,null,'No entries in this timeframe',null]);
       const first=titleRow+2,last=first+rows.length-1,totalRow=last+1;
       // Excel requires the table definition and its totals cell to agree.
       // Keep SUM (including filtered rows) so the summary remains the period total.
@@ -71,14 +87,11 @@ export function buildAccountingWorkbook(report, ExcelJS) {
       sheet.addTable({name:`Accounting_${kind}_${index+1}`,ref:`A${titleRow+1}`,headerRow:true,totalsRow:true,
         style:{theme:'TableStyleLight9',showRowStripes:true},
         columns:columns.map((name,i)=>({name:i===3&&kind==='expense'?'Supplier':name,filterButton:true,...(i===0?{totalsRowLabel:`Total ${title.toLowerCase()}`}:i===6?totals:{})})),rows});
-      sheet.getRow(titleRow+1).height=25;
-      sheet.getRow(titleRow+1).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF764B25'}};cell.font={bold:true,color:{argb:'FFFFFFFF'}};});
+      tableStyle(sheet,titleRow+1,totalRow,7,[7],totalRow);
       for(let row=first;row<=last;row++) {
         const r=sheet.getRow(row);r.getCell(1).numFmt='mmm d, yyyy';
-        for(const col of [2,4,6])r.getCell(col).alignment={wrapText:true,vertical:'top'};
-        r.height=Math.min(210,21*Math.max(1,...[2,4,6].map(col=>String(r.getCell(col).value||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/(col===6?58:26))),0))));
       }
-      totalStyle(sheet.getRow(totalRow));sheet.getRow(totalRow).height=27;
+      if(!entries.length)sheet.getCell(first,6).alignment={horizontal:'center',vertical:'middle',wrapText:true};
       subtotal[kind]=totalRow;titleRow=totalRow+3;
     }
     sheet.getColumn(7).numFmt=currency;
@@ -89,7 +102,8 @@ export function buildAccountingWorkbook(report, ExcelJS) {
   }
   const end = summary.lastRow.number, totals = accountingTotals(report), total = summary.addRow(['Overall total']);
   for (const [col,key] of [['B','sales'],['C','expenses'],['D','net']]) summary.getCell(`${col}${total.number}`).value = {formula:end>=6?`SUM(${col}6:${col}${end})`:'0',result:totals[key]/100};
-  totalStyle(total); for (const c of [2,3,4]) summary.getColumn(c).numFmt = currency;
+  tableStyle(summary,5,total.number,4,[2,3,4],total.number);
+  for (const c of [2,3,4]) summary.getColumn(c).numFmt = currency;
   summary.addRow([]);
   summary.addRow(['Delivery costs not recorded', totals.missingCosts]).getCell(2).numFmt='0';
   summary.addRow(['Net = recorded income less recorded expenses. Missing costs are not treated as free delivery.']);
@@ -103,6 +117,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
     if (d.cost_cents !== null) row.getCell(6).value = {formula:`D${row.number}-E${row.number}`,result:(d.fee_cents-d.cost_cents)/100};
   }
   for (const c of [4,5,6]) delivery.getColumn(c).numFmt = currency;
+  tableStyle(delivery,5,delivery.lastRow.number,7,[4,5,6]);
   if (report.deliveries.length) delivery.autoFilter = {from: 'A5',to:`G${delivery.lastRow.number}`};
   return wb;
 }

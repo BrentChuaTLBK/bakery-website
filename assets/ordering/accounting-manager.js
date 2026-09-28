@@ -1,5 +1,5 @@
 import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
-import {exportAccounting} from './accounting-export.js?v=excel-totals-1';
+import {exportAccounting} from './accounting-export.js?v=excel-borders-2';
 import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=branded-calendars-1';
 import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
 import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';

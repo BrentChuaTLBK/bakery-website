@@ -29,6 +29,6 @@
 .accounting-summary .accounting-breakdown{border:1px solid #d9c9b8;border-radius:9px;overflow:hidden}
 .accounting-summary .accounting-breakdown>div{padding:13px 16px;border-bottom:1px solid #e4d8ca;align-items:baseline}
 .accounting-summary .accounting-breakdown dd{font-variant-numeric:tabular-nums;text-align:right}
-.accounting-summary .accounting-breakdown>.muted{padding:0 16px}
+.accounting-summary .accounting-breakdown>.muted{display:flex;align-items:center;justify-content:center;min-height:64px;margin:0;padding:16px;text-align:center;line-height:1.6}
 .accounting-summary .accounting-subtotal{background:#f4eddf;border:0!important}
 @media(max-width:600px){.accounting-report .data-table :is(th,td){padding:12px}.accounting-report .data-table{min-width:720px}}
