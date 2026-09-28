@@ -5,6 +5,14 @@ import {emailProductPhoto,emailDeliveryTrackingUrl} from '../../supabase/functio
 import {authEmails,renderAuthEmail} from '../../supabase/functions/_shared/auth-emails.ts';
 const photo='https://aulhqofjjckwwjmdvqgi.supabase.co/storage/v1/object/public/product-images/test/photo.webp';
 const base={email_design_version:2,event_type:'ready_for_pickup',settings:{site_url:'https://thelittlebakerkitchen.com',pickup_address:'Current address',pickup_instructions:'Current notes'},product_photos:[photo],order:{id:'sample',reference:'TLB-ABC234',access_token:'private-token',method:'pickup',fulfillment_date:'2026-09-29',payment_deadline:'2026-09-28T00:00:00Z',pickup_address:'Saved address',pickup_instructions:'Saved pickup notes\nSecond line',items:[{name:'Cake <script>',quantity:2,unit_price_cents:15000,line_total_cents:30000,selection_labels:['Cheese & chocolate']}],subtotal_cents:30000,discount_cents:1500,delivery_cents:0,total_cents:28500}};
+
+test('POS receipts use saved custom payment names and escape HTML in labels',()=>{
+ for(const email_design_version of [1,2]){
+  const rendered=renderEmail({...base,email_design_version,event_type:'pos_receipt',order:{...base.order,source:'popup',payment_method:'pos-internal-id',payment_method_label:'Card <reader>',deferred_delivery:true,delivery_paid_cents:1500,delivery_payment_method:'pos-delivery-id',delivery_payment_method_label:'Maya <wallet>'}});
+  assert.match(rendered.text,/Payment method: Card <reader>/);assert.match(rendered.text,/Maya <wallet>/);assert.doesNotMatch(rendered.html,/<reader>|<wallet>|pos-internal-id|pos-delivery-id/);
+  if(email_design_version===2){assert.match(rendered.html,/Card &lt;reader&gt;/);assert.match(rendered.html,/Maya &lt;wallet&gt;/)}
+ }
+});
 test('every order event uses the brand, preserves saved facts and escapes customer content',()=>{
  for(const event of ['order_submitted','payment_approved','payment_rejected','order_cancelled','order_expired','order_updated','fulfillment_reminder','ready_for_pickup','pickup_reminder','out_for_delivery','order_review_required']){
   const p={...base,event_type:event};const {html,text}=renderEmail(p);

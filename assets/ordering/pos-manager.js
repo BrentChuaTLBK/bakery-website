@@ -3,16 +3,21 @@ import {accountingDatePicker,bindAccountingDates} from './accounting-date-picker
 import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
 import {POS_METHODS,pesoCents,posEstimate,posOrderUrl,salesSource,productsDue,deliveryStatusText} from './pos.js?v=pos-1';
 
+import {defaultPOSConfig,posPaymentFields,posCashView,posMethodsView} from './pos-register.js?v=pos-cash-1';
+
 const amount=cents=>(Number(cents||0)/100).toFixed(2);
 const field=(name,label,value='',type='text',attrs='')=>type==='date'?accountingDatePicker(name,label,value,manilaDate(),{attrs}):`<label class="field">${esc(label)}<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
 const opt=(value,label,current)=>`<option value="${esc(value)}" ${String(value)===String(current)?'selected':''}>${esc(label)}</option>`;
 const select=(name,label,content)=>`<label class="field">${esc(label)}<select name="${name}">${content}</select></label>`;
 const button=(action,label,extra='')=>`<button type="button" class="button button-secondary" data-pos="${action}" ${extra}>${label}</button>`;
-const paymentFields=(total)=>`<div class="field-row">${select('payment_method','Payment method',Object.entries(POS_METHODS).map(([k,v])=>opt(k,v,'cash')).join(''))}${field('cash_received','Cash received · PHP',amount(total),'number','min="0" step="0.01" required')}${field('payment_reference','Payment reference · optional','','text','maxlength="200"')}</div><p data-change>Change: ${money(0)}</p>`;
+
 
 export async function mountPOS(root,{api,role,connected,products=[],settings={},printOrderSlips,onOrderSaved,openOrder,orderId}) {
  let events=[],orders=[],screen='sale',source='popup',eventId='',items=[],draft={},quote=null,receipt=null,error='',busy=false,search='',optionProduct=null;
  let eventDraft=null,eventPicker=false,eventSearch='',section='sell',mobilePane='products',feedback='';
+ let registerConfig=defaultPOSConfig(),cashSessions=[],cashEventId='',cashMode='',methodsDraft=null,registerDirty=false,registerPending=null;
+ const paymentFields=total=>posPaymentFields(registerConfig,total);
+ const openDrawer=id=>cashSessions.find(s=>s.event_id===id&&!s.closed_at);
  let pending=null,submissionKey=crypto.randomUUID(),paymentKey=crypto.randomUUID();
  const $=selector=>root.querySelector(selector);
  const value=(form,name)=>form?.elements.namedItem(name)?.value?.trim()??'';
@@ -26,14 +31,14 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
  const saleProduct=p=>{const s=source==='popup'?event()?.stock.find(s=>s.product_id===p.id):null;return s?.options_tracked?{...p,option_groups:s.option_groups}:p};
  const eventReady=e=>Boolean(e&&!e.closed&&e.starts_on<=manilaDate()&&e.ends_on>=manilaDate());
  const itemCount=()=>items.reduce((sum,i)=>sum+(Number(i.quantity)||0),0);
- function sectionNav(){return `<div class="pos-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>Point of sale</h1></div><button type="button" class="button button-secondary pos-dashboard" data-view="overview">Dashboard</button></div><nav class="pos-section-nav" aria-label="Point of sale sections">${[['sell','Sell'],['orders','Orders'],...(role==='owner'?[['setup','Event setup']]:[])].map(([id,label])=>`<button type="button" data-pos="section" data-section="${id}" aria-current="${section===id?'page':'false'}" ${pending?'disabled':''}>${label}</button>`).join('')}</nav>`}
+ function sectionNav(){return `<div class="pos-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>Point of sale</h1></div><button type="button" class="button button-secondary pos-dashboard" data-view="overview">Dashboard</button></div><nav class="pos-section-nav" aria-label="Point of sale sections">${[['sell','Sell'],['drawer','Cash drawer'],['orders','Orders'],...(role==='owner'?[['setup','Event setup'],['methods','Payment methods']]:[])].map(([id,label])=>`<button type="button" data-pos="section" data-section="${id}" aria-current="${section===id?'page':'false'}" ${pending||registerPending?'disabled':''}>${label}</button>`).join('')}</nav>`}
  function setupView(){return `<section class="panel pos-setup"><div class="section-heading"><div><h2>Event setup</h2><p class="help-text">Prepare products, prices and stock before opening your counter.</p></div>${button('event-new','+ New event')}</div><div class="pos-events">${events.map(e=>{const stock=[...(e.stock||[]),...(e.custom_stock||[])].filter(s=>s.active),ready=eventReady(e);return `<article class="pos-event-card"><div class="section-heading"><h3>${esc(e.name)}</h3><span class="badge">${e.closed?'Closed':ready?'Open today':e.starts_on>manilaDate()?'Upcoming':'Ended'}</span></div><p>${esc(e.location||'Location not set')}</p><p>${esc(e.starts_on)} to ${esc(e.ends_on)}</p><div class="pos-event-facts"><span><strong>${stock.length}</strong> products</span><span><strong>${stock.reduce((n,s)=>n+stockLeft(s),0)}</strong> left</span></div>${e.sales?.length?`<details class="pos-event-totals"><summary>Sales totals</summary>${e.sales.map(s=>`<p>${esc(POS_METHODS[s.payment_method]||s.payment_method)} <strong>${money(s.total_cents)}</strong></p>`).join('')}</details>`:''}<div class="pos-actions">${button('event-edit','Edit event',`data-id="${e.id}"`)}${button('event-sell','Open counter',`data-id="${e.id}" ${ready?'':'disabled'}`)}</div></article>`}).join('')||'<p class="pos-empty">No events yet. Create an event and choose what you will sell.</p>'}</div></section>`}
  function mobileDock(){return `<div class="pos-mobile-dock"><button type="button" class="button button-secondary" data-pos="mobile-products" ${mobilePane==='products'?'aria-current="page"':''}>Products</button>${mobilePane==='basket'?`<button type="submit" form="pos-sale-form" class="button" aria-label="Review ${source==='popup'?'sale':'order'}" ${!items.length?'disabled':''}>Review ${source==='popup'?'sale':'order'} <span data-dock-total>${money(estimate())}</span></button>`:`<button type="button" class="button" data-pos="mobile-basket">Basket · <span data-basket-count>${itemCount()}</span> <span data-dock-total>${money(estimate())}</span></button>`}</div>`}
  function syncMobile(){root.dataset.pane=mobilePane;const total=$('[data-dock-total]');if(total)total.textContent=money(estimate());const count=$('[data-basket-count]');if(count)count.textContent=itemCount()}
  function scrollToPOS(){root.scrollIntoView({block:'start',behavior:'instant'})}
- async function leaveEditor(){return !['event','details','custom','options','void'].includes(screen)||await confirmDialog('Your unsaved changes on this screen will be lost.',{title:'Leave this screen?',confirmLabel:'Discard changes',cancelLabel:'Keep editing'})}
+ async function leaveEditor(){return !(['event','details','custom','options','void'].includes(screen)||registerDirty)||await confirmDialog('Your unsaved changes on this screen will be lost.',{title:'Leave this screen?',confirmLabel:'Discard changes',cancelLabel:'Keep editing'})}
 
- const dirty=()=>{root.dataset.dirty=String(items.length>0||['event','details','custom','options','void'].includes(screen)||['name','phone','email','social_username','recipient_name','recipient_phone','address','instructions'].some(k=>draft[k]));root.dataset.busy=String(busy||Boolean(pending));};
+ const dirty=()=>{root.dataset.dirty=String(items.length>0||registerDirty||['event','details','custom','options','void'].includes(screen)||['name','phone','email','social_username','recipient_name','recipient_phone','address','instructions'].some(k=>draft[k]));root.dataset.busy=String(busy||Boolean(pending)||Boolean(registerPending));};
  function capture() {
   const form=$('#pos-sale-form');if(!form)return;
   draft=Object.fromEntries(new FormData(form));draft.email_notifications=checked(form,'email_notifications');draft.override_dates=checked(form,'override_dates');draft.delivery_fee_pending=checked(form,'delivery_fee_pending');
@@ -109,13 +114,13 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
  function renderReceipt() {
   const o=receipt,unpaid=['awaiting_payment','under_review'].includes(o.payment_status)&&o.fulfillment_status==='pending_confirmation';
   const link=posOrderUrl(o,settings.site_url||document.baseURI);
-  return `<section class="panel pos-receipt"><h2>${esc(o.reference)}</h2><p>${esc(salesSource(o))}${o.event_name?` · ${esc(o.event_name)}`:''} · ${esc(o.fulfillment_status.replaceAll('_',' '))}</p><p>${esc(o.buyer?.name||'Client not recorded')} · ${esc(o.payment_status.replaceAll('_',' '))}${o.payment_method?` · ${esc(POS_METHODS[o.payment_method]||o.payment_method)}`:''}</p><ul class="pos-review-lines">${o.items.map(i=>`<li><span>${i.quantity} × ${esc(i.name)}</span><strong>${money(i.line_total_cents)}</strong></li>`).join('')}</ul><div class="pos-total"><span>Total</span><span>${money(o.total_cents)}</span></div>${o.payment_method==='cash'?`<p>Cash received: ${money(o.cash_received_cents)} · <strong>Change: ${money(o.change_cents)}</strong></p>`:''}${unpaid?'<p class="notice">Stock stays reserved until you cancel this order. Share the link for payment details and proof upload.</p>':''}<label class="field">Private order link<div class="pos-link"><input data-share-link readonly value="${esc(link)}">${button('copy','Copy link')}</div></label><p class="help-text">Share this link with the customer only.</p><div class="pos-actions">${button('print','Print slip')}${button('details','Client details')}${button('manage-order','Order history / status')}${o.source==='popup'&&o.fulfillment_status==='completed'&&role==='owner'?button('void','Void sale'):''}${button('new-sale','New sale / order')}</div>
+  return `<section class="panel pos-receipt"><h2>${esc(o.reference)}</h2><p>${esc(salesSource(o))}${o.event_name?` · ${esc(o.event_name)}`:''} · ${esc(o.fulfillment_status.replaceAll('_',' '))}</p><p>${esc(o.buyer?.name||'Client not recorded')} · ${esc(o.payment_status.replaceAll('_',' '))}${o.payment_method?` · ${esc(o.payment_method_label||POS_METHODS[o.payment_method]||o.payment_method)}`:''}</p><ul class="pos-review-lines">${o.items.map(i=>`<li><span>${i.quantity} × ${esc(i.name)}</span><strong>${money(i.line_total_cents)}</strong></li>`).join('')}</ul><div class="pos-total"><span>Total</span><span>${money(o.total_cents)}</span></div>${o.payment_method==='cash'?`<p>Cash received: ${money(o.cash_received_cents)} · <strong>Change: ${money(o.change_cents)}</strong></p>`:''}${unpaid?'<p class="notice">Stock stays reserved until you cancel this order. Share the link for payment details and proof upload.</p>':''}<label class="field">Private order link<div class="pos-link"><input data-share-link readonly value="${esc(link)}">${button('copy','Copy link')}</div></label><p class="help-text">Share this link with the customer only.</p><div class="pos-actions">${button('print','Print slip')}${button('details','Client details')}${button('manage-order','Order history / status')}${o.source==='popup'&&o.fulfillment_status==='completed'&&role==='owner'?button('void','Void sale'):''}${button('new-sale','New sale / order')}</div>
    ${unpaid?`<form id="pos-payment-form" class="pos-payment"><h3>${o.deferred_delivery?'Record full product payment':'Record full payment'}</h3>${paymentFields(productsDue(o))}<button class="button" type="submit">Confirm payment received</button></form>`:''}${deliveryPanel(o)}<p class="pos-feedback" role="status"></p></section>`;
  }
  function deliveryPanel(o) {
   if(!o.deferred_delivery)return '';
   const active=!o.refund_label&&!['cancelled','expired'].includes(o.fulfillment_status),status=o.delivery_payment_status;
-  return `<section class="pos-payment"><h3>${esc(deliveryStatusText(o))}</h3><p>Products: ${o.payment_status==='paid'?'Paid':'Awaiting payment'} · ${money(productsDue(o))}<br>Delivery: ${status==='pending'?'Fee to follow':money(o.delivery_cents)}</p>${o.delivery_paid_cents?`<p>Delivery paid by ${esc(POS_METHODS[o.delivery_payment_method]||o.delivery_payment_method)}${o.delivery_payment_method==='cash'?` · Cash ${money(o.delivery_cash_received_cents)} · Change ${money(o.delivery_change_cents)}`:''}</p>`:''}
+  return `<section class="pos-payment"><h3>${esc(deliveryStatusText(o))}</h3><p>Products: ${o.payment_status==='paid'?'Paid':'Awaiting payment'} · ${money(productsDue(o))}<br>Delivery: ${status==='pending'?'Fee to follow':money(o.delivery_cents)}</p>${o.delivery_paid_cents?`<p>Delivery paid by ${esc(o.delivery_payment_method_label||POS_METHODS[o.delivery_payment_method]||o.delivery_payment_method)}${o.delivery_payment_method==='cash'?` · Cash ${money(o.delivery_cash_received_cents)} · Change ${money(o.delivery_change_cents)}`:''}</p>`:''}
   ${active&&status!=='under_review'&&!o.delivery_paid_cents?`<form id="pos-delivery-fee-form">${field('delivery_fee','Exact courier charge · PHP',status==='pending'?'':amount(o.delivery_cents),'number','required min="0" max="1000000" step="0.01"')}${field('delivery_note','Courier / booking note · optional',o.delivery_fee_note||'','text','maxlength="500"')}<button class="button button-secondary" type="submit">Set exact delivery fee</button></form>`:''}
   ${active&&o.payment_status==='paid'&&['awaiting_payment','under_review'].includes(status)?`<form id="pos-delivery-payment-form"><h3>Record full delivery payment</h3>${paymentFields(o.delivery_cents)}${status==='under_review'?'<p class="notice">A delivery receipt is waiting for review. Open Order history / status to view the private proof.</p>':''}<button class="button" type="submit">Confirm delivery payment received</button></form>`:''}
   ${active&&status==='under_review'?`<details><summary>Request a replacement delivery receipt</summary><form id="pos-delivery-reject-form">${field('reason','Reason','','text','required minlength="3" maxlength="500"')}<button type="submit" class="button button-secondary">Request replacement proof</button></form></details>`:''}</section>`;
@@ -134,12 +139,13 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
  }
  function render(){
   if(!root.isConnected)return;
-  root.innerHTML=`${sectionNav()}<div class="notice danger pos-error" role="alert">${esc(error)}</div><p class="pos-status" role="status">${esc(feedback)}</p>${!connected?'<p class="notice">Connect the backend to record sales.</p>':screen==='setup'?setupView():screen==='orders'?recent():screen==='review'?renderReview():screen==='receipt'?renderReceipt():screen==='event'?renderEvent():screen==='options'?renderOptions():screen==='custom'?`<section class="panel pos-review"><h2>Custom item</h2><form id="pos-custom-form">${field('name','Item name','','text','required maxlength="160"')}${field('description','Details · optional','','text','maxlength="2000"')}<div class="field-row">${field('quantity','Quantity',1,'number','required min="1" max="10000" step="1"')}${field('price','Unit price · PHP','','number','required min="0" step="0.01"')}</div><div class="pos-actions">${button('back','Back')}<button class="button" type="submit">Add item</button></div></form></section>`:screen==='details'?`<section class="panel pos-review"><h2>Client details · ${esc(receipt.reference)}</h2><form id="pos-details-form">${customerFields(receipt)}${receipt.method==='delivery'?deliveryFields(receipt):''}<label class="field">Order notes · optional<textarea name="instructions" maxlength="2000">${esc(receipt.instructions||'')}</textarea></label><div class="pos-actions">${button('receipt-back','Back')}<button class="button" type="submit">Save details</button></div></form></section>`:screen==='void'?`<section class="panel pos-review"><h2>Void ${esc(receipt.reference)}</h2><p>This removes the sale from sales totals. Any refund must be handled separately.</p><form id="pos-void-form">${field('reason','Reason','','text','required minlength="3" maxlength="500"')}${select('restore','Event stock',opt('','Choose whether stock can be restored','')+opt('yes','Return items to event stock','')+opt('no','Keep items deducted',''))}<div class="pos-actions">${button('receipt-back','Back')}<button class="button button-danger" type="submit">Void sale</button></div></form></section>`:renderSale()}`;
+  root.innerHTML=`${sectionNav()}<div class="notice danger pos-error" role="alert">${esc(error)}</div><p class="pos-status" role="status">${esc(feedback)}</p>${!connected?'<p class="notice">Connect the backend to record sales.</p>':screen==='drawer'?posCashView(events,cashSessions,cashEventId,cashMode,registerPending):screen==='methods'?posMethodsView(methodsDraft):screen==='setup'?setupView():screen==='orders'?recent():screen==='review'?renderReview():screen==='receipt'?renderReceipt():screen==='event'?renderEvent():screen==='options'?renderOptions():screen==='custom'?`<section class="panel pos-review"><h2>Custom item</h2><form id="pos-custom-form">${field('name','Item name','','text','required maxlength="160"')}${field('description','Details · optional','','text','maxlength="2000"')}<div class="field-row">${field('quantity','Quantity',1,'number','required min="1" max="10000" step="1"')}${field('price','Unit price · PHP','','number','required min="0" step="0.01"')}</div><div class="pos-actions">${button('back','Back')}<button class="button" type="submit">Add item</button></div></form></section>`:screen==='details'?`<section class="panel pos-review"><h2>Client details · ${esc(receipt.reference)}</h2><form id="pos-details-form">${customerFields(receipt)}${receipt.method==='delivery'?deliveryFields(receipt):''}<label class="field">Order notes · optional<textarea name="instructions" maxlength="2000">${esc(receipt.instructions||'')}</textarea></label><div class="pos-actions">${button('receipt-back','Back')}<button class="button" type="submit">Save details</button></div></form></section>`:screen==='void'?`<section class="panel pos-review"><h2>Void ${esc(receipt.reference)}</h2><p>This removes the sale from sales totals. Any refund must be handled separately. Record cash returned from an event drawer as Cash out in that cash session.</p><form id="pos-void-form">${field('reason','Reason','','text','required minlength="3" maxlength="500"')}${select('restore','Event stock',opt('','Choose whether stock can be restored','')+opt('yes','Return items to event stock','')+opt('no','Keep items deducted',''))}<div class="pos-actions">${button('receipt-back','Back')}<button class="button button-danger" type="submit">Void sale</button></div></form></section>`:renderSale()}`;
   root.dataset.screen=screen;syncMobile();dirty();
   if(screen==='review'||screen==='receipt') syncPayment();
   if(screen==='options')syncOptions();
+  if(registerPending){root.insertAdjacentHTML('beforeend','<div class="notice"><p>The last save is unconfirmed. Retry to check and save it once.</p>'+button('register-retry','Retry this save')+'</div>');root.querySelectorAll('input,select,textarea,button').forEach(el=>{if(el.dataset.pos!=='register-retry')el.disabled=true})}
  }
- async function refresh(){const data=await api('pos_bootstrap');events=data.events||[];orders=data.orders||[];if(!eventReady(event())&&!items.length)eventId=events.find(eventReady)?.id||'';}
+ async function refresh(){const data=await api('pos_bootstrap');events=data.events||[];orders=data.orders||[];registerConfig=data.register_config||defaultPOSConfig();cashSessions=data.cash_sessions||[];if(!eventReady(event())&&!items.length)eventId=events.find(eventReady)?.id||'';}
  function addCartItem(item){
   const variant=selections=>JSON.stringify(Object.entries(selections||{}).sort(([a],[b])=>a.localeCompare(b)).map(([key,values])=>[key,Object.entries(values).filter(([,n])=>n>0).sort(([a],[b])=>a.localeCompare(b))]));
   const same=items.find(i=>item.product_id?i.product_id===item.product_id&&variant(i.selections)===variant(item.selections):item.custom_event_item_id?i.custom_event_item_id===item.custom_event_item_id:!i.product_id&&!i.custom_event_item_id&&i.name===item.name&&i.description===item.description&&i.unit_price_cents===item.unit_price_cents);
@@ -159,13 +165,38 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
   const form=$('#pos-confirm-form')||$('#pos-payment-form')||$('#pos-delivery-payment-form');if(!form)return;
   const paid=!form.elements.namedItem('payment_state')||value(form,'payment_state')==='paid',cash=value(form,'payment_method')==='cash';
   const panel=form.querySelector('.pos-payment');if(panel)panel.hidden=!paid;
+  form.querySelectorAll('[data-pos-payment]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.posPayment===value(form,'payment_method'))));
+  const shortcuts=form.querySelector('.pos-cash-shortcuts');if(shortcuts)shortcuts.hidden=!cash;
+  const needsDrawer=form.id==='pos-confirm-form'&&source==='popup'&&paid&&cash&&!openDrawer(eventId);
+  form.querySelector('.pos-drawer-warning').hidden=!needsDrawer;form.querySelector('button[type=submit]').disabled=needsDrawer;
   const input=form.elements.namedItem('cash_received');input.disabled=!paid||!cash;input.closest('label').hidden=!cash;
   const total=screen==='receipt'?(form.id==='pos-delivery-payment-form'?receipt.delivery_cents:productsDue(receipt)):quote.total_cents;
   let change=0;try{change=pesoCents(input.value)-total}catch{change=-total}
   form.querySelector('[data-change]').hidden=!cash;
   form.querySelector('[data-change]').textContent=change>=0?`Change: ${money(change)}`:`Still needed: ${money(-change)}`;
  }
- function readPayment(form,total){return {method:value(form,'payment_method'),amount_cents:total,received_cents:value(form,'payment_method')==='cash'?pesoCents(value(form,'cash_received')):total,reference:value(form,'payment_reference')}}
+ function readPayment(form,total){if(form.id==='pos-confirm-form'&&source==='popup'&&value(form,'payment_method')==='cash'&&!openDrawer(eventId))throw new Error('Open a cash session for this event first.');return {...(form.id==='pos-confirm-form'&&source==='popup'?{cash_session_id:openDrawer(eventId)?.id||null}:{}),method:value(form,'payment_method'),amount_cents:total,received_cents:value(form,'payment_method')==='cash'?pesoCents(value(form,'cash_received')):total,reference:value(form,'payment_reference')}}
+ function syncCashCount(){
+  const f=$('#pos-cash-close-form'),session=openDrawer(cashEventId);if(!f||!session)return;
+  const note=f.elements.namedItem('note');let difference=null;try{difference=pesoCents(value(f,'counted'))-session.expected_cents}catch{}
+  f.querySelector('[data-cash-difference]').textContent=difference===null?'Enter the counted cash to check the difference.':difference===0?'Cash matches the expected amount.':`${difference<0?'Short':'Over'} by ${money(Math.abs(difference))}`;
+  note.required=difference!==null&&difference!==0;note.minLength=note.required?3:0;
+ }
+ function captureMethods(){const f=$('#pos-methods-form');if(!f)return;for(const m of methodsDraft.methods){m.label=value(f,'method_'+m.id);m.active=m.id==='cash'||checked(f,'active_'+m.id)}}
+ async function saveRegister(action,payload){
+  if(!registerPending)registerPending={action,payload:{...payload,idempotency_key:crypto.randomUUID()}};
+  let result;
+  try{result=await api(registerPending.action,registerPending.payload)}catch(e){
+   try{result=await api('pos_register_find',{idempotency_key:registerPending.payload.idempotency_key});if(!result)registerPending=null}catch{}
+   if(!result)throw e;
+  }
+  const savedAction=registerPending?.action||action;registerPending=null;registerDirty=false;cashMode='';
+  if(savedAction==='pos_payment_methods_save')registerConfig=result;
+  else cashSessions=[result,...cashSessions.filter(s=>s.id!==result.id)];
+  if(screen==='methods')methodsDraft=structuredClone(registerConfig);
+  feedback=savedAction==='pos_cash_close'?'Cash session closed.':savedAction==='pos_cash_open'?'Shared cash session opened.':savedAction==='pos_payment_methods_save'?'POS payment methods saved.':'Cash movement recorded.';
+  await refresh().catch(()=>{feedback+=' Refresh again to get the latest activity.'});
+ }
  async function saved(o){receipt=o;items=[];draft={};pending=null;submissionKey=crypto.randomUUID();paymentKey=crypto.randomUUID();screen='receipt';onOrderSaved?.(o);await refresh().catch(()=>{});render();}
  async function run(task){
   if(busy)return;
@@ -174,21 +205,32 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
   try{error='';feedback='';await task()}catch(e){error=e.message||'Unable to save. Please retry.'}
   finally{
    busy=false;render();
-   if(screen===previousScreen&&error){for(const f of fields){const el=[...root.querySelectorAll('[name]')].find(e=>e.name===f.name);if(el){el.value=f.value;if(el.type==='checkbox')el.checked=f.checked}}capture();syncPayment();if(screen==='options')syncOptions()}
+   if(screen===previousScreen&&error){for(const f of fields){const el=[...root.querySelectorAll('[name]')].find(e=>e.name===f.name);if(el){el.value=f.value;if(el.type==='checkbox')el.checked=f.checked}}capture();captureMethods();syncPayment();syncCashCount();if(screen==='options')syncOptions()}
    if(previousScreen!==screen||previousSection!==section||previousPane!==mobilePane)scrollToPOS();
    if(error)$('[role="alert"]')?.scrollIntoView({block:'nearest'});
   }
  }
  root.addEventListener('click',e=>{
+  const tender=e.target.closest('[data-pos-payment]');if(tender){e.preventDefault();if(busy||pending||registerPending)return;const f=tender.closest('form');f.elements.namedItem('payment_method').value=tender.dataset.posPayment;syncPayment();return}
+  const cash=e.target.closest('[data-pos-cash]');if(cash){e.preventDefault();if(busy||pending||cash.disabled||registerPending)return;cash.closest('form').elements.namedItem('cash_received').value=amount(cash.dataset.posCash);syncPayment();return}
   const step=e.target.closest('[data-pos-option-delta]');if(step){e.preventDefault();if(busy||step.disabled)return;const input=step.closest('.option-stepper').querySelector('input');input.value=String(Number(input.value||0)+Number(step.dataset.posOptionDelta));syncOptions(input);return}
-  const b=e.target.closest('[data-pos]');if(!b||busy)return;e.preventDefault();e.stopPropagation();capture();captureEvent();
+  const b=e.target.closest('[data-pos]');if(!b||busy)return;e.preventDefault();e.stopPropagation();capture();captureEvent();captureMethods();
   const action=b.dataset.pos;
   run(async()=>{
+   if(registerPending&&action!=='register-retry'){error='Retry the unconfirmed save first.';return}
    if(pending&&!['copy','print'].includes(action)){error='Please retry saving this order before leaving this screen.';return}
-   if(action==='section'){
-    if(b.dataset.section==='setup'&&role!=='owner')return;
+   if(action==='register-retry'){await saveRegister();return}
+   if(action==='register-refresh'){if(!await leaveEditor())return;await refresh();cashMode='';registerDirty=false;if(screen==='methods')methodsDraft=structuredClone(registerConfig)}
+   else if(action==='cash-drawer'){cashEventId=eventId;section='drawer';screen='drawer';cashMode='';registerDirty=false;await refresh()}
+   else if(action==='cash-mode'){if(registerDirty&&!await leaveEditor())return;cashMode=b.dataset.mode;registerDirty=false}
+   else if(action==='cash-back'){if(!await leaveEditor())return;registerDirty=false;section='sell';screen='sale';mobilePane='basket'}
+   else if(action==='method-add'){if(methodsDraft.methods.length>=50)throw new Error('Use up to 50 POS payment methods.');const id='pos-'+crypto.randomUUID();methodsDraft.methods.push({id,label:'',active:true});registerDirty=true;setTimeout(()=>$(`[name="method_${id}"]`)?.focus(),0)}
+   else if(action==='section'){
+    if(['setup','methods'].includes(b.dataset.section)&&role!=='owner')return;
     if(!await leaveEditor())return;
-    section=b.dataset.section;screen=section==='sell'?'sale':section;
+    section=b.dataset.section;screen=section==='sell'?'sale':section;cashMode='';registerDirty=false;
+    if(section==='methods')methodsDraft=structuredClone(registerConfig);
+    if(section==='drawer'){await refresh();cashEventId=eventId||cashEventId||events[0]?.id||''}
    }else if(action==='mobile-basket')mobilePane='basket';
    else if(action==='mobile-products')mobilePane='products';
    else if(action==='event-sell'){
@@ -222,7 +264,9 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
   });
  });
  root.addEventListener('input',e=>{
-  if(busy)return;
+  if(busy||registerPending)return;
+  if(e.target.closest('#pos-methods-form')){captureMethods();registerDirty=true;dirty();return}
+  if(e.target.closest('.pos-cash-form')){registerDirty=true;syncCashCount();dirty();return}
   if(e.target.closest('#pos-event-form')){captureEvent();if(e.target.name==='event_search'){eventSearch=e.target.value;const start=e.target.selectionStart;render();const f=$('[name="event_search"]');f.focus();f.setSelectionRange(start,start)}return}
   if(e.target.closest('#pos-options-form')){syncOptions(e.target);return}
   if(e.target.name==='search') {capture();search=e.target.value;const start=e.target.selectionStart;render();const f=$('[name="search"]');f.focus();f.setSelectionRange(start,start);return}
@@ -233,6 +277,7 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
  });
  root.addEventListener('change',e=>{
   if(busy)return;
+  if(e.target.name==='cash_event_id'){const next=e.target.value;run(async()=>{if(!await leaveEditor())return;cashEventId=next;cashMode='';registerDirty=false});return}
   if(['method','discount_kind','delivery_fee_pending'].includes(e.target.name)){capture();render()}
   if(e.target.name==='event_id')run(async()=>{const id=e.target.value;if(items.length&&!await confirmDialog('Items in this unsaved sale will be cleared.',{title:'Switch event?',confirmLabel:'Switch event'}))return;eventId=id;items=[];capture()});
   syncPayment();
@@ -242,7 +287,14 @@ export async function mountPOS(root,{api,role,connected,products=[],settings={},
  root.addEventListener('submit',e=>{
   e.preventDefault();e.stopPropagation();const form=e.target;
   run(async()=>{
-   if(form.id==='pos-sale-form'){capture();const p=basePayload();if(p.email_notifications&&!p.buyer.email)throw new Error('Enter a client email or turn off email confirmations.');quote=await api('pos_quote',p);screen='review'}
+   if(registerPending){await saveRegister();return}
+   if(form.id==='pos-methods-form'){captureMethods();await saveRegister('pos_payment_methods_save',methodsDraft)}
+   else if(form.id==='pos-cash-open-form')await saveRegister('pos_cash_open',{event_id:cashEventId,opening_cents:pesoCents(value(form,'opening')),note:value(form,'note')});
+   else if(['pos-cash-move-form','pos-cash-close-form'].includes(form.id)){
+    const session=openDrawer(cashEventId);if(!session)throw new Error('Refresh to find the open cash session.');
+    await saveRegister(form.id==='pos-cash-close-form'?'pos_cash_close':'pos_cash_move',{session_id:session.id,revision:session.revision,note:value(form,'note'),...(form.id==='pos-cash-close-form'?{counted_cents:pesoCents(value(form,'counted'))}:{kind:value(form,'kind'),amount_cents:pesoCents(value(form,'amount'))})});
+   }
+   else if(form.id==='pos-sale-form'){capture();const p=basePayload();if(p.email_notifications&&!p.buyer.email)throw new Error('Enter a client email or turn off email confirmations.');quote=await api('pos_quote',p);screen='review'}
    else if(form.id==='pos-confirm-form'){
     if(!pending)pending={...basePayload(),expected_quote:quote,idempotency_key:submissionKey,...(value(form,'payment_state')==='paid'?{payment:readPayment(form,quote.total_cents)}:{})};
     try{await saved(await api('pos_create_order',pending))}catch(e){

@@ -47,6 +47,13 @@ test('real XLSX roundtrip keeps category sheets, formulas, currency, dates and h
  const delivery=saved.getWorksheet('Delivery comparison');assert.equal(delivery.getCell('F6').value.result,-75.5);assert.equal(delivery.getCell('E7').value,'Not recorded');assert.equal(delivery.getCell('F7').value,null);
  for(const sheet of saved.worksheets)assert.equal(sheet.views[0].state,'frozen');
 });
+
+test('Excel preserves saved custom POS payment names as literal text',async()=>{
+ const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
+ const report=structuredClone(fixture),entry=report.entries.find(e=>e.category_id==='cakes');entry.source='Direct message';entry.payment_method='=Card terminal';
+ const book=buildAccountingWorkbook(report,ExcelJS),saved=new ExcelJS.Workbook();await saved.xlsx.load(await book.xlsx.writeBuffer());
+ assert.equal(saved.getWorksheet('Custom cakes').getCell('E7').value,'=Card terminal');assert.equal(saved.getWorksheet('Custom cakes').getCell('E7').type,3);
+});
 test('Delivery exports one category with separate income and expense tables and unchanged totals',async()=>{
  const require=createRequire(import.meta.url),ExcelJS=require(process.env.EXCELJS_TEST_PATH||resolve(import.meta.dirname,'../work/exceljs-4.4.0.min.cjs'));
  const report=structuredClone(fixture),before=accountingTotals(report);

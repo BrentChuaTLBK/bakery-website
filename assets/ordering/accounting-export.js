@@ -78,7 +78,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
       titleCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF1E6D6'}};
       sheet.getRow(titleRow).height=30;
       const entries=report.entries.filter(e=>e.category_id===group.id&&e.kind===kind);
-      const rows=entries.map(e=>[date(e.entry_date),e.source,e.reference||null,e.client_name||null,accountingPaymentMethods[e.payment_method]||(e.source==='Manual'?'Not recorded':null),e.note||null,e.amount_cents/100]);
+      const rows=entries.map(e=>[date(e.entry_date),e.source,e.reference||null,e.client_name||null,accountingPaymentMethods[e.payment_method]||e.payment_method||(e.source==='Manual'?'Not recorded':null),e.note||null,e.amount_cents/100]);
       if(!rows.length)rows.push([null,null,null,null,null,'No entries in this timeframe',null]);
       const first=titleRow+2,last=first+rows.length-1,totalRow=last+1;
       // Excel requires the table definition and its totals cell to agree.

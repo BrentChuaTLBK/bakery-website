@@ -15,11 +15,31 @@ const original=await readFile(join(root,'assets/ordering/client.js'),'utf8'),hel
 const mock=completeClientFixture(original,`
  export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{user:{id:'owner'}}}}),onAuthStateChange:()=>{}};
  const d=${JSON.stringify(fixture)};window.posCalls=[];window.posOrders=d.orders;
+ d.register_config={revision:1,methods:[{id:'cash',label:'Cash',active:true},{id:'gcash',label:'GCash',active:true},{id:'bdo',label:'BDO',active:true},{id:'eastwest',label:'EastWest',active:true}]};d.cash_sessions=[];const registerKeys=new Map();
  export async function api(action,p={}){
   window.posCalls.push({action,p:structuredClone(p)});
   if(window.pendingFailure&&['pos_create_order','pos_find_submission'].includes(action))throw Error('Temporary network failure');
+  if(window.registerFailure&&(action.startsWith('pos_cash_')||action==='pos_register_find'))throw Error('Temporary register connection failure');
+  if(action==='pos_bootstrap'&&window.registerRefreshFailure){window.registerRefreshFailure=false;throw Error('Refresh connection failed')}
+  if(action==='pos_register_find')return registerKeys.get(p.idempotency_key)||null;
+  if(action==='pos_cash_get')return d.cash_sessions.find(s=>s.id===p.session_id);
+  if(['pos_cash_open','pos_cash_move','pos_cash_close','pos_payment_methods_save'].includes(action)){
+   if(registerKeys.has(p.idempotency_key))return registerKeys.get(p.idempotency_key);
+   let result;
+   if(action==='pos_payment_methods_save'){d.register_config={...p,revision:d.register_config.revision+1};result=d.register_config}
+   else if(action==='pos_cash_open'){
+    if(d.cash_sessions.some(s=>s.event_id===p.event_id&&!s.closed_at))throw Error('This event already has an open cash session.');
+    result={id:'drawer-'+d.cash_sessions.length,event_id:p.event_id,event_name:d.events.find(e=>e.id===p.event_id).name,opened_at:new Date().toISOString(),opening_cents:p.opening_cents,expected_cents:p.opening_cents,cash_collected_cents:0,cash_in_cents:0,cash_out_cents:0,movements:[],payment_totals:[],revision:1};d.cash_sessions.unshift(result);
+   }else{
+    result=d.cash_sessions.find(s=>s.id===p.session_id);if(result.closed_at||p.revision!==result.revision)throw Error('The drawer changed. Refresh first.');
+    if(action==='pos_cash_close'){if(p.counted_cents!==result.expected_cents&&!p.note)throw Error('Explain the difference.');Object.assign(result,{closed_at:new Date().toISOString(),counted_cents:p.counted_cents,expected_at_close_cents:result.expected_cents,difference_cents:p.counted_cents-result.expected_cents,closing_note:p.note})}
+    else {result.movements.unshift({...p,created_at:new Date().toISOString()});result[p.kind+'_cents']+=p.amount_cents;result.expected_cents+=p.kind==='cash_in'?p.amount_cents:-p.amount_cents}
+    result.revision++;
+   }
+   registerKeys.set(p.idempotency_key,structuredClone(result));if(window.loseRegisterResponse){window.loseRegisterResponse=false;throw Error('Lost register response')};return result;
+  }
   if(action==='admin_bootstrap')return {...d,role:window.fixtureRole};
-  if(action==='pos_bootstrap'){if(window.closeEventId){const target=d.events.find(e=>e.id===window.closeEventId);target.closed=true;window.closeEventId=null;}return {events:d.events,orders:d.orders};}
+  if(action==='pos_bootstrap'){if(window.closeEventId){const target=d.events.find(e=>e.id===window.closeEventId);target.closed=true;window.closeEventId=null;}return {events:d.events,orders:d.orders,cash_sessions:d.cash_sessions,register_config:d.register_config};}
   if(action==='pos_quote'){
    if(p.source==='popup'&&d.events.find(e=>e.id===p.event_id)?.closed)throw Error('Choose an open pop-up event.');
    const items=p.items.map(i=>{const product=d.products.find(x=>x.id===i.product_id),event=d.events.find(e=>e.id===p.event_id),s=i.custom_event_item_id?event?.custom_stock.find(x=>x.id===i.custom_event_item_id):event?.stock.find(x=>x.product_id===i.product_id);const extra=(p.source==='popup'&&s?.options_tracked?s.option_groups:product?.option_groups)?.reduce((sum,g)=>sum+g.choices.reduce((sum,c)=>sum+(i.selections?.[g.id]?.[c.id]||0)*c.surcharge_cents,0),0)||0;
@@ -30,7 +50,11 @@ const mock=completeClientFixture(original,`
   }
   if(action==='pos_create_order'){
    const found=d.orders.find(o=>o.idempotency_key===p.idempotency_key);if(found)return found;
+   const session=p.source==='popup'?d.cash_sessions.find(s=>s.event_id===p.event_id&&!s.closed_at):null;
+   if(p.source==='popup'&&p.payment?.method==='cash'&&(!session||p.payment.cash_session_id!==session.id))throw Error('Open a cash session first.');
    const o={...p,...p.expected_quote,id:'order'+d.orders.length,reference:'TLB-POS-'+d.orders.length,revision:1,access_token:'a'.repeat(64),created_at:new Date().toISOString(),payment_status:p.payment?'paid':'awaiting_payment',fulfillment_status:p.payment?(p.source==='popup'?'completed':'confirmed'):'pending_confirmation',payment_deadline:p.source==='direct_message'?null:new Date().toISOString(),paid_amount_cents:p.payment?.amount_cents,payment_method:p.payment?.method,cash_received_cents:p.payment?.received_cents,change_cents:p.payment?.received_cents-p.expected_quote.total_cents,event_name:p.source==='popup'?'Weekend pop-up':null};
+   if(p.payment)o.payment_method_label=d.register_config.methods.find(m=>m.id===p.payment.method).label;
+   if(session&&p.payment){o.cash_session_id=session.id;const n=p.payment.amount_cents;if(p.payment.method==='cash'){session.cash_collected_cents+=n;session.expected_cents+=n};let t=session.payment_totals.find(m=>m.method===p.payment.method);if(!t){t={method:p.payment.method,method_label:o.payment_method_label,sales:0,amount_cents:0};session.payment_totals.push(t)}t.sales++;t.amount_cents+=n;session.revision++}
    d.orders.unshift(o);if(window.loseResponse){window.loseResponse=false;throw Error('Connection lost')};return o;
   }
   if(action==='pos_find_submission')return d.orders.find(o=>o.idempotency_key===p.idempotency_key)||null;
@@ -56,6 +80,11 @@ try{
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const basket=async()=>{if(width<760&&await page.locator('[data-pos=mobile-basket]').isVisible())await page.locator('[data-pos=mobile-basket]').click()};
   const productView=async()=>{if(width<760)await page.locator('[data-pos=mobile-products]').click()};
+  const openCashDrawer=async()=>{
+   await page.locator('[data-pos=section][data-section=drawer]').click();await page.locator('.pos-cash-panel').waitFor();
+   if(await page.locator('#pos-cash-open-form').count()){await page.locator('[name=opening]').fill('1000');await page.getByRole('button',{name:'Open cash session',exact:true}).click();await page.locator('[data-pos=cash-mode]').first().waitFor()}
+   await page.locator('[data-pos=cash-back]').click();await productView();
+  };
   await page.goto(origin+'/manage.html#pos');await page.locator('[data-pos=add]').first().waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   assert.equal(await page.locator('[data-pos=event-new]').count(),0);assert.equal(await page.locator('[data-pos=event-edit]').count(),0);assert.equal(await page.locator('.pos-recent').count(),0);
@@ -63,7 +92,7 @@ try{
   if(width<760){assert.equal(await page.locator('.admin-sidebar').isVisible(),false);assert.equal(await page.locator('.pos-basket-panel').isVisible(),false);const dock=await page.locator('.pos-mobile-dock').boundingBox();assert.ok(dock.y+dock.height<=845);assert.ok(dock.y>700)}
   assert.equal(await page.locator('[name=event_id] option').count(),2);
   if(width===820){assert.equal(await page.locator('.admin-sidebar').isVisible(),false);assert.equal(await page.locator('.pos-basket-panel').isVisible(),true)}
-  await page.screenshot({path:join(out,`selling-products-${width}.png`)});
+  await page.screenshot({path:join(out,`selling-products-${width}.png`)});await openCashDrawer();
   assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);await page.locator('[data-pos=add][data-id=p1]').click();await page.locator('[data-pos=add][data-id=p1]').click();assert.equal(await page.locator('.pos-cart li').count(),1);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');
   await page.locator('[data-pos=section][data-section=orders]').click();assert.equal(await page.locator('.pos-products-panel').count(),0);await page.locator('[data-pos=section][data-section=sell]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');
   await basket();
@@ -96,12 +125,12 @@ try{
   let saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.source,'direct_message');assert.equal(saved.buyer.name,'');assert.equal(saved.payment_deadline,null);assert.equal(saved.total_cents,30000);
   await page.locator('[data-pos=details]').click();await page.locator('#pos-details-form [name=name]').fill('Optional client');await page.locator('[name=social_platform]').selectOption('Instagram');await page.locator('[name=social_username]').fill('@example');await page.getByRole('button',{name:'Save details',exact:true}).click();await page.locator('#pos-payment-form').waitFor();
   saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.buyer.social_username,'@example');assert.equal(saved.payment_status,'awaiting_payment');
-  await page.locator('#pos-payment-form [name=payment_method]').selectOption('eastwest');await page.getByRole('button',{name:'Confirm payment received',exact:true}).click();await page.waitForFunction(()=>window.posOrders[0].payment_status==='paid');
+  await page.locator('#pos-payment-form [data-pos-payment=eastwest]').click();await page.getByRole('button',{name:'Confirm payment received',exact:true}).click();await page.waitForFunction(()=>window.posOrders[0].payment_status==='paid');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:join(out,`receipt-${width}.png`)});
   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Delivery test cake');await page.locator('#pos-custom-form [name=price]').fill('100');await page.getByRole('button',{name:'Add item',exact:true}).click();
   await page.locator('[name=method]').selectOption('delivery');await page.locator('[name=delivery_fee_pending]').check();assert.equal(await page.locator('#pos-sale-form [name=delivery_fee]').count(),0);
-  await page.getByRole('button',{name:'Review order',exact:true}).click();await page.locator('[name=payment_state]').selectOption('paid');await page.locator('[name=payment_method]').selectOption('gcash');await page.getByRole('button',{name:'Create direct order',exact:true}).click();await page.locator('#pos-delivery-fee-form').waitFor();
+  await page.getByRole('button',{name:'Review order',exact:true}).click();await page.locator('[name=payment_state]').selectOption('paid');await page.locator('[data-pos-payment=gcash]').click();await page.getByRole('button',{name:'Create direct order',exact:true}).click();await page.locator('#pos-delivery-fee-form').waitFor();
   saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.paid_amount_cents,10000);assert.equal(saved.delivery_payment_status,'pending');
   await page.locator('#pos-delivery-fee-form [name=delivery_fee]').fill('15.50');await page.getByRole('button',{name:'Set exact delivery fee',exact:true}).click();await page.locator('#pos-delivery-payment-form').waitFor();
   assert.equal(await page.locator('#pos-payment-form').count(),0);assert.equal(await page.locator('#pos-delivery-payment-form [name=cash_received]').inputValue(),'15.50');await page.locator('#pos-delivery-payment-form [name=cash_received]').fill('20');assert.match(await page.locator('[data-change]').innerText(),/4\.50/);
@@ -122,7 +151,7 @@ try{
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:join(out,`event-setup-${width}.png`)});await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[data-pos=event-sell][data-id=new-event]').waitFor();assert.equal(await page.locator('[name=event_id]').count(),0);assert.match(await page.locator('.pos-status').innerText(),/Event saved/);await page.locator('[data-pos=event-sell][data-id=new-event]').click();await page.locator('[name=event_id]').waitFor();assert.equal(await page.locator('[name=event_id]').inputValue(),'new-event');
    assert.equal(await page.locator('[data-pos=add]').count(),1);assert.equal(await page.locator('[data-pos=add-event-custom]').count(),1);assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);
    await page.locator('[data-pos=section][data-section=setup]').click();await page.locator('[data-pos=event-edit][data-id=new-event]').click();await page.locator('[data-pos=event-remove][data-id=p1]').click();assert.equal(await page.locator('[data-stock-id]').count(),1);await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[data-pos=event-sell][data-id=new-event]').click();await page.locator('[data-pos=add-event-custom]').waitFor();assert.equal(await page.locator('[data-pos=add]').count(),0);
-   await page.locator('[data-pos=add-event-custom]').click();await page.locator('[data-pos=add-event-custom]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),7000);
+   await openCashDrawer();await page.locator('[data-pos=add-event-custom]').click();await page.locator('[data-pos=add-event-custom]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),7000);
   }else assert.equal(await page.locator('[data-pos=event-new]').count(),0);
   if(width===390){
    await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Retry order');await page.locator('#pos-custom-form [name=price]').fill('10');await page.getByRole('button',{name:'Add item',exact:true}).click();await page.getByRole('button',{name:'Review order',exact:true}).click();
@@ -159,6 +188,16 @@ try{
    assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),62500);
    await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();await page.locator('[data-pos=add][data-id=p4]').click();assert.equal(await page.getByRole('button',{name:'Increase Truffle quantity',exact:true}).count(),0);assert.equal(await page.locator('[name="flavor:vanilla"]').count(),1);await page.locator('[data-pos=back]').click();
   }
+  await page.locator('[data-pos=section][data-section=drawer]').click();await page.locator('[name=cash_event_id]').selectOption('event1');
+  await page.locator('[data-pos=cash-mode][data-mode=cash_in]').click();await page.locator('[name=amount]').fill('200');await page.locator('.pos-cash-form [name=note]').fill('Extra small change');await page.evaluate(()=>{window.loseRegisterResponse=true;window.registerRefreshFailure=true});await page.getByRole('button',{name:'Record cash movement',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.pos-status').textContent.includes('Cash movement recorded'));
+  assert.equal(await page.locator('.pos-cash-movements li').count(),1);
+  await page.locator('[data-pos=cash-mode][data-mode=cash_out]').click();await page.locator('[name=amount]').fill('100');await page.locator('.pos-cash-form [name=note]').fill('Cash removed');await page.evaluate(()=>window.registerFailure=true);await page.getByRole('button',{name:'Record cash movement',exact:true}).click();await page.locator('[data-pos=register-retry]').waitFor();assert.equal(await page.locator('#pos-manager').getAttribute('data-busy'),'true');assert.equal(await page.locator('[data-pos=section][data-section=sell]').isDisabled(),true);
+  await page.evaluate(()=>window.registerFailure=false);await page.locator('[data-pos=register-retry]').click();await page.waitForFunction(()=>!document.querySelector('[data-pos=register-retry]'));assert.equal(await page.locator('.pos-cash-movements li').count(),2);
+  await page.locator('[data-pos=cash-mode][data-mode=close]').click();const expected=await page.locator('.pos-cash-expected dd').innerText();const counted=Number(expected.replace(/[^0-9.]/g,''))-1;await page.locator('[name=counted]').fill(String(counted));await page.locator('.pos-cash-form [name=note]').fill('One peso short');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:join(out,`cash-session-${width}.png`)});await page.getByRole('button',{name:'Confirm closing count',exact:true}).click();await page.locator('#pos-cash-open-form').waitFor();assert.match(await page.locator('.pos-cash-history summary').innerText(),/Difference/);
+  if(role==='owner'){
+   await page.locator('[data-pos=section][data-section=methods]').click();await page.locator('[data-pos=method-add]').click();await page.locator('input[name^=method_pos-]').fill('Maya');await page.getByRole('button',{name:'Save POS payment methods',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.pos-status').textContent.includes('methods saved'));
+   await page.screenshot({path:join(out,`payment-methods-${width}.png`)});await page.locator('[data-pos=section][data-section=sell]').click();await page.locator('[data-source=direct_message]').click();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Card order');await page.locator('#pos-custom-form [name=price]').fill('25');await page.getByRole('button',{name:'Add item',exact:true}).click();await basket();await page.getByRole('button',{name:'Review order',exact:true}).click();await page.locator('[name=payment_state]').selectOption('paid');await page.getByRole('button',{name:'Maya',exact:true}).click();assert.equal(await page.locator('[name=cash_received]').isVisible(),false);assert.equal(await page.locator('.pos-cash-shortcuts').isVisible(),false);await page.screenshot({path:join(out,`payment-choices-${width}.png`)});await page.getByRole('button',{name:'Create direct order',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.match(await page.locator('.pos-receipt').innerText(),/Maya/);
+  }else assert.equal(await page.locator('[data-pos=section][data-section=methods]').count(),0);
   await page.locator('[data-pos=section][data-section=orders]').click();await page.locator('.pos-recent').waitFor();assert.equal(await page.locator('.pos-products-panel').count(),0);assert.equal(await page.locator('[data-pos=event-new]').count(),0);
   await page.locator('.pos-dashboard').click();await page.waitForFunction(()=>!document.body.classList.contains('pos-workspace'));assert.equal(await page.locator('.admin-sidebar').isVisible(),true);
   assert.deepEqual(errors,[]);results.push({width,role,passed:true});await context.close();

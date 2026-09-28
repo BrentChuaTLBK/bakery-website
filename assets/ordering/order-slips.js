@@ -42,8 +42,8 @@ function printModel(order, products, settings) {
     order.address?.line1, order.address?.line2, [order.address?.locality, order.address?.postal_code].filter(Boolean).join(' '),
   ]) || 'Not recorded' });
   details.push({ title: 'Instructions', value: text(order.instructions) || 'None' });
-  if(order.payment_method) details.push({title:'Payment received',value:lines([({cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'})[order.payment_method]||order.payment_method,order.payment_method==='cash'?`Cash: ${money(order.cash_received_cents)} | Change: ${money(order.change_cents)}`:''])});
-  if(order.deferred_delivery) details.push({title:'Delivery payment',value:lines([deliveryStatusText(order),order.delivery_paid_cents?`Received: ${money(order.delivery_paid_cents)} via ${label(order.delivery_payment_method)}`:'',order.delivery_payment_method==='cash'?`Cash: ${money(order.delivery_cash_received_cents)} | Change: ${money(order.delivery_change_cents)}`:''])});
+  if(order.payment_method) details.push({title:'Payment received',value:lines([order.payment_method_label||({cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'})[order.payment_method]||order.payment_method,order.payment_method==='cash'?`Cash: ${money(order.cash_received_cents)} | Change: ${money(order.change_cents)}`:''])});
+  if(order.deferred_delivery) details.push({title:'Delivery payment',value:lines([deliveryStatusText(order),order.delivery_paid_cents?`Received: ${money(order.delivery_paid_cents)} via ${order.delivery_payment_method_label||label(order.delivery_payment_method)}`:'',order.delivery_payment_method==='cash'?`Cash: ${money(order.delivery_cash_received_cents)} | Change: ${money(order.delivery_change_cents)}`:''])});
   const status = [order.refund_label ? 'Refund label' : '', ['cancelled', 'expired'].includes(order.fulfillment_status) ? label(order.fulfillment_status) : '', `Payment: ${label(order.payment_status) || 'Not recorded'}`].filter(Boolean).join(' | ');
   return {
     shop: text(settings.shop_name) || 'The Little Baker Kitchen', reference: text(order.reference) || 'Order',
