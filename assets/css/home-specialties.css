@@ -1,0 +1,27 @@
+.home-specialties .specialty-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+.home-specialties .specialty-grid > .col { min-width: 0; }
+.home-specialties .specialty-grid img {
+  display: block;
+  width: 100%;
+  height: auto !important;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+.home-specialties .specialty-grid .btn {
+  max-width: 100%;
+  padding: 12px 18px;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+.home-specialties .specialty-photo-link { display: block; border-radius: 1rem; }
+.home-specialties .specialty-photo-link:focus-visible { outline: 3px solid #764b25; outline-offset: 5px; }
+@media (min-width: 576px) {
+  .home-specialties .specialty-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+  .home-specialties .specialty-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
