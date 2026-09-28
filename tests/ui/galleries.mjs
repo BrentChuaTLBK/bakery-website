@@ -200,6 +200,8 @@ try {
   await pastryPage.locator('.portfolio-count').filter({ hasText: '51 photos' }).waitFor();
   await phone.goto(`${origin}/pastries.html`);
   await phone.locator('.portfolio-count').filter({ hasText: '51 photos' }).waitFor();
+  await phone.setViewportSize({width:320,height:900});
+  await phone.locator('.portfolio-controls select option').first().evaluate(option=>{option.textContent='Spanish Style Basque Cheesecake';});
   assert(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await phone.screenshot({ path: join(output, 'pastries-mobile.png') });
   await checkPhotoDismissal(phone, true);

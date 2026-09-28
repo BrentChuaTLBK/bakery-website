@@ -1,6 +1,7 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { packageCard, packagePrice, packageEscape as esc, packageInclusions } from './party-packages-view.js?v=dessert-bar-1';
 import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
+import { bindOrderDrag, orderDragGrip } from './catalog-order.js?v=package-order-1';
 
 export function mountPartyPackageManager(root, { role, connected, api, cartApi, page = 'party' }) {
   const service = eventPage(page);
@@ -11,7 +12,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
   let loaded = false, dirty = false, returnFocus;
   root.innerHTML = `<div class="view-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>${esc(service.adminTitle)}</h1><p>Manage the packages and inclusions on your ${service.pageName} page.</p></div><a class="button button-secondary" href="${service.pageUrl}" target="_blank" rel="noopener">View ${service.pageName.toLowerCase()} ↗</a></div>
     <div class="row-actions party-manager-actions"><button class="button" type="button" data-party-new disabled>Add package</button><button class="button button-secondary" type="button" data-party-settings disabled>Edit shared inclusions</button><button class="button button-secondary" type="button" data-party-refresh>Refresh</button></div>
-    <p data-party-message role="status" aria-live="polite"></p><div data-party-list class="party-admin-list"></div><div data-party-shared></div>
+    <p class="muted party-order-help" id="party-order-help">Drag the handles to rearrange packages. Use arrow keys when a handle is focused. Changes save automatically.</p><p data-party-message role="status" aria-live="polite"></p><div data-party-list class="party-admin-list" role="list" aria-label="Package order"></div><div data-party-shared></div>
     <section class="panel party-cart-admin"><div class="section-heading"><div><h2>Customize your own ${service.customName}</h2><p>Edit the treats customers can choose for a custom ${service.customName}.</p></div><button type="button" class="button button-secondary" data-party-cart disabled>Edit ${service.customName} items</button></div><p data-party-cart-message role="status"></p><ul data-party-cart-list class="party-cart-admin-list"></ul></section>
     <dialog closedby="none" class="party-editor" aria-labelledby="party-editor-title"><form data-party-form><div class="party-editor-top"><h2 id="party-editor-title"></h2><button type="button" class="icon-button" data-party-close aria-label="Close editor">×</button></div><div class="party-editor-layout"><div data-party-fields></div><aside><p class="eyebrow">Preview</p><div class="party-preview" data-party-preview></div></aside></div><p data-party-error role="alert"></p><div class="row-actions"><button type="submit" class="button">Save changes</button><button type="button" class="button button-secondary" data-party-close>Cancel</button></div></form></dialog>`;
   const $ = selector => root.querySelector(selector);
@@ -23,15 +24,33 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     $('[data-party-new]').disabled = value || !loaded;
     $('[data-party-settings]').disabled = value || !loaded;
     $('[data-party-cart]').disabled = value || !cart;
+    root.querySelectorAll('[data-order-handle]').forEach(el=>{el.disabled=value || items.length<2;});
     if (!value && dialog.open) syncFeatureButtons();
   }
   function markDirty(value) { dirty = value; root.dataset.dirty = String(value); }
   function paint() {
     items.sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-    $('[data-party-list]').innerHTML = items.map(p => `<article class="party-admin-item panel"><div><span class="badge">${p.published ? 'Visible' : 'Hidden'}</span>${p.badge ? `<span class="party-admin-badge">${esc(p.badge)}</span>` : ''}<h2>${esc(p.name)}</h2><p>${esc(p.subtitle || p.features[0]?.label || '')}</p><small>Display order: ${p.sort_order} · ${p.features.length} inclusions</small></div><div class="party-admin-item-actions"><strong>${esc(packagePrice(p.price_cents))}</strong><div class="row-actions"><button class="button button-secondary" type="button" data-party-edit="${esc(p.id)}">Edit<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-danger" type="button" data-party-delete="${esc(p.id)}">Delete<span class="sr-only"> ${esc(p.name)}</span></button></div></div></article>`).join('') || '<p class="notice">No packages yet. Add your first package.</p>';
+    $('[data-party-list]').innerHTML = items.map((p,i) => `<article class="party-admin-item panel" role="listitem" data-order-item="${i}"><button type="button" class="catalog-order-handle party-order-handle" data-order-handle="${i}" aria-label="Rearrange ${esc(p.name)}" aria-describedby="party-order-help">${orderDragGrip}</button><div class="party-admin-item-info"><span class="badge">${p.published ? 'Visible' : 'Hidden'}</span>${p.badge ? `<span class="party-admin-badge">${esc(p.badge)}</span>` : ''}<h2>${esc(p.name)}</h2><p>${esc(p.subtitle || p.features[0]?.label || '')}</p><small>${p.features.length} inclusions</small></div><div class="party-admin-item-actions"><strong>${esc(packagePrice(p.price_cents))}</strong><div class="row-actions"><button class="button button-secondary" type="button" data-party-edit="${esc(p.id)}">Edit<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-secondary" type="button" data-party-duplicate="${esc(p.id)}">Duplicate<span class="sr-only"> ${esc(p.name)}</span></button><button class="button button-danger" type="button" data-party-delete="${esc(p.id)}">Delete<span class="sr-only"> ${esc(p.name)}</span></button></div></div></article>`).join('') || '<p class="notice">No packages yet. Add your first package.</p>';
     $('[data-party-shared]').innerHTML = packageInclusions(settings.inclusions);
     $('[data-party-cart-list]').innerHTML = cart?.items.map(item => `<li>${esc(item)}</li>`).join('') || '';
     if (cart) $('[data-party-cart-message]').textContent = cart.items.length ? `${cart.items.length} items · shown in this order on the website` : `No items listed. Use Edit ${service.customName} items to add treats.`;
+  }
+  async function movePackage(from,to) {
+    if (busy || from===to || !items[from] || !items[to]) return;
+    const previous=items.slice(), moved=items[from], next=items.slice();
+    next.splice(to,0,next.splice(from,1)[0]);
+    items=next.map((p,i)=>({...p,sort_order:i+1}));paint();lock(true);message('Saving package order…');
+    try {
+      const result=await api('reorder',{ids:items.map(p=>p.id),expected:previous.map(p=>({id:p.id,revision:p.revision}))});
+      items=result.items;paint();message('Package order saved.');
+    } catch(error) {items=previous;paint();message(error.message || 'Could not save the order. Refresh and try again.',true);}
+    finally {lock(false);root.querySelector(`[data-order-handle="${items.findIndex(p=>p.id===moved.id)}"]`)?.focus({preventScroll:true});}
+  }
+  function duplicatePackage(item) {
+    if (!item) return;
+    edit({...structuredClone(item),id:crypto.randomUUID(),revision:0,name:`${item.name.slice(0,113)} (copy)`,published:false,sort_order:Math.min(10000,Math.max(0,...items.map(p=>p.sort_order))+10)});
+    $('#party-editor-title').textContent=`Duplicate ${item.name}`;
+    markDirty(true);
   }
   async function load() {
     lock(true); message(`Loading ${service.packageName}s…`);
@@ -116,6 +135,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     else if (target.hasAttribute('data-party-cart')) editCart();
     else if (target.hasAttribute('data-party-refresh')) void load();
     else if (target.hasAttribute('data-party-edit')) edit(items.find(p => p.id === target.dataset.partyEdit));
+    else if (target.hasAttribute('data-party-duplicate')) duplicatePackage(items.find(p => p.id === target.dataset.partyDuplicate));
     else if (target.hasAttribute('data-party-delete')) void deletePackage(items.find(p => p.id === target.dataset.partyDelete));
     else if (target.hasAttribute('data-party-close')) void close();
     else if (target.matches('[data-feature-add],[data-feature-remove],[data-feature-up],[data-feature-down]')) {
@@ -140,5 +160,6 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
     } catch (error) { $('[data-party-error]').textContent = error.message || 'Could not save. Your edits are still here; try again.'; }
     finally { lock(false); }
   });
+  bindOrderDrag($('[data-party-list]'),()=>loaded&&!busy&&!dialog.open,(from,to)=>void movePackage(from,to),new AbortController().signal);
   void load();
 }

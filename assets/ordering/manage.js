@@ -27,9 +27,9 @@ import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.j
 import { mountGalleryManager } from './gallery-manager.js?v=gallery-thumbnails-1';
 import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=heic-2';
 import { orderedCatalogProducts, productCategoryIds } from './catalog-ordering.js?v=multi-category-1';
-import { mountCatalogOrder } from './catalog-order.js?v=branded-dialogs-1';
+import { mountCatalogOrder } from './catalog-order.js?v=package-order-1';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
-import { mountPartyPackageManager } from './party-package-manager.js?v=branded-dialogs-1';
+import { mountPartyPackageManager } from './party-package-manager.js?v=package-tools-1';
 
 import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
 import {mountPOS} from './pos-manager.js?v=direct-order-edits-1';
