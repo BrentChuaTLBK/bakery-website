@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -34,7 +35,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.clock.install({time:Date.parse('2026-09-24T04:00:00Z')});
     await page.goto(origin+'/manage.html');
-    await page.locator('[data-view="analytics"]').click();
+    await selectDashboardSection(page, 'analytics');
     const bars = page.locator('.analytics-chart-point'), popup = page.locator('.analytics-chart-tooltip');
     const inspect = async (index, amount, date, orders) => {
       const bar = bars.nth(index);
@@ -84,8 +85,8 @@ try {
     await page.locator('#analytics-period').selectOption('last7');
     assert.equal(await bars.count(),7);
     await inspect(6,'₱9,876.54',/Sep 24, 2026/,'1 paid order');
-    await page.locator('[data-view="overview"]').click();
-    await page.locator('[data-view="analytics"]').click();
+    await selectDashboardSection(page, 'overview');
+    await selectDashboardSection(page, 'analytics');
     await inspect(6,'₱9,876.54',/Sep 24, 2026/,'1 paid order');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),true,'No page overflow');
     assert.deepEqual(errors,[]);

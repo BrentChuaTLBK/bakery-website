@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // Browser fixtures only: no real sign-in, uploads, or production mutations.
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -132,12 +133,12 @@ try{
   await admin.locator('[data-photo-move="0"]').press('ArrowRight');assert.equal(await admin.locator('[data-photo-move="0"] img').getAttribute('src'),original[0]);
   await admin.locator('[data-cart-photo-caption="0"]').fill('Updated <img src=x onerror=alert(1)> caption');await admin.locator('[data-cart-photo-visible="1"]').uncheck();
   await admin.locator('[data-cart-photo-remove="2"]').click();const removePrompt=admin.getByRole('dialog',{name:'Remove slideshow photo?',exact:true});await removePrompt.getByRole('button',{name:'Keep photo',exact:true}).click();await removePrompt.waitFor({state:'hidden'});assert.equal(await admin.locator('.cart-photo-card').count(),17);
-  await admin.locator('[data-view="overview"]').click();await admin.getByRole('dialog',{name:'Discard your changes?',exact:true}).getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await admin.locator('.cart-photo-card').count(),17);
+  await selectDashboardSection(admin, 'overview');await admin.getByRole('dialog',{name:'Discard your changes?',exact:true}).getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await admin.locator('.cart-photo-card').count(),17);
   await admin.locator('[data-cart-photo-remove="2"]').click();await removePrompt.getByRole('button',{name:'Remove photo',exact:true}).click();await removePrompt.waitFor({state:'hidden'});assert.equal(await admin.locator('.cart-photo-card').count(),16);
   const png=await admin.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=2400;canvas.height=1200;canvas.getContext('2d').fillRect(0,0,2400,1200);return canvas.toDataURL('image/png').split(',')[1];});
   let release;holdUpload=new Promise(r=>{release=r;});await admin.locator('[data-cart-photo-upload]').setInputFiles({name:'large-party.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')});
   await admin.locator('[data-cart-photo-message]').filter({hasText:'Converting and uploading'}).waitFor();assert(await admin.locator('[data-cart-photo-save]').isDisabled());
-  await admin.locator('[data-view="overview"]').click();assert.equal(await admin.locator('.cart-photo-card').count(),16);release();holdUpload=null;
+  await selectDashboardSection(admin, 'overview');assert.equal(await admin.locator('.cart-photo-card').count(),16);release();holdUpload=null;
   await admin.locator('[data-cart-photo-message]').filter({hasText:'1 photo ready'}).waitFor();
   assert.equal(uploads[0].type,'image/webp');assert.match(uploads[0].name,/\.webp$/);assert.equal(String.fromCharCode(...uploads[0].header.slice(8)),'WEBP');assert.equal(uploads[0].width,1600);assert.equal(uploads[0].height,800);
   assert.equal(await admin.locator('.cart-photo-card').count(),17);

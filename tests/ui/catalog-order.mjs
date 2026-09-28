@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // Real browser gestures and dashboard integration; all data is local fixture data.
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -35,7 +36,7 @@ async function context(mobile=false) {
  ctx.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));return ctx;
 }
 const ids=page=>page.locator('.catalog-order-list [data-order-id]').evaluateAll(rows=>rows.map(row=>row.dataset.orderId));
-async function menu(page){await page.goto(origin+'/manage.html');await page.locator('[data-view="products"]').first().click();await page.locator('[data-action="reorder-products"]').waitFor();}
+async function menu(page){await page.goto(origin+'/manage.html');await selectDashboardSection(page, 'products');await page.locator('[data-action="reorder-products"]').waitFor();}
 async function drag(page,from,to,touch=false,cancel=false,group=0){
  const handle=page.locator(`[data-order-group="${group}"] [data-order-handle="${from}"]`),target=page.locator(`[data-order-group="${group}"] [data-order-item="${to}"]`);await handle.scrollIntoViewIfNeeded();
  const a=await handle.boundingBox(),b=await target.boundingBox(),start={x:a.x+a.width/2,y:a.y+a.height/2},end={x:b.x+30,y:b.y+b.height/2};

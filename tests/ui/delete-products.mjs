@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
@@ -37,7 +38,7 @@ try{
    try{return route.fulfill({contentType:mime[extname(file)]||'application/octet-stream',body:await readFile(file)});}catch{return route.fulfill({status:404,body:''});}
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>{errors.push('Native dialog');return d.dismiss()});
-  await page.goto(origin+'/manage.html');await page.locator('#shop-status').filter({hasText:'Shop accepting orders'}).waitFor({state:'attached'});await page.locator('[data-view=products]').click();
+  await page.goto(origin+'/manage.html');await page.locator('#shop-status').filter({hasText:'Shop accepting orders'}).waitFor({state:'attached'});await selectDashboardSection(page, 'products');
   if(role==='staff'){
    assert.equal(await page.locator('[data-action=delete-product]').count(),0);await page.locator('[data-action=edit-product]').first().click();assert.equal(await page.locator('[data-action=delete-product]').count(),0);await context.close();results.push({width,role,passed:true});continue;
   }
@@ -54,7 +55,7 @@ try{
   await page.locator('#toast-region').filter({hasText:'Product deleted.'}).waitFor();assert.equal(await page.locator('[data-form=product]').count(),1);assert.equal(await page.locator('[data-form=product]').isVisible(),false);
   assert.equal(await page.locator('#product-results [data-action=edit-product][data-id=unused]').count(),0);assert.equal(await page.locator('#product-results [data-action=edit-product]').count(),2);
   assert.equal(await page.evaluate(()=>window.deleteCalls.filter(x=>x.id==='unused').length),1);
-  await page.reload();await page.locator('[data-view=products]').click();assert.equal(await page.locator('#product-results [data-action=edit-product]').count(),2);
+  await page.reload();await selectDashboardSection(page, 'products');assert.equal(await page.locator('#product-results [data-action=edit-product]').count(),2);
   await page.locator('[data-action=new-product]').click();assert.equal(await page.locator('[data-form=product] [data-action=delete-product]').count(),0);
   assert.deepEqual(errors,[]);results.push({width,role,passed:true});console.log('PASS owner product deletion, cancel, history protection, stale error and reload at '+width);await context.close();
  }

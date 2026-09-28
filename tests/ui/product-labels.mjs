@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Regression test for optional product labels. All authentication and API calls
 // are mocked locally; external requests are blocked before browser navigation.
@@ -97,7 +98,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', dialog => { errors.push('Unexpected browser dialog: ' + dialog.message()); dialog.dismiss(); });
   const openEditor = async () => {
-    await page.locator('[data-view="products"]').first().click();
+    await selectDashboardSection(page, 'products');
     await page.locator('[data-action="edit-product"][data-id="options"]').click();
     await page.locator('[name="label_enabled"]').waitFor();
   };

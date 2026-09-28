@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Exercise the real admin and storefront with local fixtures. No remote calls.
 import { createRequire } from 'node:module';
@@ -47,7 +48,7 @@ try{
  const page=await context.newPage();page.on('pageerror',e=>result.errors.push(e.message));
  const input=i=>page.locator(`[data-quantity-id="product-${i}"]`), day=d=>page.locator(`[data-calendar-date="${d}"]`);
  const save=()=>page.locator('[data-form="inventory"] button[type="submit"]');
- const open=async()=>{await page.goto(origin+'/manage.html',{waitUntil:'networkidle'});await page.locator('[data-view="inventory"]').first().click();await input(0).waitFor()};
+ const open=async()=>{await page.goto(origin+'/manage.html',{waitUntil:'networkidle'});await selectDashboardSection(page, 'inventory');await input(0).waitFor()};
  await open();
  check('All products are visible, including hidden products and a photo fallback',await page.locator('[data-quantity-product]').count()===6&&await page.locator('.quantity-photo img').count()===5&&await page.getByText('Hidden from menu',{exact:true}).count()===1);
  check('New date quantities start blank',await page.locator('[data-quantity-id]').evaluateAll(nodes=>nodes.every(n=>n.value==='')));

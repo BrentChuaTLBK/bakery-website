@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // All writes are browser fixtures. Never signs in to or mutates production.
 import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -98,7 +99,7 @@ try{
   assert.equal(await page.locator('[name="price"]').inputValue(),'9500.50');
   await page.locator('[data-party-form] button[type="submit"]').click();await page.locator('.party-editor').waitFor({state:'hidden'});
   const saves=calls.filter(c=>c.action==='save');assert.equal(saves[0].payload.operation_id,saves[1].payload.operation_id);
-  await page.reload();await page.locator('[data-view="packages"]').click();await page.locator('[data-party-edit="package-1"]').waitFor();assert.match(await page.locator('.party-admin-list').innerText(),/9,500.50/);
+  await page.reload();await selectDashboardSection(page, 'packages');await page.locator('[data-party-edit="package-1"]').waitFor();assert.match(await page.locator('.party-admin-list').innerText(),/9,500.50/);
   await page.locator('[data-party-new]').click();await page.locator('[data-party-form] button[type="submit"]').click();assert.equal(items.length,4);
   await page.locator('[name="name"]').fill('New custom package');await page.locator('[name="price"]').fill('18000');await page.locator('[name="sort_order"]').fill('0');await page.locator('[data-feature-label]').fill('100 treats');await page.locator('[data-feature-detail]').fill('<img src=x onerror="window.injected=true">');
   assert.equal(await page.locator('[data-party-preview] img').count(),0);
@@ -112,7 +113,7 @@ try{
   await page.locator('[data-party-form] button[type="submit"]').click();await page.locator('.party-editor').waitFor({state:'hidden'});
   const cartSaves=cartCalls.filter(c=>c.action==='save');assert.equal(cartSaves[0].payload.operation_id,cartSaves[1].payload.operation_id);
   assert.deepEqual(cart.items,['Updated cookie treats','New custom treat','Panna Cotta Cups']);
-  await page.reload();await page.locator('[data-view="packages"]').click();await page.locator('[data-party-cart-list]').filter({hasText:'New custom treat'}).waitFor();
+  await page.reload();await selectDashboardSection(page, 'packages');await page.locator('[data-party-cart-list]').filter({hasText:'New custom treat'}).waitFor();
   await page.locator('[data-party-cart]').click();await page.locator('.party-editor').evaluate(el=>el.scrollTop=0);await page.evaluate(()=>document.fonts.ready);assert(await page.evaluate(()=>document.fonts.check('14px "Chelsea Market"')));await page.screenshot({path:join(output,'customize-editor.png')});await page.locator('[data-party-close]').first().click();
   const publicPage=await ctx.newPage();await publicPage.goto(`${origin}/partycarts.html`);await publicPage.locator('.party-card').first().waitFor();assert.equal(await publicPage.locator('.party-card').count(),4);assert.equal(await publicPage.locator('.party-card h3').first().textContent(),'New custom package');assert(!(await publicPage.locator('[data-party-results]').innerText()).includes('Package 2'));
   assert.match(await publicPage.locator('.party-inclusions').innerText(),/5 Hours Duration/);
@@ -139,9 +140,9 @@ try{
   failCartBrowse=true;await publicPage.reload();await publicPage.locator('[data-cart-retry]').waitFor();assert.equal(await publicPage.locator('[data-party-cart-item]').count(),0);await publicPage.locator('[data-cart-retry]').click();await publicPage.locator('[data-party-cart-item]').first().waitFor();
   const staff=await context({role:'staff'}),staffPage=await staff.newPage();const before=calls.filter(c=>c.action==='admin_list').length;
   const cartBefore=cartCalls.filter(c=>c.action==='admin_get').length;
-  await staffPage.goto(`${origin}/manage.html`);await staffPage.locator('[data-view="packages"]').click();await staffPage.getByText('Sign in with the owner account to add or edit party packages.').waitFor();assert.equal(await staffPage.locator('[data-party-new]').count(),0);assert.equal(calls.filter(c=>c.action==='admin_list').length,before);assert.equal(cartCalls.filter(c=>c.action==='admin_get').length,cartBefore);
+  await staffPage.goto(`${origin}/manage.html`);await selectDashboardSection(staffPage, 'packages');await staffPage.getByText('Sign in with the owner account to add or edit party packages.').waitFor();assert.equal(await staffPage.locator('[data-party-new]').count(),0);assert.equal(calls.filter(c=>c.action==='admin_list').length,before);assert.equal(cartCalls.filter(c=>c.action==='admin_get').length,cartBefore);
   assert.equal(await staffPage.locator('[data-party-delete]').count(),0);
-  const mobile=await context({mobile:true}),phone=await mobile.newPage();await phone.goto(`${origin}/manage.html`);await phone.locator('[data-view="packages"]').click();await phone.locator('[data-party-edit]').first().click();
+  const mobile=await context({mobile:true}),phone=await mobile.newPage();await phone.goto(`${origin}/manage.html`);await selectDashboardSection(phone, 'packages');await phone.locator('[data-party-edit]').first().click();
   assert(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await phone.locator('.party-editor').evaluate(el=>el.scrollWidth<=el.clientWidth+1));await phone.screenshot({path:join(output,'editor-mobile.png'),fullPage:true});
   await phone.goto(`${origin}/partycarts.html`);await phone.locator('.party-card').first().waitFor();assert(await phone.locator('[data-party-packages]').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
   assert.equal((await phone.locator('.cart-showcase-copy h1').innerText()).replace(/\s+/g,' ').trim(),'A cart full of happy moments.');assert(await phone.locator('.party-feature-detail').first().isVisible());

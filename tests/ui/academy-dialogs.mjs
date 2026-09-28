@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // Read-only integration against the loopback-only Academy QA preview.
 // All API writes and uploads are rejected; draft edits remain in the browser.
 import assert from 'node:assert/strict';
@@ -78,14 +79,14 @@ try {
     await editCamp();
     assert.equal(await title.inputValue(), camp.draft.title, 'Discard restores the saved title');
     await title.fill(changedTitle);
-    await page.locator('[data-view=overview]').click();
+    await selectDashboardSection(page, 'overview');
     await answer(discard, 'Keep editing');
     assert.equal(await title.inputValue(), changedTitle, 'Cancelling section navigation preserves the draft');
     assert.equal(await page.locator('[data-view=academy]').getAttribute('aria-current'), 'page');
-    await page.locator('[data-view=overview]').click();
+    await selectDashboardSection(page, 'overview');
     await answer(discard, 'Discard changes');
     await page.getByRole('heading', { name: 'A little overview', exact: true }).waitFor();
-    await page.locator('[data-view=academy]').click();
+    await selectDashboardSection(page, 'academy');
     await page.locator('[data-ac=edit]').first().waitFor();
     await editCamp();
     assert.equal(await title.inputValue(), camp.draft.title);

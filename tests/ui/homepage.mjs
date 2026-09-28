@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 // Browser fixtures exercise the real editor, upload conversion, RPC client and public renderer.
 // No live customer data, uploads or website changes.
 import assert from 'node:assert/strict';
@@ -48,7 +49,7 @@ try{
   await page.goto(origin+'/manage.html');await page.locator('#shop-status').filter({hasText:'Shop accepting orders'}).waitFor({state:'attached'});
   const nav=await page.locator('#admin-nav [data-view]').evaluateAll(els=>els.map(el=>el.dataset.view));assert.equal(nav.indexOf('homepage')+1,nav.indexOf('academy'));
   if(role==='staff'){assert.equal(await page.locator('[data-view=homepage]').isVisible(),false);assert.deepEqual(errors,[]);await context.close();results.push({width,role,passed:true});continue;}
-  await page.locator('[data-view=homepage]').click();await page.locator('.home-photo').first().waitFor();
+  await selectDashboardSection(page, 'homepage');await page.locator('.home-photo').first().waitFor();
   assert.equal(await page.locator('.home-photo').count(),4);assert.equal(await page.locator('[data-home-save]').isDisabled(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#homepage-manager').screenshot({path:join(out,`editor-${width}.png`)});
@@ -61,11 +62,11 @@ try{
   const uploads=await page.evaluate(()=>window.uploads);assert.equal(uploads[0].type,'image/webp');assert.equal(uploads[0].kind,'product');assert.ok(uploads[0].size>0);
   await page.locator('[data-home-replace]').setInputFiles(join(root,'assets/img/brands/Hat.png'));await page.waitForFunction(()=>window.uploads.length===2&&document.querySelector('#homepage-manager').dataset.busy==='false');
   await page.locator('[data-home-remove="1"]').click();await page.getByRole('button',{name:'Keep photo',exact:true}).click();assert.equal(await page.locator('.home-photo').count(),2);
-  await page.locator('[data-view=orders]').click();await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await page.locator('#homepage-manager').count(),1);
+  await selectDashboardSection(page, 'orders');await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await page.locator('#homepage-manager').count(),1);
   failSave=true;await page.locator('[data-home-save]').click();await page.locator('[data-home-message]').filter({hasText:'another window'}).waitFor();assert.equal(await page.locator('#homepage-manager').getAttribute('data-dirty'),'true');
   await page.locator('[data-home-save]').click();await page.locator('[data-home-message]').filter({hasText:'Saved.'}).waitFor();
   assert.equal(data.content.specialties[3].photos.length,2);assert.equal(data.content.hero[1].title,'Baking classes <summer>');assert.equal(data.content.hero[1].buttons.length,1);
-  await page.reload();await page.locator('[data-view=homepage]').click();await page.locator('[data-home-select="1"]').click();assert.equal(await page.locator('[data-home-field=title]').inputValue(),'Baking classes <summer>');
+  await page.reload();await selectDashboardSection(page, 'homepage');await page.locator('[data-home-select="1"]').click();assert.equal(await page.locator('[data-home-field=title]').inputValue(),'Baking classes <summer>');
   await page.locator('[data-home-section]').selectOption('academy');await page.locator('[data-home-remove="1"]').click();await page.getByRole('button',{name:'Remove photo',exact:true}).click();assert.equal(await page.locator('.home-photo').count(),1);
   await page.locator('[data-home-reset]').click();await page.getByRole('button',{name:'Discard changes',exact:true}).last().click();assert.equal(await page.locator('.home-photo').count(),2);
   await page.locator('[data-home-section]').selectOption('hero');await page.locator('[data-home-field="button.0.href"]').fill('javascript:alert(1)');await page.locator('[data-home-save]').click();await page.locator('[data-home-message]').filter({hasText:'valid website page'}).waitFor();

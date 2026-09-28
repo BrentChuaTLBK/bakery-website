@@ -1,3 +1,4 @@
+import {selectDashboardSection} from '../helpers/dashboard-nav.mjs';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 // Real dashboard/print integration with local fixtures; every external request is blocked.
 import { createRequire } from 'node:module';
@@ -83,7 +84,7 @@ async function openOrder(order, options = {}) {
   await page.goto(`${origin}/manage.html`);
   await page.evaluate(({ key, fixture }) => localStorage.setItem(key, JSON.stringify(fixture)), { key, fixture: { order, products, settings, ...options } });
   await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('[data-view="orders"]').click();
+  await selectDashboardSection(page, 'orders');
   await page.locator('[data-action="open-order"]').first().click();
   await page.locator('[data-action="print-order"]').waitFor();
 }
@@ -201,7 +202,7 @@ try {
   async function ordersList(orders, extras = {}) {
     await page.evaluate(({key,fixture}) => localStorage.setItem(key, JSON.stringify(fixture)), { key, fixture: { orders, products, settings, ...extras } });
     await page.goto(`${origin}/manage.html`, { waitUntil: 'networkidle' });
-    await page.locator('[data-view="orders"]').click();
+    await selectDashboardSection(page, 'orders');
   }
   async function selectedPreview() {
     const pending = page.waitForEvent('popup');
