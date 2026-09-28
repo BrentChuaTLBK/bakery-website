@@ -14,7 +14,7 @@ fixture.events.push({...fixture.events[0],id:'closed-event',name:'Closed booth',
 const original=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=original.slice(original.indexOf('export function money('));
 const mock=completeClientFixture(original,`
  export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{user:{id:'owner'}}}}),onAuthStateChange:()=>{}};
- const d=${JSON.stringify(fixture)};window.posCalls=[];window.posOrders=d.orders;
+ const d=${JSON.stringify(fixture)};window.posCalls=[];window.posOrders=d.orders;const editKeys=new Map();
  d.register_config={revision:1,methods:[{id:'cash',label:'Cash',active:true},{id:'gcash',label:'GCash',active:true},{id:'bdo',label:'BDO',active:true},{id:'eastwest',label:'EastWest',active:true}]};d.cash_sessions=[];const registerKeys=new Map();
  export async function api(action,p={}){
   window.posCalls.push({action,p:structuredClone(p)});
@@ -40,13 +40,21 @@ const mock=completeClientFixture(original,`
   }
   if(action==='admin_bootstrap')return {...d,role:window.fixtureRole};
   if(action==='pos_bootstrap'){if(window.closeEventId){const target=d.events.find(e=>e.id===window.closeEventId);target.closed=true;window.closeEventId=null;}return {events:d.events,orders:d.orders,cash_sessions:d.cash_sessions,register_config:d.register_config};}
-  if(action==='pos_quote'){
+  if(action==='pos_quote'||action==='pos_preview_edit'){
+   if(action==='pos_preview_edit'&&d.orders.find(o=>o.id===p.order_id)?.revision!==p.revision)throw Error('This order changed. Reopen it before editing.');
    if(p.source==='popup'&&d.events.find(e=>e.id===p.event_id)?.closed)throw Error('Choose an open pop-up event.');
    const items=p.items.map(i=>{const product=d.products.find(x=>x.id===i.product_id),event=d.events.find(e=>e.id===p.event_id),s=i.custom_event_item_id?event?.custom_stock.find(x=>x.id===i.custom_event_item_id):event?.stock.find(x=>x.product_id===i.product_id);const extra=(p.source==='popup'&&s?.options_tracked?s.option_groups:product?.option_groups)?.reduce((sum,g)=>sum+g.choices.reduce((sum,c)=>sum+(i.selections?.[g.id]?.[c.id]||0)*c.surcharge_cents,0),0)||0;
     const unit_price_cents=p.source==='popup'?s.price_cents+extra:product?product.price_cents+extra:i.unit_price_cents;
     return {...i,name:product?.name||i.name,unit_price_cents,line_total_cents:unit_price_cents*i.quantity};});
    const subtotal_cents=items.reduce((s,i)=>s+i.line_total_cents,0),discount_cents=p.discount.kind==='fixed'?p.discount.value:p.discount.kind==='percent'?Math.round(subtotal_cents*p.discount.value/100):0,delivery_cents=p.method==='delivery'&&!p.delivery_fee_pending?p.delivery_cents:0;
    return {deferred_delivery:p.delivery_fee_pending,delivery_payment_status:p.delivery_fee_pending?'pending':null,items,subtotal_cents,discount_cents,delivery_cents,total_cents:subtotal_cents-discount_cents+delivery_cents,source:p.source,method:p.method,fulfillment_date:p.fulfillment_date,event_id:p.event_id};
+  }
+  if(action==='pos_find_edit')return editKeys.get(p.idempotency_key)||null;
+  if(action==='pos_update_order'){
+   if(editKeys.has(p.idempotency_key))return editKeys.get(p.idempotency_key);
+   const o=d.orders.find(o=>o.id===p.order_id);if(o.revision!==p.revision)throw Error('This order changed.');
+   Object.assign(o,p.expected_quote,{buyer:p.buyer,recipient:p.recipient,address:p.address,instructions:p.instructions,discount:p.discount,override_dates:p.override_dates,override_reason:p.override_reason,email_notifications:p.email_notifications,revision:o.revision+1});
+   editKeys.set(p.idempotency_key,o);if(window.loseEditResponse){window.loseEditResponse=false;throw Error('Connection lost after editing')};return o;
   }
   if(action==='pos_create_order'){
    const found=d.orders.find(o=>o.idempotency_key===p.idempotency_key);if(found)return found;
@@ -62,7 +70,7 @@ const mock=completeClientFixture(original,`
   if(action==='pos_payment'||action==='pos_update_details'||action==='pos_void_sale'){
    const o=d.orders.find(o=>o.id===p.order_id);
    if(action==='pos_update_details')Object.assign(o,p);
-   if(action==='pos_payment')Object.assign(o,{payment_status:'paid',fulfillment_status:'confirmed',payment_method:p.payment.method,cash_received_cents:p.payment.received_cents,change_cents:p.payment.received_cents-o.total_cents});
+   if(action==='pos_payment')Object.assign(o,{payment_status:'paid',fulfillment_status:'confirmed',paid_amount_cents:p.payment.amount_cents,payment_method:p.payment.method,cash_received_cents:p.payment.received_cents,change_cents:p.payment.received_cents-o.total_cents});
    if(action==='pos_void_sale')o.fulfillment_status='cancelled';o.revision++;return o;
   }
   if(['pos_delivery_fee','pos_delivery_payment','pos_delivery_reject'].includes(action)){const o=d.orders.find(o=>o.id===p.order_id);if(action==='pos_delivery_fee')Object.assign(o,{delivery_cents:p.amount_cents,total_cents:o.subtotal_cents-o.discount_cents+p.amount_cents,delivery_payment_status:p.amount_cents?'awaiting_payment':'paid'});if(action==='pos_delivery_payment')Object.assign(o,{delivery_payment_status:'paid',delivery_paid_cents:p.payment.amount_cents,delivery_payment_method:p.payment.method,delivery_cash_received_cents:p.payment.received_cents,delivery_change_cents:p.payment.received_cents-p.payment.amount_cents});if(action==='pos_delivery_reject')o.delivery_payment_status='awaiting_payment';o.revision++;return o;}
@@ -162,7 +170,7 @@ try{
    assert.equal(await page.locator('#pos-custom-form [name=price]').inputValue(),'250');
    assert.equal(await page.locator('#pos-sale-form [name=name]').inputValue(),'Client remains separate');
    assert.equal(await page.locator('[name=qty_0]').inputValue(),'10000');
-   assert.equal(await page.locator('[name=method]').inputValue(),'delivery');assert.equal(await page.locator('[name=delivery_fee]').inputValue(),'50');
+   assert.equal(await page.locator('[name=method]').inputValue(),'delivery');assert.equal(Number(await page.locator('[name=delivery_fee]').inputValue()),50);
    await page.getByRole('button',{name:'Cancel',exact:true}).click();
    await page.locator('[name=qty_0]').fill('1');await page.locator('#pos-sale-form [name=name]').fill('');
   }
@@ -173,7 +181,33 @@ try{
   let saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.source,'direct_message');assert.equal(saved.buyer.name,'');assert.equal(saved.payment_deadline,null);assert.equal(saved.total_cents,30000);
   await page.locator('[data-pos=details]').click();await page.locator('#pos-details-form [name=name]').fill('Optional client');await page.locator('[name=social_platform]').selectOption('Instagram');await page.locator('[name=social_username]').fill('@example');await page.getByRole('button',{name:'Save details',exact:true}).click();await page.locator('#pos-payment-form').waitFor();
   saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.buyer.social_username,'@example');assert.equal(saved.payment_status,'awaiting_payment');
+  const editId=saved.id,editReference=saved.reference,editLink=await page.locator('[data-share-link]').inputValue(),orderCount=await page.evaluate(()=>window.posOrders.length);
+  await page.getByRole('button',{name:'Edit order',exact:true}).click();await page.locator('[name=qty_0]').fill('3');
+  await page.getByRole('button',{name:'Cancel edits',exact:true}).click();await page.getByRole('button',{name:'Discard edits',exact:true}).click();
+  assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),30000);assert.equal(await page.locator('[data-share-link]').inputValue(),editLink);
+  await page.getByRole('button',{name:'Edit order',exact:true}).click();assert.equal(await page.locator('#pos-sale-form [name=name]').inputValue(),'Optional client');
+  assert.equal(await page.locator('[name=social_username]').inputValue(),'@example');assert.equal(await page.locator('[name=method]').inputValue(),'delivery');assert.equal(Number(await page.locator('[name=delivery_fee]').inputValue()),50);
+  await page.locator('[name=qty_0]').fill('2');await page.locator('[name=discount_kind]').selectOption('fixed');await page.locator('[name=discount_value]').fill('25');
+  await page.locator('[name=instructions]').fill('Updated direct order');
+  await page.screenshot({path:join(out,`edit-direct-order-${width}-${role}.png`)});
+  await page.getByRole('button',{name:'Review changes',exact:true}).click();assert.match(await page.locator('.pos-review').innerText(),/525.00/);
+  assert.equal(await page.locator('[name=payment_state]').count(),0);assert.equal(await page.locator('[name=cash_received]').count(),0);
+  await page.getByRole('button',{name:'Back to edit',exact:true}).click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');
+  await page.getByRole('button',{name:'Review changes',exact:true}).click();await page.locator('[name=amendment_reason]').fill('Customer added one cake');
+  await page.evaluate(()=>window.loseEditResponse=true);await page.getByRole('button',{name:'Save changes',exact:true}).click();await page.locator('#pos-payment-form').waitFor();
+  saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.id,editId);assert.equal(saved.reference,editReference);assert.equal(saved.total_cents,52500);assert.equal(saved.payment_status,'awaiting_payment');
+  assert.equal(await page.locator('[data-share-link]').inputValue(),editLink);assert.equal(await page.evaluate(()=>window.posOrders.length),orderCount);
+  assert.equal(await page.evaluate(()=>window.posCalls.filter(c=>c.action==='pos_update_order').length),1);
+  assert.equal(await page.evaluate(()=>window.posCalls.some(c=>c.action==='pos_find_edit')),true);
   await page.locator('#pos-payment-form [data-pos-payment=eastwest]').click();await page.getByRole('button',{name:'Confirm payment received',exact:true}).click();await page.waitForFunction(()=>window.posOrders[0].payment_status==='paid');
+  await page.getByRole('button',{name:'Edit order',exact:true}).click();await page.locator('[name=price_0]').fill('300');await productView();await page.locator('[data-pos=add][data-id=p1]').click();await basket();
+  assert.equal(await page.locator('[name=price_1]').count(),0,'Website prices stay locked when editing');
+  await page.getByRole('button',{name:'Review changes',exact:true}).click();assert.match(await page.locator('.pos-review .notice').innerText(),/stays Paid/);
+  assert.match(await page.locator('.pos-review').innerText(),/725.00/);assert.equal(await page.locator('[name=payment_state]').count(),0);
+  await page.screenshot({path:join(out,`review-paid-edit-${width}-${role}.png`)});
+  await page.getByRole('button',{name:'Save changes',exact:true}).click();await page.locator('[data-share-link]').waitFor();
+  saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.id,editId);assert.equal(saved.payment_status,'paid');assert.equal(saved.total_cents,72500);assert.equal(saved.paid_amount_cents,52500);
+  assert.equal(await page.locator('#pos-payment-form').count(),0);assert.equal(await page.locator('[data-share-link]').inputValue(),editLink);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:join(out,`receipt-${width}.png`)});
   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Delivery test cake');await page.locator('#pos-custom-form [name=price]').fill('100');await page.getByRole('button',{name:'Add item',exact:true}).click();
