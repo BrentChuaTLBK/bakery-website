@@ -71,7 +71,7 @@ window.addEventListener('pageshow', syncPromoStatuses);
 window.addEventListener('pagehide', () => clearTimeout(promoStatusTimer));
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
-  if (catalogOrder?.dirty || catalogOrder?.busy || ['#newsletter-manager','#newsletter-offer-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
+  if (catalogOrder?.dirty || catalogOrder?.busy || ['#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
 });
 bindDateCalendars($('#workspace'));
 bindAccountingDates($('#workspace'));
@@ -176,6 +176,9 @@ function render() {
   clearSalesChart();
   const newsletterLink=$('[data-view=newsletters]');if(newsletterLink)newsletterLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='newsletters'&&state.role!=='owner')state.view='overview';
+  const homepageLink = $('[data-view=homepage]');
+  if(homepageLink) homepageLink.style.display=state.connected&&state.role==='owner'?'':'none';
+  if(state.view==='homepage'&&state.role!=='owner')state.view='overview';
   const academyLink = $('[data-view=academy]');
   if(academyLink) academyLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='academy'&&state.role!=='owner')state.view='overview';
@@ -183,8 +186,14 @@ function render() {
   if (accountingLink) accountingLink.style.display = state.connected && state.role === 'owner' ? '' : 'none';
   if (state.view === 'accounting' && state.connected && state.role !== 'owner') state.view = 'overview';
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
-  const views = { newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
+  const views = { homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  if (state.view === 'homepage') {
+    const root = $('#homepage-manager'); root.textContent = 'Opening the Home page editor…';
+    Promise.all([import('./homepage-manager.js?v=homepage-1'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
+      if(root.isConnected) view.mountHomepage(root,{role:state.role,connected:state.connected,api:client.homepageApi,upload});
+    }).catch(() => { if(root.isConnected) root.textContent = 'The Home page editor could not load. Open this tab again to retry.'; });
+  }
   if (state.view === 'newsletters') mountNewsletters($('#newsletter-manager'),{settings:state.settings,products:state.products,promos:state.promos});
   if (state.view === 'promos'&&owner()) mountWelcomeOffer($('#newsletter-offer-manager'));
   if (state.view === 'academy') mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
@@ -758,6 +767,8 @@ function exportOrders() {
 document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]');
   if(view){const newsletterEditor=$('#newsletter-manager')||$('#newsletter-offer-manager');if(newsletterEditor?.dataset.busy==='true'){toast('Please wait for the newsletter update to finish.');return;}if(newsletterEditor?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved newsletter changes will be lost.',{title:'Discard newsletter changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;}
+  if(view && $('#homepage-manager')?.dataset.busy==='true'){toast('Please wait for the Home page update to finish.');return;}
+  if(view && $('#homepage-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved Home page changes will be lost.',{title:'Discard home page changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if(view && $('#academy-manager')?.dataset.busy==='true'){toast('Please wait for the Academy update to finish.');return;}
   if(view && $('#academy-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved Academy changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if (view && $('#accounting-manager')?.dataset.busy === 'true') { toast('Please wait for the accounting update to finish.'); return; }

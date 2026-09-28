@@ -25,3 +25,11 @@
 @media (min-width: 1200px) {
   .home-specialties .specialty-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+.home-banner-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1}
+.home-banner-copy{background:rgba(221,162,146,.88);border-radius:20px;padding:24px 30px;width:min(440px,80%);margin-right:8%;max-height:calc(100% - 64px);overflow-y:auto;overflow-wrap:anywhere}
+.home-banner-copy h1{font-family:Lobster,serif;font-size:clamp(26px,3vw,40px);color:#211914}
+.home-banner-copy p{color:#211914}.home-banner-buttons{display:flex;flex-wrap:wrap;gap:10px}.home-banner-buttons .btn{font-size:16px}
+.home-carousel-pause{position:absolute;bottom:10px;right:12px;z-index:3;border:1px solid #fefaef;border-radius:20px;background:#352720e8;color:#fffaf0;font-size:12px;padding:4px 12px;line-height:1.5}
+.home-carousel-pause:focus-visible{outline:3px solid #fefaef;outline-offset:3px}
+.home-managed-banner .carousel-indicators,.home-specialties .carousel-indicators{max-width:65%;margin-left:auto;margin-right:auto;overflow:hidden}
+@media(max-width:575px){.home-banner-copy{width:82%;margin:auto;padding:20px}.home-managed-banner{height:540px!important}.home-banner-copy h1{font-size:30px}}
