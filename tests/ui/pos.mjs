@@ -122,8 +122,50 @@ try{
   assert.equal(await page.locator('[data-pos=remove]').count(),2);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.equal(await page.locator('[name=qty_1]').inputValue(),'1');assert.equal(await page.locator('[name^=price_]').count(),0);
   await basket();await page.locator('[data-pos=remove]').first().click();await page.locator('[data-pos=remove]').first().click();
   const calendar=page.locator('.accounting-date-picker').filter({has:page.locator('[name=fulfillment_date]')});await calendar.locator('summary').click();await calendar.locator(`[data-date-value="${today}"]`).click();assert.equal(await page.locator('[name=fulfillment_date]').inputValue(),today);assert.equal(await page.locator('input[type=date]').count(),0);
-  await productView();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Custom cake');await page.locator('#pos-custom-form [name=price]').fill('250');await page.getByRole('button',{name:'Add item',exact:true}).click();
+  await page.locator('#pos-sale-form [name=name]').fill('Client draft');await productView();
+  const customCalls=await page.evaluate(()=>window.posCalls.length);
+  for(const close of ['Escape','Close custom item','Cancel','backdrop']){
+   await page.locator('[data-pos=custom]').click();
+   assert.equal(await page.locator('#pos-custom-dialog').evaluate(d=>d.open),true);
+   assert.equal(await page.locator('.pos-products-panel').isVisible(),true);
+   assert.equal(await page.locator('#pos-manager').getAttribute('data-screen'),'sale');
+   assert.equal(await page.locator('#pos-custom-form [name=name]').evaluate(el=>el===document.activeElement),true);
+   assert.equal(await page.evaluate(()=>getComputedStyle(document.body).overflow),'hidden');
+   await page.locator('#pos-custom-form [name=name]').fill('Discarded item');
+   await page.locator('#pos-custom-form [name=price]').fill('9');
+   if(close==='Escape')await page.keyboard.press('Escape');
+   else if(close==='backdrop')await page.mouse.click(2,2);
+   else await page.getByRole('button',{name:close,exact:true}).click();
+   assert.equal(await page.locator('#pos-custom-dialog').count(),0);
+   assert.equal(await page.locator('.pos-cart [data-cart-line]').count(),0);
+   assert.equal(await page.locator('#pos-sale-form [name=name]').inputValue(),'Client draft');
+   assert.equal(await page.locator('[name=fulfillment_date]').inputValue(),today);
+   assert.equal(await page.locator('[data-pos=custom]').evaluate(el=>el===document.activeElement),true);
+  }
+  assert.equal(await page.evaluate(()=>window.posCalls.length),customCalls,'Opening and cancelling custom items must not call the backend');
+  await page.locator('[data-pos=custom]').click();await page.getByRole('button',{name:'Add item',exact:true}).click();
+  assert.equal(await page.locator('#pos-custom-dialog').evaluate(d=>d.open),true,'An empty item is rejected inside the popup');
+  await page.locator('#pos-custom-form [name=name]').fill('Custom cake');await page.locator('#pos-custom-form [name=price]').fill('250');
+  assert.equal(await page.locator('#pos-custom-dialog').evaluate(d=>{const r=d.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight}),true);
+  await page.screenshot({path:join(out,`custom-item-popup-${width}-${role}.png`)});
+  await page.getByRole('button',{name:'Add item',exact:true}).click();await basket();
+  assert.equal(await page.locator('#pos-custom-dialog').count(),0);assert.equal(await page.locator('.pos-cart [data-cart-line]').count(),1);
+  assert.equal(await page.locator('#pos-sale-form [name=name]').inputValue(),'Client draft');
+  await page.locator('#pos-sale-form [name=name]').fill('');
   await page.locator('[name=method]').selectOption('delivery');await page.locator('[name=delivery_fee]').fill('50');
+  if(width===1440){
+   await page.locator('#pos-sale-form [name=name]').fill('Client remains separate');await page.locator('[name=qty_0]').fill('10000');
+   await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Custom cake');await page.locator('#pos-custom-form [name=price]').fill('250');
+   await page.getByRole('button',{name:'Add item',exact:true}).click();
+   assert.match(await page.locator('#pos-custom-dialog [role=alert]').innerText(),/10000 units/);
+   assert.equal(await page.locator('#pos-custom-form [name=name]').inputValue(),'Custom cake');
+   assert.equal(await page.locator('#pos-custom-form [name=price]').inputValue(),'250');
+   assert.equal(await page.locator('#pos-sale-form [name=name]').inputValue(),'Client remains separate');
+   assert.equal(await page.locator('[name=qty_0]').inputValue(),'10000');
+   assert.equal(await page.locator('[name=method]').inputValue(),'delivery');assert.equal(await page.locator('[name=delivery_fee]').inputValue(),'50');
+   await page.getByRole('button',{name:'Cancel',exact:true}).click();
+   await page.locator('[name=qty_0]').fill('1');await page.locator('#pos-sale-form [name=name]').fill('');
+  }
   // Every customer field, including recipient and delivery address, stays empty.
   await page.locator('[name=social_username]').fill('@draft-client');await page.locator('[data-pos=section][data-section=orders]').click();await page.locator('[data-pos=section][data-section=sell]').click();await basket();assert.equal(await page.locator('[name=social_username]').inputValue(),'@draft-client');await page.locator('[name=social_username]').fill('');
   await page.screenshot({path:join(out,`direct-order-${width}.png`)});
