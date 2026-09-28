@@ -10,3 +10,25 @@
 .accounting-calendar-error{background:#fff0ec;color:#953b2d;border-radius:6px;padding:12px;font-size:12px;line-height:1.6;margin:12px 0}.accounting-calendar-error[hidden]{display:none}
 .accounting-calendar .calendar-day:disabled{opacity:.35;cursor:not-allowed}
 .accounting-datetime-field{min-width:0}.accounting-datetime-field>.accounting-date-field{margin-bottom:8px}.accounting-datetime-time{display:grid;grid-template-columns:1fr 1fr;gap:10px}.accounting-datetime-time .field{min-width:0;margin-bottom:0}
+.accounting-report .table-wrap{margin:0 0 20px;border:1px solid #d9c9b8;border-radius:9px;max-width:100%;overflow:auto}
+.accounting-report .data-table{min-width:760px;white-space:normal}
+.accounting-report .data-table :is(th,td){border:0;border-right:1px solid #e4d8ca;border-bottom:1px solid #e4d8ca;padding:14px 16px;text-align:left;vertical-align:top;line-height:1.6}
+.accounting-report .data-table th{background:#f4eddf;color:#65492e;font-size:10px;font-weight:600;letter-spacing:.025em;vertical-align:middle}
+.accounting-report .data-table td{font-size:12px}
+.accounting-report .data-table tbody tr:last-child td{border-right:1px solid #e4d8ca;border-bottom:0}
+.accounting-report .data-table tr>:last-child{border-right:0!important}
+.accounting-report .data-table tbody tr:nth-child(even){background:#fcfaf5}
+.accounting-report .data-table tbody tr:hover{background:#f8f1e6}
+.accounting-records .data-table :is(th,td):first-child{white-space:nowrap}
+.accounting-records .data-table :is(th,td):nth-child(2){min-width:200px;max-width:380px;overflow-wrap:anywhere}
+.accounting-records .data-table :is(th,td):is(:nth-child(4),:nth-child(5)),.accounting-deliveries .data-table :is(th,td):nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
+.accounting-records .data-table td:is(:nth-child(4),:nth-child(5)),.accounting-deliveries .data-table td:nth-child(n+2){white-space:nowrap}
+.accounting-report .data-table td[colspan]{text-align:left;white-space:normal;padding:22px 16px;color:var(--muted)}
+.accounting-report .data-table .button-quiet{font-size:11px}
+.accounting-report .data-table [data-accounting="order"]{display:block;padding:0;min-height:28px;text-align:left}
+.accounting-summary .accounting-breakdown{border:1px solid #d9c9b8;border-radius:9px;overflow:hidden}
+.accounting-summary .accounting-breakdown>div{padding:13px 16px;border-bottom:1px solid #e4d8ca;align-items:baseline}
+.accounting-summary .accounting-breakdown dd{font-variant-numeric:tabular-nums;text-align:right}
+.accounting-summary .accounting-breakdown>.muted{padding:0 16px}
+.accounting-summary .accounting-subtotal{background:#f4eddf;border:0!important}
+@media(max-width:600px){.accounting-report .data-table :is(th,td){padding:12px}.accounting-report .data-table{min-width:720px}}

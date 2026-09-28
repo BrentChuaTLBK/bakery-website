@@ -1,0 +1,32 @@
+.settings-form .settings-grid { align-items: stretch; }
+.settings-form .panel { min-width: 0; margin: 0; }
+.settings-form :is(.settings-wide, #payment-options-editor) { grid-column: 1 / -1; }
+.settings-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; align-items: start; }
+.settings-columns > * { min-width: 0; }
+.settings-form .settings-columns > .date-calendar { margin: 0; }
+.settings-form .panel > :last-child, .settings-columns > div > :last-child { margin-bottom: 0; }
+.settings-form .help-text { line-height: 1.7; }
+.settings-form #payment-options-editor > .muted { font-size: 12px; line-height: 1.7; margin: 0 0 18px; }
+.settings-form .payment-admin-item { padding: 12px 16px; margin: 12px 0; background: #fffdfa; border-radius: 9px; }
+.settings-form .payment-admin-item > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; list-style: none; }
+.settings-form .payment-admin-item > summary::-webkit-details-marker { display: none; }
+.settings-form .payment-admin-item > summary strong { display: flex; align-items: center; gap: 9px; font-size: 12px; }
+.settings-form .payment-admin-item > summary strong::before { content: '›'; font-size: 20px; font-weight: 400; line-height: 1; transition: transform .15s; }
+.settings-form .payment-admin-item[open] > summary strong::before { transform: rotate(90deg); }
+.settings-form .payment-admin-item > summary:focus-visible { outline: 2px solid var(--caramel); outline-offset: 5px; border-radius: 3px; }
+.settings-form .payment-admin-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; padding-top: 20px; }
+.settings-form .payment-admin-fields .check-field { grid-column: 1 / -1; }
+.settings-form [data-payment-admin-status]:empty { display: none; }
+.settings-form .weekday-options { margin-top: 8px; }
+.settings-delivery-zones { margin-top: 24px; }
+.settings-delivery-zones .section-heading { flex-wrap: wrap; gap: 12px; }
+.settings-delivery-zones .zone-card { overflow-wrap: anywhere; }
+@media (max-width: 1100px) {
+  .settings-columns { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+}
+@media (max-width: 600px) {
+  .settings-form .payment-admin-fields { grid-template-columns: minmax(0, 1fr); }
+  .settings-form .payment-admin-item > summary { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .settings-form .payment-admin-item .row-actions { justify-content: flex-end; }
+  .settings-form .payment-admin-item { padding: 12px; }
+}
