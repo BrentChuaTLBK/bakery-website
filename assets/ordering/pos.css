@@ -22,3 +22,18 @@
  #pos-manager .pos-desktop-review{display:none}.pos-events{grid-template-columns:1fr}.pos-setup>.section-heading{flex-wrap:wrap}.pos-event-card{padding:16px}.pos-event-card .section-heading{gap:10px}.pos-event-card h3{overflow-wrap:anywhere}.pos-event-card .badge{flex-shrink:0}.pos-event-card .pos-actions{margin-bottom:0}.pos-event-card .button{min-height:44px}
  #pos-manager .pos-review,#pos-manager .pos-receipt{padding:16px}.pos-basket-panel>.field-row{margin-top:16px}.pos-basket-panel input,.pos-basket-panel select,.pos-basket-panel textarea,.pos-products-panel input{font-size:16px}.pos-entry-title h2{font-size:17px}.pos-entry-title .button{padding:9px;font-size:11px}.pos-basket-panel .accounting-calendar{z-index:15}
 }
+.pos-flavor-stock { margin-top:1rem; border-top:1px solid var(--line,#e4d6c5); padding-top:1rem; }
+.pos-flavor-stock h4 { margin:0 0 .5rem; }
+.pos-flavor-group { margin:1rem 0 0; padding:1rem; border:1px solid var(--line,#e4d6c5); border-radius:10px; min-width:0; }
+.pos-flavor-group legend { font-weight:600; padding:0 .4rem; }
+.pos-flavor-row { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(90px,1fr) minmax(90px,1fr); align-items:start; gap:1rem; padding:.75rem 0; border-bottom:1px solid var(--line,#e4d6c5); margin-bottom:.75rem; }
+.pos-flavor-name { min-width:0; }
+.pos-flavor-name .check-field { margin:0 0 .5rem; }
+.pos-flavor-name small,.pos-choice-stock { display:block; font-size:.8rem; color:var(--muted,#775a42); margin-top:.3rem; }
+.pos-flavor-row .field { margin-bottom:0; }
+@media(max-width:600px) {
+ .pos-flavor-group { padding:.75rem; }
+ .pos-flavor-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.65rem; }
+ .pos-flavor-name { grid-column:1 / -1; }
+ .pos-flavor-group>.button { width:100%; white-space:normal; }
+}
