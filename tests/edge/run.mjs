@@ -5,6 +5,7 @@ const result = spawnSync(process.execPath, [
   '--experimental-transform-types', '--test',
   fileURLToPath(new URL('./email-burst.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./calendar-sync.test.mjs', import.meta.url)),
+  fileURLToPath(new URL('./order-backup.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./edge.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./website-analytics.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./newsletter.test.mjs', import.meta.url)),

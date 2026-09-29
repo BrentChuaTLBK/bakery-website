@@ -52,6 +52,7 @@ state.accountingFilter = monthRange(manilaDate().slice(0, 7));
 if (location.hash === '#pos') state.view = 'pos';
 if (location.hash === '#academy') state.view = 'academy';
 if (location.hash === '#accounting') state.view = 'accounting';
+if (location.hash === '#backups') state.view = 'backups';
 state.promoFilter = '';
 state.printSelection = new Set();
 let activeOrder = null;
@@ -187,6 +188,8 @@ async function refresh() {
 }
 const syncDashboardNav = bindDashboardNav();
 function render() {
+  const backupLink=$('[data-view=backups]');if(backupLink)backupLink.style.display=state.connected&&state.role==='owner'?'':'none';
+  if(state.view==='backups'&&state.role!=='owner')state.view='overview';
   voucherController?.destroy();voucherController=null;
   const offerLink=$('[data-view=vouchers]');if(offerLink)offerLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='vouchers'&&state.role!=='owner')state.view='overview';
@@ -207,7 +210,14 @@ function render() {
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
   syncDashboardNav();
   const views = { vouchers:()=>'<div id="voucher-manager"></div>', calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
+  views.backups=()=>'<div id="backup-manager"></div>';
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  if(state.view==='backups'){
+    const root=$('#backup-manager');root.textContent='Opening order backups…';
+    Promise.all([import('./backup-manager.js?v=order-backups-1'),import('./client.js?v=order-backups-1')]).then(([view,client])=>{
+      if(root.isConnected)view.mountBackups(root,{role:state.role,connected:state.connected,api:client.orderBackupApi,connection:client.orderBackupConnection});
+    }).catch(()=>{if(root.isConnected)root.textContent='Order backups could not load. Open this tab again to retry.';});
+  }
   if (state.view === 'homepage') {
     const root = $('#homepage-manager'); root.textContent = 'Opening the Website content editor…';
     Promise.all([import('./homepage-manager.js?v=website-content-1'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
