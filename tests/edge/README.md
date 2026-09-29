@@ -1,4 +1,4 @@
-# Reproduce the eight mocked Edge tests
+# Reproduce the mocked Edge test suite
 
 Requires **Node.js 24**. No npm packages, Deno installation, provider account, API key, or network access is required.
 
@@ -8,7 +8,7 @@ From the repository root:
 node tests/edge/run.mjs
 ```
 
-The runner starts Node's built-in test runner with TypeScript transformation enabled and loads the real Edge source. It supplies mocked Deno environment/serve APIs and intercepted fetch responses. All eight checks should pass:
+The runner starts Node's built-in test runner with TypeScript transformation enabled and loads the real Edge source. It supplies mocked Deno environment/serve APIs and intercepted fetch responses. The suite has expanded beyond the original eight checks below. The runner prints the current test count; all tests must pass. These original areas remain covered:
 
 1. Image contents/type/size rejection.
 2. Required email event content, private access links, and HTML escaping.

@@ -3,7 +3,13 @@
 Brent has chosen to test the ordering system at https://thelittlebakerkitchen.com.
 Use this guide instead of the private-preview addresses in SETUP.md.
 
-## Current progress
+## Historical setup snapshot (September 2026)
+
+This section records the pre-launch setup and is not the current production state.
+Shop and account pages are now published, ordering is enabled, and maintenance runs every minute.
+Do not repeat the initial owner/product setup or change live settings based on this snapshot.
+For tested production behavior and coverage limits, see [the production audit](PRODUCTION-AUDIT-2026-09-29.md).
+
 
 - The existing website works over HTTPS. The www address redirects to the root domain.
 - GitHub Pages publishes the original repository's `main` branch, from `/(root)`.

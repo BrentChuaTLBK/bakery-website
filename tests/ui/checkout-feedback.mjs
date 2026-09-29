@@ -235,6 +235,20 @@ try {
     await page.screenshot({ path: join(process.env.UI_SCREENSHOT_DIR, 'checkout-feedback-mobile.png'), fullPage: true });
   }
   await review();
+  const assertCheckoutStart = async () => {
+    const position = await page.locator('#checkout-dialog').evaluate(dialog => ({
+      scroll: dialog.scrollTop, top: dialog.getBoundingClientRect().top,
+      headingTop: dialog.querySelector('#checkout-title').getBoundingClientRect().top,
+      closeTop: dialog.querySelector('.close-button').getBoundingClientRect().top,
+    }));
+    assert.equal(position.scroll, 0, 'Each mobile checkout step starts at its heading');
+    assert.ok(position.headingTop >= position.top && position.closeTop >= position.top, 'Heading and close button remain visible after the step changes');
+  };
+  await assertCheckoutStart();
+  await edit();
+  await assertCheckoutStart();
+  await review();
+  await assertCheckoutStart();
   await page.locator('#place-order').click();
   await page.locator('.order-title h1').waitFor();
   assert.equal((await calls('create_order')).length, 1);
