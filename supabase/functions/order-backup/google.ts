@@ -45,7 +45,7 @@ export function createGoogleSheets({getEnv=env,request=fetch,now=()=>Date.now()}
   const a=account();if(cached?.secret===a.secret&&cached.until>now())return cached.value;
   const endpoint='https://oauth2.googleapis.com/token',issued=Math.floor(now()/1000);
   let key;try{key=await crypto.subtle.importKey('pkcs8',Uint8Array.from(atob(a.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,'')),c=>c.charCodeAt(0)),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);}catch{throw new BackupError('configuration');}
-  const unsigned=`${segment({alg:'RS256',typ:'JWT'})}.${segment({iss:a.client_email,scope:'https://www.googleapis.com/auth/spreadsheets',aud:endpoint,iat:issued,exp:issued+3600})}`;
+  const unsigned=`${segment({alg:'RS256',typ:'JWT'})}.${segment({iss:a.client_email,scope:'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive',aud:endpoint,iat:issued,exp:issued+3600})}`;
   const signature=encode(new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',key,utf8.encode(unsigned))));
   const response=await request(endpoint,{method:'POST',redirect:'error',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:`${unsigned}.${signature}`}),signal:AbortSignal.timeout(10000)});
   const data=await response.json().catch(()=>null);
@@ -64,6 +64,23 @@ export function createGoogleSheets({getEnv=env,request=fetch,now=()=>Date.now()}
   if(!data)throw new BackupError('network');return data;
  }
  return {
+  async writeArchive(id:string,bytes:Uint8Array){
+   spreadsheetId(id);
+   const auth={Authorization:`Bearer ${await token()}`};
+   const check=async(response:Response)=>{
+    const data=await response.json().catch(()=>null);
+    if(!response.ok){if(response.status===401)cached=null;const disabled=data?.error?.details?.some((d:any)=>d.reason==='SERVICE_DISABLED')||data?.error?.errors?.some((d:any)=>d.reason==='accessNotConfigured');throw new BackupError(disabled?'api_disabled':response.status===429?'quota':[401,403,404].includes(response.status)?'access':'network');}
+    return data;
+   };
+   // Use a resumable update of one user-owned file; service accounts have no My Drive quota.
+   const start=await request(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=resumable&fields=id,size,sha256Checksum`,{method:'PATCH',redirect:'error',headers:{...auth,'Content-Type':'application/json','X-Upload-Content-Type':'application/zip','X-Upload-Content-Length':String(bytes.length)},body:JSON.stringify({mimeType:'application/zip'}),signal:AbortSignal.timeout(15000)});
+   if(!start.ok)await check(start);
+   const location=start.headers.get('location');let upload:URL;try{upload=new URL(location||'');}catch{throw new BackupError('network');}
+   if(upload.origin!=='https://www.googleapis.com'||!upload.pathname.startsWith('/upload/drive/v3/files/'))throw new BackupError('network');
+   const result=await check(await request(upload.href,{method:'PUT',redirect:'error',headers:{...auth,'Content-Type':'application/zip'},body:bytes,signal:AbortSignal.timeout(45000)}));
+   const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+   if(result?.id!==id||Number(result.size)!==bytes.length||result.sha256Checksum!==hash)throw new BackupError('network');
+  },
   info(){try{const a=account();return {configured:true,service_account_email:a.client_email,cloud_project:a.project_id};}catch{return {configured:false};}},
   async verify(id:string){const data=await call(id);for(const name of ['Orders','Items','Recovery'])if(!data.sheets?.some((s:any)=>s.properties?.title===name))throw new BackupError('configuration');return data;},
   async write(id:string,snapshot:any){

@@ -23,6 +23,9 @@ function splitText(value,size=24000) {
 }
 const readable=value=>typeof value==='string'&&value.length>30000?splitText(value,30000)[0]+'\n[Full text in Recovery]':value;
 const selections = item => (item.selection_labels?.length ? item.selection_labels : item.flavor_contents || []).map(s => typeof s === 'string' ? s : `${s.quantity ? s.quantity + ' × ' : ''}${s.label || s.name || ''}`).join(', ');
+export function proofPaths(order) {
+ return [...new Set([order.proof_path,...(order.payments||[]).map(p=>p.proof_path),...(order.delivery_payments||[]).map(p=>p.proof_path)].filter(p=>typeof p==='string'&&p.trim()))];
+}
 export function backupSheets(snapshot) {
   validateBackup(snapshot);
   const orders = [], items = [], recovery = [];
@@ -33,7 +36,9 @@ export function backupSheets(snapshot) {
       [a.line1,a.line2,a.locality,a.postal_code].filter(Boolean).join(', '),d.instructions || '',
       d.items.map(i => `${i.quantity} × ${i.name}${selections(i) ? ' (' + selections(i) + ')' : ''}`).join('\n'),
       amount(d.total_cents),amount(o.paid_amount_cents),label(o.payment_status),d.payment_method_label || d.payment_method || '',
-      amount(d.delivery_cents),d.deferred_delivery ? label(d.delivery_payment_status || 'fee pending') : '',label(o.source)]);
+      amount(d.delivery_cents),d.deferred_delivery ? label(d.delivery_payment_status || 'fee pending') : '',label(o.source),
+      (snapshot.proof_files||[]).filter(p=>p.order_id===o.id).map(p=>p.archive_path).join('\n') || (proofPaths(o).length?`${proofPaths(o).length} attached · use Download with proofs`:'No proof attached'),
+      snapshot.archive_file_id?`https://drive.google.com/file/d/${snapshot.archive_file_id}/view`:'']);
     d.items.forEach((i,index) => items.push([o.reference,index+1,i.name || '',i.quantity,amount(i.unit_price_cents),
       amount(i.line_total_cents ?? i.quantity*i.unit_price_cents),selections(i),i.description || '']));
     // Excel cells allow 32,767 characters. Lossless chunks also fit Sheets limits.
@@ -42,12 +47,12 @@ export function backupSheets(snapshot) {
   }
   const stamp = `Saved ${new Date(snapshot.generated_at).toLocaleString('en-PH',{timeZone:'Asia/Manila'})} · Asia/Manila · PHP`;
   return [
-    {name:'Orders',title:'TLB · Orders awaiting fulfillment',note:`${snapshot.orders.length} ${snapshot.orders.length===1?'order':'orders'} · ${snapshot.scope==='paid_active' ? 'Paid and confirmed' : 'All unserved, including unpaid'} · Completed orders are excluded.`,stamp,
-      headers:['Fulfillment date','Order reference','Status','Pickup / delivery','Client','Phone','Email','Social media','Recipient','Recipient phone','Delivery address','Instructions','Items and flavors','Total · PHP','Paid · PHP','Payment status','Payment method','Delivery fee · PHP','Delivery payment','Source'],
-      widths:[18,23,23,18,25,20,32,30,25,20,45,45,55,19,19,23,22,22,23,22],money:[13,14,17],dates:[0],rows:orders.map(row=>row.map(readable))},
+    {name:'Orders',title:'TLB · Orders awaiting fulfillment',note:`${snapshot.orders.length} ${snapshot.orders.length===1?'order':'orders'} · ${snapshot.scope==='paid_active' ? 'Paid or payment under review' : 'All unserved, including unpaid'} · Completed orders are excluded.`,stamp,
+      headers:['Fulfillment date','Order reference','Status','Pickup / delivery','Client','Phone','Email','Social media','Recipient','Recipient phone','Delivery address','Instructions','Items and flavors','Total · PHP','Paid · PHP','Payment status','Payment method','Delivery fee · PHP','Delivery payment','Source','Payment proof files','Order and proof ZIP'],
+      widths:[18,23,23,18,25,20,32,30,25,20,45,45,55,19,19,23,22,22,23,22,55,55],money:[13,14,17],dates:[0],rows:orders.map(row=>row.map(readable))},
     {name:'Items',title:'TLB · Order items',note:'One row per order item. Flavor selections belong to each unit of that item.',stamp,
       headers:['Order reference','Line','Product','Quantity','Unit price · PHP','Line total · PHP','Flavors / options','Details'],widths:[23,9,36,13,21,21,50,50],money:[4,5],dates:[],rows:items.map(row=>row.map(readable))},
-    {name:'Recovery',title:'TLB · Recovery data',note:'Join JSON chunks for each order ID in part order. Contains order, payment, history and inventory reservation records. Proof images and access tokens are excluded.',stamp,
+    {name:'Recovery',title:'TLB · Recovery data',note:'Join JSON chunks per order ID in part order. Includes order, payment, history and reservations. Actual proof images are in the companion ZIP, grouped by order reference. Access tokens are excluded.',stamp,
       headers:['Order ID','Order reference','Part','Parts','Order JSON'],widths:[40,23,10,10,100],money:[],dates:[],rows:recovery}
   ];
 }

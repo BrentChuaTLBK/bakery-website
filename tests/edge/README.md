@@ -1,6 +1,6 @@
 # Reproduce the mocked Edge test suite
 
-Requires **Node.js 24**. No npm packages, Deno installation, provider account, API key, or network access is required.
+Requires **Node.js 24** and the repository's development dependencies (`npm install`). ZIP recovery tests use `jszip` as an independent archive reader. Alternatively, set `ZIP_PACKAGE_ROOT` to an existing directory containing the `jszip` package. No Deno installation, provider account, API key, or network access is required to run the tests.
 
 From the repository root:
 

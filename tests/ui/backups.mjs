@@ -5,13 +5,15 @@ import {createRequire} from 'node:module';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {join,resolve,extname,sep} from 'node:path';
 const require=createRequire(import.meta.url),{chromium}=require(join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'));
+const excelPath=process.env.EXCELJS_PATH||process.env.EXCELJS_TEST_PATH||require.resolve('exceljs/dist/exceljs.min.js');
 const root=resolve(import.meta.dirname,'../..'),origin='https://backups.test',out=join(root,'tests/artifacts/backups');
 const client=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=client.slice(client.indexOf('export function money('));
-const status={enabled:true,spreadsheet_id:'test_sheet_1234567890123456789',pending:false,last_success_at:'2026-09-30T00:00:00Z',last_order_count:1,paid_active_count:1,unserved_count:2};
+const status={archive_file_id:'test_archive_1234567890123456',last_proof_count:2,enabled:true,spreadsheet_id:'test_sheet_1234567890123456789',pending:false,last_success_at:'2026-09-30T00:00:00Z',last_order_count:1,paid_active_count:1,unserved_count:2};
 const snapshot={format:'tlb-order-backup',version:1,scope:'paid_active',generated_at:'2026-09-30T00:00:00Z',orders:[{id:'test-1',reference:'TLB-FIXTURE',fulfillment_date:'2026-10-01',data:{items:[{name:'Cake',quantity:1,unit_price_cents:10000}],total_cents:10000}}]};
 const mock=completeClientFixture(client,`export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'owner'}}}}),onAuthStateChange:()=>{}};
 export async function api(action){if(action==='admin_bootstrap')return {role:window.fixtureRole,products:[],categories:[],orders:[],inventory:[],promos:[],zones:[],staff:[],email_status:[],settings:{paused:false}};throw Error(action);}
 export async function orderBackupApi(action,payload){window.backupCalls??=[];window.backupCalls.push({action,payload});if(window.failBackup)throw Error('Fixture connection unavailable');return action==='status'?window.backupStatus:{...window.backupSnapshot,scope:payload.scope};}
+export async function orderBackupDownload(scope){window.zipScope=scope;return new Blob(['fixture zip'],{type:'application/zip'});}
 export async function orderBackupConnection(){if(window.failBackup)throw Error('Fixture sync unavailable');return {ok:true,connection:window.backupStatus};}
 ${helpers}`);
 const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE_PATH,headless:true});await mkdir(out,{recursive:true});
@@ -21,7 +23,7 @@ try{
   await context.addInitScript(({role,status,snapshot})=>{window.fixtureRole=role;window.backupStatus=status;window.backupSnapshot=snapshot;},{role,status,snapshot});
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());
-   if(url.hostname==='cdn.jsdelivr.net'&&url.pathname.includes('exceljs'))return route.fulfill({contentType:'text/javascript',body:await readFile(process.env.EXCELJS_PATH)});
+   if(url.hostname==='cdn.jsdelivr.net'&&url.pathname.includes('exceljs'))return route.fulfill({contentType:'text/javascript',body:await readFile(excelPath)});
    if(url.origin!==origin)return route.abort();
    if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});
    if(url.pathname.endsWith('traffic.js')||url.pathname.endsWith('newsletter.js'))return route.fulfill({contentType:'text/javascript',body:''});
@@ -34,6 +36,8 @@ try{
   await page.locator('#backup-manager h1').waitFor();await page.getByText('Status refreshed.',{exact:false}).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#backup-manager').screenshot({path:join(out,`backups-${width}.png`)});
+  assert.equal(await page.locator('#backup-scope option:checked').textContent(),'Paid or under-review orders to serve');
+  const zipDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download with proofs (ZIP)'}).click();assert.match((await zipDownload).suggestedFilename(),/paid_active.*zip$/);assert.equal(await page.evaluate(()=>window.zipScope),'paid_active');
   await page.locator('#backup-scope').selectOption('unserved');
   const jsonDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Download recovery data'}).click();
   const file=await jsonDownload;assert.match(file.suggestedFilename(),/unserved.*json$/);const saved=JSON.parse(await readFile(await file.path(),'utf8'));assert.equal(saved.scope,'unserved');assert.equal(saved.orders[0].reference,'TLB-FIXTURE');
