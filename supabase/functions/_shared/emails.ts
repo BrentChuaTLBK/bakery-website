@@ -3,7 +3,10 @@ import { HttpError } from "./server.ts";
 import { renderNewsletterWelcome } from "./newsletter-welcome.ts";
 import { renderBrandedEmail } from "./emails-branded.ts";
 
+import { renderVoucherEmail } from '../../../assets/ordering/voucher-email.js';
+
 export function renderEmail(payload: any): {html: string; text: string} {
+  if (payload?.event_type === 'newsletter_voucher') return renderVoucherEmail(payload);
   const legacy = renderLegacyEmail(payload);
   // The outbox branding trigger also tags newsletters. Their own renderer is
   // already branded and has no order. Keep historical welcome bodies stable,

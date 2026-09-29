@@ -4,9 +4,11 @@ import {readFile} from 'node:fs/promises';
 
 export default async function({db,check,state}) {
   const h=state.harness,{as,api,ids,scalar}=h;
+  const currentReport=await scalar("select pg_get_functiondef('tlb.newsletter_promo_report()'::regprocedure)");
   const migration=(await readFile(new URL('../../supabase/migrations/20260923140252_newsletter_welcome_discount.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('../../supabase/migrations/20260923141944_short_newsletter_welcome_codes.sql',import.meta.url),'utf8'));
   // Earlier suites deliberately replay older definitions. Restore the latest.
   await db.exec(migration);
+  await db.exec(currentReport);
   await db.exec("update tlb.newsletter_events set occurred_at=clock_timestamp()-interval '2 hours' where event='requested'");
   const token=()=>randomBytes(32).toString('hex'),hash=t=>createHash('sha256').update(t).digest('hex');
   const call=(action,payload={})=>as(null,async()=> (await db.query('select public.newsletter_service($1,$2::jsonb) as result',[action,JSON.stringify(payload)])).rows[0].result,'service_role');
@@ -40,6 +42,9 @@ export default async function({db,check,state}) {
   await check('migration marks pre-existing addresses ineligible and replay never resets issued codes or new-address eligibility',async()=>{
     await db.exec('begin');
     try {
+      // Reconstruct the old schema locally. ROLLBACK restores the later wallet
+      // view and its row-type helper along with all subscriber data.
+      await db.exec('drop view tlb.voucher_facts cascade');
       await db.exec('alter table tlb.newsletter_subscribers drop column welcome_offer_eligible,drop column welcome_promo_id,drop column welcome_issued_at');
       await db.exec(migration);
       assert.equal(await scalar('select count(*)::int from tlb.newsletter_subscribers where welcome_offer_eligible'),0);
@@ -49,6 +54,7 @@ export default async function({db,check,state}) {
       assert.equal((await row(fresh)).welcome_offer_eligible,true);
     } finally {await db.exec('rollback')}
     const before=await row(subscriber.email);await db.exec(migration);await db.exec(migration.replace(/\r?\n/g,'\r\n'));
+    await db.exec(currentReport);
     assert.deepEqual(await row(subscriber.email),before);
   })();
   let product,date,order;
@@ -86,11 +92,11 @@ export default async function({db,check,state}) {
     await assert.rejects(api('quote',h.checkout(product,date,{promo_code:subscriber.promo.code}),subscriber.user),/use limit/);
     order=await h.action('set_refund_label',order,{enabled:true});
     entry=(await report()).newsletter_promos.find(p=>p.id===subscriber.promo.id);
-    assert.equal(entry.redeemed_count,1);assert.equal(entry.sales_cents,0);assert.equal(entry.discount_cents,0);
+    assert.equal(entry.redeemed_count,0);assert.equal(entry.sales_cents,0);assert.equal(entry.discount_cents,0);
     order=await h.action('set_refund_label',order,{enabled:false});
     await h.action('cancel_order',order,{reason:'QA cancellation',restore_stock:true});
     entry=(await report()).newsletter_promos.find(p=>p.id===subscriber.promo.id);
-    assert.equal(entry.redeemed_count,1);assert.equal(entry.sales_cents,0);
+    assert.equal(entry.redeemed_count,0);assert.equal(entry.sales_cents,0);
   })();
   await check('unsubscribe/rejoin keeps the original code and expiry without issuing another discount',async()=>{
     const before=await row(subscriber.email);

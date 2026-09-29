@@ -1,7 +1,9 @@
+import {mountVouchers} from './vouchers.js';
+let voucherController=null;
 import {applyNewsletterOffer} from './newsletter-offer.js?v=newsletter-settings-1';
 import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js';
 import { newsletterRequest } from './newsletter-client.js';
-import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=newsletter-settings-1';
+import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=vouchers-1';
 import { googleSignInEnabled } from './google-signin.js?v=google-1';
 
 const root = document.getElementById('account-root');
@@ -86,6 +88,7 @@ function accountForm() {
 }
 
 function renderSignedOut() {
+  voucherController?.destroy();voucherController=null;root.classList.remove('account-dashboard');
   renderVersion++;
   root.innerHTML = `<div class="account-layout"><section><p class="eyebrow">Made for sweet moments</p><h1>A little place for<br>your favourite bakes.</h1><p>Keep your orders together, follow their progress, and make your next celebration a little easier.</p><p class="muted">Your cart, selected date, and checkout details stay saved on this browser while you sign in.</p><a class="button button-secondary" href="${esc(guestNext)}">Continue as a guest</a><p class="muted">You can order without an account. Promo codes require a verified account.</p></section>${accountForm()}</div>`;
   applyNewsletterOffer(root);
@@ -201,7 +204,7 @@ function signupNewsletterNotice(failed) {
 }
 
 function orderCard(order) {
-  return `<article class="panel"><div class="section-heading"><h3><a href="shop.html#order=${encodeURIComponent(order.id)}">${esc(order.reference)}</a></h3><strong>${esc(money(order.total_cents))}</strong></div><p>${esc(formatDate(order.fulfillment_date))} · ${order.method === 'delivery' ? 'Delivery' : 'Pickup'}</p><p><span class="badge">${esc(statusText(order.payment_status))}</span> <span class="badge">${esc(statusText(order.fulfillment_status))}</span></p><p class="muted">${esc((order.items || []).map(item => `${item.quantity} × ${item.name}`).join(' · '))}</p><a class="button button-secondary" href="shop.html#order=${encodeURIComponent(order.id)}">View order &amp; payment details</a></article>`;
+  return `<a class="account-order" href="shop.html#order=${encodeURIComponent(order.id)}"><div class="account-order-top"><strong>${esc(order.reference)}</strong><span class="badge">${esc(statusText(order.payment_status))}</span></div><div class="account-order-summary"><span>${esc(formatDate(order.fulfillment_date))}<small>${order.method==='delivery'?'Delivery':'Pickup'} · ${esc(statusText(order.fulfillment_status))}</small></span><strong class="account-order-total">${esc(money(order.total_cents))}</strong></div><p class="account-order-items">${esc((order.items||[]).map(item=>`${item.quantity} × ${item.name}`).join(' · '))}</p><span class="account-order-open">View order &amp; payment details <span aria-hidden="true">→</span></span></a>`;
 }
 
 async function loadHistory(version) {
@@ -220,13 +223,16 @@ async function loadHistory(version) {
 
 async function renderAccount() {
   const version = ++renderVersion;
+  voucherController?.destroy();voucherController=null;
   if (!configured || initializationError || !auth) { renderSignedOut(); return; }
   const { data: { user }, error } = await auth.getUser();
   if (version !== renderVersion) return;
   currentUser = !error ? user : null;
   if (!currentUser) { renderSignedOut(); return; }
   const verified = Boolean(user.email_confirmed_at);
-  root.innerHTML = `<div class="account-header"><div><p class="eyebrow">Your little corner</p><h1>Welcome back</h1><p>${esc(user.email)} <span class="badge">${verified ? 'Email verified' : 'Verification pending'}</span></p></div><div class="dialog-actions"><a class="button button-secondary" href="${esc(next)}">${esc(returnLabel)}</a><a class="button button-quiet" id="staff-link" href="manage.html" hidden>Staff dashboard</a><button class="button button-quiet" id="sign-out" type="button">Sign out</button></div></div><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified ? '' : '<div class="notice"><p>Verify your email to use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<section aria-labelledby="orders-title"><div class="section-heading"><div><h2 id="orders-title">Your orders</h2><p class="muted">All orders placed while signed in, including those awaiting payment or under review.</p></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><p class="muted">Placed an order as a guest? Open the secure link from your confirmation email.</p><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div></section>`;
+  root.classList.add('account-dashboard');
+  root.innerHTML = `<header class="account-welcome"><div class="account-welcome-main"><div><p class="eyebrow">Your little corner</p><h1>Welcome back</h1><p class="account-welcome-note">Your orders, little treats, and everything TLB.</p><p class="account-identity"><span>${esc(user.email)}</span><span class="badge">${verified?'Email verified':'Verification pending'}</span></p></div><a class="button" href="${esc(next)}">${esc(returnLabel)} <span aria-hidden="true">↗</span></a></div><div class="account-welcome-bottom"><nav class="account-section-links" aria-label="Your account"><a href="#account-orders">Your orders</a><a href="#account-vouchers">My vouchers</a><a href="#newsletter-preferences">Email preferences</a></nav><div class="dialog-actions"><a class="button button-quiet" id="staff-link" href="manage.html" hidden>Staff dashboard</a><button class="button button-quiet" id="sign-out" type="button">Sign out</button></div></div></header><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified?'':'<div class="notice"><p>Verify your email to view personal vouchers and use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<div class="account-content-grid"><section id="account-orders" class="panel" aria-labelledby="orders-title"><div class="section-heading"><div><p class="eyebrow">From our kitchen</p><h2 id="orders-title">Your orders</h2></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div><p class="account-guest-note muted">Placed an order as a guest? Open the secure link from your confirmation email.</p></section><section id="account-vouchers" class="panel" aria-label="My vouchers"></section></div>`;
+  voucherController=mountVouchers(document.getElementById('account-vouchers'));
   root.setAttribute('aria-busy', 'false');
   const preferences = document.createElement('section');
   preferences.className = 'panel newsletter-preferences';
@@ -250,7 +256,7 @@ async function renderAccount() {
   });
   await Promise.allSettled([
     loadHistory(version),
-    mountNewsletterPreferences(preferences, user.email),
+    mountNewsletterPreferences(preferences, user.email, {onChange:()=>voucherController?.refresh()}),
     api('admin_bootstrap').then(() => { if (version === renderVersion) document.getElementById('staff-link')?.removeAttribute('hidden'); }),
   ]);
 }
@@ -348,4 +354,3 @@ try {
   root.innerHTML = '<section class="panel account-card"><h1>Your account</h1><div class="notice danger">The account service could not be reached. Please refresh the page and try again.</div><a class="button button-secondary" href="shop.html">Back to the shop</a></section>';
   root.setAttribute('aria-busy', 'false');
 }
-

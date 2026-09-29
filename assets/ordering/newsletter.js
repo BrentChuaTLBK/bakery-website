@@ -100,7 +100,7 @@ export function mountNewsletterForms(scope = document) {
   });
 }
 
-export async function mountNewsletterPreferences(container, email) {
+export async function mountNewsletterPreferences(container, email, {onChange=()=>{}}={}) {
   if (!container) return;
   container.innerHTML = '<h2>Email preferences</h2><p>Choose whether to receive the TLB newsletter. Your order and payment emails stay on.</p><p class="muted" role="status">Loading your preference…</p>';
   try {
@@ -134,7 +134,8 @@ export async function mountNewsletterPreferences(container, email) {
         const subscribe = checked;
         await request(subscribe ? 'subscribe' : 'unsubscribe', subscribe ? { email, source: 'account', website: '' } : {});
         if (!container.isConnected) return;
-        renderPreference(subscribe ? 'subscribed' : 'unsubscribed');
+          renderPreference(subscribe ? 'subscribed' : 'unsubscribed');
+          onChange();
         status(container.querySelector('[data-newsletter-status]'), subscribe ? 'You’re subscribed! Look out for a welcome email from TLB.' : 'You’re unsubscribed from the TLB newsletter. Your order and payment emails are unchanged.');
       } catch (error) {
         status(message, error.message || 'We could not save your preference. Please try again.', true);
