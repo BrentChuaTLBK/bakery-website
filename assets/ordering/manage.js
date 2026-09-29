@@ -214,8 +214,8 @@ function render() {
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if(state.view==='backups'){
     const root=$('#backup-manager');root.textContent='Opening order backups…';
-    Promise.all([import('./backup-manager.js?v=order-backups-1'),import('./client.js?v=order-backups-1')]).then(([view,client])=>{
-      if(root.isConnected)view.mountBackups(root,{role:state.role,connected:state.connected,api:client.orderBackupApi,connection:client.orderBackupConnection});
+    Promise.all([import('./backup-manager.js?v=order-backups-2'),import('./client.js?v=order-backups-2')]).then(([view,client])=>{
+      if(root.isConnected)view.mountBackups(root,{role:state.role,connected:state.connected,api:client.orderBackupApi,connection:client.orderBackupConnection,archive:client.orderBackupDownload});
     }).catch(()=>{if(root.isConnected)root.textContent='Order backups could not load. Open this tab again to retry.';});
   }
   if (state.view === 'homepage') {

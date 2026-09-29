@@ -116,6 +116,14 @@ export async function orderBackupApi(action,payload={}) {
   return data;
 }
 export const orderBackupConnection=(action,payload={})=>edge('order-backup',{action,...payload});
+export async function orderBackupDownload(scope='paid_active') {
+  const client=await connection();const {data,error}=await client.auth.getSession();
+  if(error||!data.session?.access_token)throw Error('Sign in as the owner to download proofs.');
+  const response=await fetch(`${config.supabaseUrl.replace(/\/$/,'')}/functions/v1/order-backup`,{method:'POST',headers:{apikey:config.supabasePublishableKey,Authorization:`Bearer ${data.session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'download',scope}),signal:AbortSignal.timeout(120000)});
+  if(!response.ok){const result=await response.json().catch(()=>null);throw Error(result?.error||'The proof backup could not be downloaded.');}
+  if(response.headers.get('content-type')!=='application/zip')throw Error('The service did not return a proof ZIP.');
+  return response.blob();
+}
 
 export async function signedProofUrl(orderId) {
   return edge('proof-url', { order_id: orderId });
