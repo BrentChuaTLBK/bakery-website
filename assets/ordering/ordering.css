@@ -67,3 +67,4 @@
 .order-reference-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .order-reference-row h1{min-width:0;overflow-wrap:anywhere}
 .order-copy-button{min-height:44px;font-size:12px;padding:10px 14px;white-space:nowrap}
+.shop-hero .hero-stamp{max-width:calc(100% - 44px);overflow-wrap:anywhere}

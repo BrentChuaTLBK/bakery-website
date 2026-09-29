@@ -55,4 +55,36 @@ export default async function({db,check,state}) {
     current=await api('save',{content:current.content,revision:current.revision,operation_id:randomUUID()});
     await assert.rejects(api('save',payload),/another window/);assert.deepEqual(await api('admin_get'),current);
   })();
+  await check('website content: shop feature saves independently and appears in the public catalog',async()=>{
+    const original=structuredClone(current.content);
+    const content={...original,shop_feature:{photo_url:`https://aulhqofjjckwwjmdvqgi.supabase.co/storage/v1/object/public/product-images/${h.ids.owner}/${randomUUID()}.webp`,alt:'Macarons in a box',caption:'A little treat <for you>'}};
+    current=await api('save',{content,revision:current.revision,operation_id:randomUUID()});
+    assert.deepEqual(current.content.hero,original.hero);assert.deepEqual(current.content.specialties,original.specialties);
+    assert.deepEqual((await h.api('catalog')).shop_feature,content.shop_feature);
+    assert.deepEqual((await api('browse',{},null)).content.shop_feature,content.shop_feature);
+    const oldEditor=structuredClone(current.content);delete oldEditor.shop_feature;
+    const payload={content:oldEditor,revision:current.revision,operation_id:randomUUID()};
+    current=await api('save',payload);assert.deepEqual(current.content.shop_feature,content.shop_feature);
+    assert.deepEqual(await api('save',payload),current,'Retry from an older editor preserves the feature');
+  })();
+  await check('website content: a successful pre-upgrade save can still be retried without overwriting content',async()=>{
+    await db.exec('begin');
+    try{
+      await db.exec("update tlb.homepage_content set content=content-'shop_feature'");
+      const previous=(await db.query('select content,revision,last_save from tlb.homepage_content where id')).rows[0];
+      const retry=await api('save',{content:previous.content,revision:previous.revision,operation_id:previous.last_save});
+      assert.equal(retry.revision,previous.revision);
+      assert.deepEqual(retry.content.hero,previous.content.hero);
+      assert.equal(retry.content.shop_feature.caption,'Baked with a little love.');
+    }finally{await db.exec('rollback');}
+  })();
+  await check('website content: shop image validates paths, types, caption length and owner access',async()=>{
+    for(const feature of [null,[],{...current.content.shop_feature,photo_url:'javascript:alert(1)'},{...current.content.shop_feature,photo_url:'https://evil.test/a.webp'},{...current.content.shop_feature,alt:null},{...current.content.shop_feature,caption:null},{...current.content.shop_feature,caption:'x'.repeat(121)},{...current.content.shop_feature,alt:'x'.repeat(201)},{...current.content.shop_feature,extra:true}]){
+      await assert.rejects(api('save',{content:{...current.content,shop_feature:feature},revision:current.revision,operation_id:randomUUID()}),/WebP photos/);
+    }
+    const content={...current.content,shop_feature:{...current.content.shop_feature,caption:''}};
+    await assert.rejects(api('save',{content,revision:current.revision,operation_id:randomUUID()},h.ids.staff),/owner/);
+    current=await api('save',{content,revision:current.revision,operation_id:randomUUID()});assert.equal((await h.api('catalog')).shop_feature.caption,'');
+    assert.equal(await h.scalar("select has_function_privilege('authenticated','tlb.default_shop_feature()','execute')"),false);
+  })();
 }
