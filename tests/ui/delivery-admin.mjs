@@ -169,6 +169,7 @@ try {
   await page.locator('[data-form="zone"] button[type="submit"]').click();
   await page.locator('#admin-dialog').waitFor({ state: 'hidden' });
   assert.equal((await saved()).zones[0].description, description);
+  await page.waitForFunction(value=>document.querySelector('.zone-card .zone-description')?.textContent===value,description);
   assert.equal(await page.locator('.zone-card .zone-description').textContent(), description);
   assert.equal(await page.locator('.zone-card .zone-description img').count(), 0);
   assert.equal(await page.locator('.zone-card .zone-description').evaluate(node => getComputedStyle(node).whiteSpace), 'pre-wrap');

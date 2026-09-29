@@ -92,10 +92,13 @@ export function mountCustomerCalendar(container, { value = '', settings = {}, me
   popup.className = 'customer-calendar-popup';
   popup.setAttribute('aria-labelledby', 'customer-calendar-title');
   popup.setAttribute('aria-describedby', 'customer-calendar-guidance');
-  container.replaceChildren(trigger);
+  const rangeNote = ownerDocument.createElement('small');
+  rangeNote.className = 'customer-calendar-range';
+  container.replaceChildren(trigger, rangeNote);
   ownerDocument.body.append(popup);
 
   const updateTrigger = () => {
+    rangeNote.textContent = `Bookings are open through ${labelDate(customerBookingWindow(now()).maxDate)}.`;
     const valid = isCalendarDate(state.value);
     const issue = state.value ? customerDateIssue(state.value, state.settings, state.method, now(), state.allowSameDay) : '';
     trigger.value = state.value;
@@ -119,11 +122,12 @@ export function mountCustomerCalendar(container, { value = '', settings = {}, me
   };
   const refreshClock = () => {
     clearTimeout(clockTimer);
-    if (!popup.open || destroyed) return;
+    if (destroyed) return;
+    updateTrigger();
     const instant = now();
     const window = customerBookingWindow(instant);
     const freshKey = `${window.today}:${state.allowSameDay && sameDayOpen(state.settings, instant)}`;
-    if (freshKey !== clockKey) {
+    if (freshKey !== clockKey && popup.open) {
       const focused = ownerDocument.activeElement;
       render({ focusDate: focused?.dataset.customerDate, focus: popup.contains(focused) });
     }
@@ -139,6 +143,7 @@ export function mountCustomerCalendar(container, { value = '', settings = {}, me
     clearTimeout(clockTimer);
     if (popup.open) popup.close();
     trigger.setAttribute('aria-expanded', 'false');
+    refreshClock();
   };
   const choose = date => {
     // Recheck at activation: a popup can remain open over midnight or settings updates.
@@ -198,6 +203,7 @@ export function mountCustomerCalendar(container, { value = '', settings = {}, me
     render({ focusDate: target || button.dataset.customerDate, focus: true });
   }, listener);
   updateTrigger();
+  refreshClock();
   return {
     update(changes = {}) {
       for (const key of ['value', 'settings', 'method', 'allowSameDay']) if (Object.hasOwn(changes, key)) state[key] = changes[key];
@@ -211,6 +217,7 @@ export function mountCustomerCalendar(container, { value = '', settings = {}, me
       close();
       popup.remove();
       trigger.remove();
+      rangeNote.remove();
     }
   };
 }

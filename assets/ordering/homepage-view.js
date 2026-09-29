@@ -2,6 +2,7 @@
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const validPage = value => /^[A-Za-z0-9_-]+\.html([?#][A-Za-z0-9_~.%=&/?#:+,-]*)?$/.test(value) && value.length <= 300;
 const link = value => validPage(value) ? value : 'index.html';
+const banner900 = new Set(['HomePage1', 'Home_Page_2', 'Home_Page_3', 'HomePage4'].map(name => `assets/img/products-webp/${name}-1600w.webp`));
 export function photoAttributes(photo, hero = false) {
   const url = String(photo.photo_url || '');
   if (!/^assets\/img\/(products-webp\/([A-Za-z0-9_-]|%20)+|baking-classes)\.webp$/.test(url)
@@ -9,7 +10,8 @@ export function photoAttributes(photo, hero = false) {
   const responsive = url.endsWith('-1600w.webp') && url.startsWith('assets/img/products-webp/');
   // The tall mobile banner crops a landscape image; its source must cover the height too.
   const sizes = hero ? '(max-width:900px) 900px, 100vw' : '(min-width:1400px) 306px, (min-width:1200px) 261px, (min-width:992px) 456px, (min-width:768px) 336px, (min-width:576px) 246px, calc(100vw - 24px)';
-  return `src="${esc(url)}" ${responsive ? `srcset="${esc(url.replace('-1600w','-400w'))} 400w, ${esc(url.replace('-1600w','-800w'))} 800w, ${esc(url)} 1600w" sizes="${sizes}"` : ''} alt="${esc(photo.alt)}" decoding="async"`;
+  const intermediate = hero && banner900.has(url) ? `${esc(url.replace('-1600w','-900w'))} 900w, ` : '';
+  return `src="${esc(url)}" ${responsive ? `srcset="${esc(url.replace('-1600w','-400w'))} 400w, ${esc(url.replace('-1600w','-800w'))} 800w, ${intermediate}${esc(url)} 1600w" sizes="${sizes}"` : ''} alt="${esc(photo.alt)}" decoding="async"`;
 }
 function controls(id, count) {
   if (count < 2) return '';

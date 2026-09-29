@@ -1,5 +1,6 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { config } from './config.js';
+import {showLoading,finishLoading} from './loading-state.js?v=loading-1';
 import { packageSections, packageInclusions, packageEscape } from './party-packages-view.js?v=package-categories-1';
 
 const service = eventPage(document.body.dataset.eventService);
@@ -10,6 +11,7 @@ if (root) {
   const retry = root.querySelector('[data-party-retry]');
   async function load() {
     retry.hidden = true; status.textContent = `Loading ${service.packageName}s…`;
+    showLoading(results, 'packages');
     const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 20000);
     try {
       const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/${service.packagesApi}`, {
@@ -21,9 +23,10 @@ if (root) {
       results.innerHTML = data.items.length ? packageInclusions(data.settings.inclusions) + packageSections(data.items, data.categories) : '';
       status.textContent = data.items.length ? '' : `We’re updating our ${service.packageName}s. Please contact us to plan your ${service.customName}.`;
     } catch {
+      results.innerHTML = '';
       status.textContent = 'Packages could not load. Please try again, or contact us for current packages and prices.';
       retry.hidden = false;
-    } finally { clearTimeout(timeout); }
+    } finally { clearTimeout(timeout); finishLoading(results); }
   }
   retry.addEventListener('click', load);
   void load();

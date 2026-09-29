@@ -9,3 +9,10 @@
 .cart-viewer-image{position:relative;overflow:hidden}.cart-lightbox-stage{overflow:hidden}.cart-photo-outgoing{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}.cart-arrow{z-index:2}
 
 .cart-viewer-image,.cart-lightbox-stage{touch-action:pan-y pinch-zoom}
+
+/* Hold the viewer, thumbnail strip and caption space while the catalog arrives. */
+.cart-gallery{--cart-loading-height:582px}
+.cart-gallery[aria-busy=true] .cart-gallery-status{display:grid;place-content:center;box-sizing:border-box;height:var(--cart-loading-height);min-height:0;margin:0;padding:24px;background:#ede5d7;border:1px solid #e1d6c7;border-radius:8px;text-align:center}
+.cart-gallery-status:empty{display:none}
+@media(max-width:800px){.cart-gallery{--cart-loading-height:566px}}
+@media(max-width:500px){.cart-gallery{--cart-loading-height:541px}}

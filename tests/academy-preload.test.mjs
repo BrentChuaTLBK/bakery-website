@@ -16,3 +16,15 @@ loader=preloadAcademyBatch(limitedCache,photos,{makeImage,connection:{saveData:t
 await sleep(2800);assert.equal(downloaded.length,24,'Data saver preloads only the first page');
 loader.prioritize(photos[40]);await sleep(500);assert.ok(downloaded.some(s=>s.endsWith('-41')),'Swiping still warms nearby photos with Data saver');loader.dispose();
 console.log('PASS album preloading: first-page priority, bounded concurrency, swipe look-ahead, cancellation and Data saver');
+
+let visibility,disconnected=false;
+globalThis.IntersectionObserver=class{constructor(callback){visibility=callback;}observe(){}disconnect(){disconnected=true;}};
+calls=[];downloaded=[];
+const deferredCache=createAcademyImageCache(async refs=>{calls.push(refs.map(p=>p.asset_id));return Object.fromEntries(refs.map(p=>[p.asset_id,{url:'https://test/'+p.asset_id}]));});
+loader=preloadAcademyBatch(deferredCache,photos,{makeImage,startWhenVisible:{}});
+await sleep(180);assert.equal(calls.length,0,'Offscreen albums do no background signing');
+visibility([{isIntersecting:true}]);await sleep(180);assert.ok(calls.length);assert.equal(disconnected,true,'Only one activation observer is needed');loader.dispose();
+calls=[];
+loader=preloadAcademyBatch(deferredCache,photos,{makeImage,startWhenVisible:{}});loader.prioritize(photos[55]);await sleep(100);assert.ok(calls.flat().includes('selected-56'),'Explicit photo interaction bypasses the viewport wait');loader.dispose();
+delete globalThis.IntersectionObserver;
+console.log('PASS deferred album warming: viewport gate, explicit interaction and disposal');

@@ -30,7 +30,7 @@ Deno.serve(endpoint(async (request, headers) => {
   if (!authorization?.allowed) throw new HttpError(403, "You cannot upload an image for this request.");
   const bucket = kind === "proof" ? "payment-proofs" : "product-images";
   const path = `${kind === "proof" ? orderId : userId}/${crypto.randomUUID()}.${image.extension}`;
-  await storageRequest(`object/${bucket}/${path}`, "POST", contents, image.mime);
+  await storageRequest(`object/${bucket}/${path}`, "POST", contents, image.mime, kind === "product" ? 31536000 : undefined);
   if (kind === "product") {
     return json({ path, url: `${credentials().url}/storage/v1/object/public/${bucket}/${path}` }, 201, headers);
   }

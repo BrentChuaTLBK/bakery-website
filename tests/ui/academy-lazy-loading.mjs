@@ -27,6 +27,9 @@ await context.route('**/*',async route=>{
 await page.goto(origin+'/academy.html');await page.locator('.academy-active-batch').waitFor();
 await page.waitForFunction(()=>{const img=document.querySelector('.academy-picker summary img');return img&&!img.hasAttribute('data-academy-pending')&&img.naturalWidth>1;});
 assert.equal(await page.locator('.academy-picker').evaluate(el=>el.open),false,'The mobile picker summary photo loads while the picker stays closed');
+assert.equal(await page.locator('.academy-hero img').getAttribute('fetchpriority'),'high','The deferred hero receives priority before its signed URL arrives');
+assert.equal(await page.locator('.academy-hero img').getAttribute('loading'),'eager');
+assert.ok(!(await page.evaluate(()=>window.imageRequests.flat())).some(id=>/^b\d+-/.test(id)),'Offscreen album signing does not compete with the first-view hero');
 const heading=()=>page.locator('.academy-active-batch h3'),gallery=page.locator('#bakers-in-action');
 await page.evaluate(()=>{window.originalHero=document.querySelector('.academy-hero');window.originalSelector=document.querySelector('#class-albums');});
 await gallery.scrollIntoViewIfNeeded();

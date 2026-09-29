@@ -65,6 +65,7 @@ if (root) {
     slideshow.restart();
   });
   async function load() {
+    root.setAttribute('aria-busy', 'true');
     $('[data-cart-gallery-retry]').hidden = true; viewer.hidden = true; items = [];
     photoTransition.clear(); lightTransition.clear();
     status.textContent = `Loading ${service.photoName.toLowerCase()} photos…`; slideshow.restart();
@@ -86,7 +87,7 @@ if (root) {
       viewer.hidden = false; show(0); slideshow.restart();
     } catch {
       status.textContent = `${service.photoName} photos could not load. Please try again.`; $('[data-cart-gallery-retry]').hidden = false;
-    } finally { clearTimeout(timeout); }
+    } finally { clearTimeout(timeout); root.removeAttribute('aria-busy'); }
   }
   void load();
 }

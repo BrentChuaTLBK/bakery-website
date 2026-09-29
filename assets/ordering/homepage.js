@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { heroMarkup, specialtyMarkup } from './homepage-view.js?v=synced-photos-1';
+import { heroMarkup, specialtyMarkup } from './homepage-view.js?v=banner-900-1';
 import { startSynchronizedCarousels } from './homepage-carousels.js?v=synced-photos-1';
 
 const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(resolve => window.addEventListener('load', resolve, { once: true }));

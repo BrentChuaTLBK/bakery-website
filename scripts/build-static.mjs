@@ -12,7 +12,7 @@ for(const filename of pages){
   if(preview)html=html.replace('</head>','<meta name="robots" content="noindex,nofollow"></head>');
   await writeFile(join(output,filename),html);
 }
-for(const filename of ['robots.txt','sitemap.xml','_headers']){
+for(const filename of ['robots.txt','sitemap.xml','_headers','pos.webmanifest']){
  try{await cp(join(root,filename),join(output,filename))}catch(e){if(e.code!=='ENOENT')throw e}
 }
 if(preview)await writeFile(join(output,'robots.txt'),'User-agent: *\nDisallow: /\n');

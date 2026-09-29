@@ -38,3 +38,6 @@ dialog.customer-calendar-popup{box-sizing:border-box;width:min(374px,calc(100vw 
 @media(max-width:720px){.fulfillment-bar .date-field{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:center;min-width:0;flex-basis:100%}#customer-date-picker{grid-column:1/-1;min-width:0}.customer-calendar-trigger{width:100%;min-width:0;min-height:44px}}
 @media(max-width:380px){dialog.customer-calendar-popup{padding:16px;width:calc(100vw - 24px);max-width:calc(100vw - 24px)}.customer-calendar-month{border-spacing:2px}.customer-calendar-day,.customer-calendar-month td{min-height:37px;height:37px}.customer-calendar-trigger{gap:10px}}
 @media print{dialog.customer-calendar-popup{display:none!important}}
+
+.customer-calendar-range{display:block;margin-top:8px;color:var(--muted,#776453);font-size:11px;line-height:1.5}
+.basket-date-advice p{margin:8px 0 12px;line-height:1.6}

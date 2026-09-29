@@ -35,7 +35,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.clock.install({time:Date.parse('2026-09-24T04:00:00Z')});
     await page.goto(origin+'/manage.html');
-    await selectDashboardSection(page, 'analytics');
+    await selectDashboardSection(page, 'analytics');await page.locator('.operating-metrics').waitFor();assert.equal(await page.locator('.operating-metrics tbody tr').count(),3);await page.locator('.operating-metrics').screenshot({path:join(output,`operations-${width}.png`)});
     const bars = page.locator('.analytics-chart-point'), popup = page.locator('.analytics-chart-tooltip');
     const inspect = async (index, amount, date, orders) => {
       const bar = bars.nth(index);
