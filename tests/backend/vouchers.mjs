@@ -51,6 +51,11 @@ export default async function({db,check,state}) {
   await assert.rejects(api('save_promo',{promo:{id:reward.id}},ids.owner),/original terms/i);
   await assert.rejects(api('delete_promo',{id:reward.id},ids.owner),/original terms/i);
   assert.equal((await api('admin_bootstrap',{},ids.owner)).promos.some(p=>p.id===reward.id),false);
+  const newsletter=(action,payload)=>h.as(ids.owner,async()=>(await db.query('select public.newsletter_admin($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+  await db.query("update tlb.newsletter_config set segment_id='test-segment',topic_id='test-topic'");
+  const draft=await newsletter('save',{id:randomUUID(),revision:0,content:{template:'showcase',subject:'Personal voucher guard',title:'Test only',offer_code:reward.code,cta_url:'https://example.test/shop.html',items:[]}});
+  await assert.rejects(newsletter('queue',{id:draft.id,revision:draft.revision,confirm:true}),/regular promo|personal/i);
+  assert.equal(await scalar('select count(*)::int from tlb.newsletter_broadcast_jobs where campaign_id=$1',[draft.id]),0);
  })();
  await check('Vouchers: redemption reserves once, refund releases it, restoring after reuse is rejected',async()=>{
   const {product,date}=await h.fixture(20,{price_cents:20000});const payload=()=>h.checkout(product,date,{promo_code:reward.code});
@@ -108,6 +113,28 @@ export default async function({db,check,state}) {
   await db.query("update tlb.newsletter_subscribers set status='unsubscribed' where email=$1",[eligible.email]);
   assert.equal((await h.service('prepare_email',{id:row.id,lease_token:lease})).skip,true);
   assert.equal(await scalar('select status from tlb.outbox where id=$1',[row.id]),'skipped');
+ })();
+ await check('Vouchers: pre-send checks reject changed consent, source, expiry and account email',async()=>{
+  let c=await save({name:'Delivery guard tests',terms:{...terms,trigger:'every_completed'}});c=await save({...c,status:'active'});
+  const u=await user(true),o=await complete(await create(u)),v=(await wallet(u)).vouchers[0];
+  const row=(await db.query('select * from tlb.outbox where voucher_id=$1',[v.id])).rows[0];
+  for(const scenario of ['valid','optout','unsubscribe_in_progress','new_consent','new_email','refunded','cancelled','expired']){
+   await db.exec('begin');
+   try{
+    const lease=randomUUID();await db.query("update tlb.outbox set status='sending',lease_token=$2,leased_until=now()+interval '1 minute' where id=$1",[row.id,lease]);
+    if(scenario==='optout')await db.query("update tlb.newsletter_subscribers set status='unsubscribed' where email=$1",[u.email]);
+    if(scenario==='unsubscribe_in_progress')await db.query("update tlb.newsletter_subscribers set operation_id=gen_random_uuid(),operation_kind='unsubscribe',operation_expires_at=now()+interval '5 minutes' where email=$1",[u.email]);
+    if(scenario==='new_consent')await db.query("update tlb.newsletter_subscribers set unsubscribe_token_hash=$2 where email=$1",[u.email,'c'.repeat(64)]);
+    if(scenario==='new_email')await db.query("update auth.users set email='changed@example.test' where id=$1",[u.id]);
+    if(scenario==='refunded')await db.query('update tlb.orders set refund_label=true where id=$1',[o.id]);
+    if(scenario==='cancelled')await db.query("update tlb.orders set fulfillment_status='cancelled' where id=$1",[o.id]);
+    if(scenario==='expired')await db.query("update tlb.outbox set payload=jsonb_set(payload,'{offer,expires_at}',to_jsonb('2000-01-01T00:00:00Z'::text)) where id=$1",[row.id]);
+    const prepared=await h.service('prepare_email',{id:row.id,lease_token:lease});
+    if(scenario==='valid'){assert.equal(prepared.to_email,u.email);assert.deepEqual(prepared.payload,row.payload);}
+    else {assert.equal(prepared.skip,true,scenario);assert.equal(await scalar('select status from tlb.outbox where id=$1',[row.id]),'skipped',scenario);}
+   }finally{await db.exec('rollback');}
+  }
+  await save({...c,status:'paused'});
  })();
  await check('Vouchers: invalid email copy, expired activation and discount caps are rejected',async()=>{
   for(const changes of [{value:0},{kind:'percent',value:101,cap_cents:1000},{kind:'percent',value:10,cap_cents:0},{customer_limit:0},{expiry_days:366}])await assert.rejects(save({name:'Invalid',terms:{...terms,...changes}}));

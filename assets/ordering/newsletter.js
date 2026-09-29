@@ -110,7 +110,7 @@ export async function mountNewsletterPreferences(container, email, {onChange=()=
   } catch (error) {
     if (!container.isConnected) return;
     container.innerHTML = `<h2>Email preferences</h2><p class="newsletter-status" data-error="true" role="status">${escape(error.message)}</p><button type="button" class="newsletter-button newsletter-button-secondary" data-retry-preference>Try again</button>`;
-    container.querySelector('[data-retry-preference]').onclick = () => mountNewsletterPreferences(container, email);
+    container.querySelector('[data-retry-preference]').onclick = () => mountNewsletterPreferences(container, email, {onChange});
   }
   function renderPreference(current) {
     rememberPreference(current);
