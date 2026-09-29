@@ -32,7 +32,7 @@ const mockClient = `
 export const configured = true;
 export const ready = Promise.resolve();
 export const auth = {
-  getSession: async () => ({ data: { session: null }, error: null }),
+  getSession: async () => ({ data: { session: sessionStorage.getItem('voucher-auth') ? {user:{id:'local-customer',email:'buyer@example.test',email_confirmed_at:'2026-09-14'}} : null }, error: null }),
   onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
 };
 const catalog = ${JSON.stringify(catalog)};
@@ -42,7 +42,8 @@ function quote(payload) {
   const items = payload.items.map(line => ({ ...line, name: catalog.products[0].name, unit_price_cents: 13000, line_total_cents: 13000 * line.quantity, selection_labels: [] }));
   const subtotal_cents = items.reduce((sum, line) => sum + line.line_total_cents, 0);
   const delivery_cents = payload.method === 'delivery' ? 10000 : 0;
-  return { items, subtotal_cents, discount_cents: 0, delivery_cents, total_cents: subtotal_cents + delivery_cents };
+  const discount_cents=payload.promo_code==='TLB-CHECKOUT'?2500:0;
+  return { items, subtotal_cents, discount_cents, delivery_cents, total_cents: subtotal_cents + delivery_cents-discount_cents, promo_snapshot:discount_cents?{code:payload.promo_code}:null };
 }
 export async function api(action, payload = {}) {
   window.__checkoutCalls.push({ action, payload: structuredClone(payload) });
@@ -71,6 +72,7 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const server = createServer(async (req, res) => {
   try {
     const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    if (name === '/voucher-handoff') { res.writeHead(200, {'Content-Type':'text/html'}); res.end('<a href="/shop.html#voucher=tlb-checkout">Use voucher</a>'); return; }
     if (name === '/assets/ordering/client.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end(mockClient); return; }
     const path = resolve(root, '.' + (name === '/' ? '/shop.html' : name));
     if (!path.startsWith(root + sep)) throw new Error('Invalid path');
@@ -88,6 +90,7 @@ try {
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:false,kind:'percent',value:5})});
+    if (url.pathname === '/functions/v1/newsletter') return route.fulfill({contentType:'application/json',body:JSON.stringify({status:'subscribed',popup_seen:true})});
     if (url.origin === origin) return route.continue();
     if (/supabase|resend|\/auth\/|\/rest\/|\/functions\//.test(url.href)) forbidden.push(url.href);
     return route.abort();
@@ -245,9 +248,30 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await assertPickup('.info-grid .pickup-text', Object.values(pickup));
   assert.equal(await page.locator('.order-title h1').textContent(), 'LOCAL-CHECKOUT-TEST');
+  // Wallet links preserve an existing basket, normalize and remove the private
+  // code from the URL, and carry the exact code into review and order creation.
+  await page.evaluate(({date})=>{
+    sessionStorage.setItem('voucher-auth','1');
+    localStorage.setItem('tlb-checkout-v1',JSON.stringify({items:[{product_id:'nori',quantity:2,selections:{}}],fulfillment_date:date,method:'pickup',buyer:{name:'Voucher buyer',email:'buyer@example.test',phone:'09170000000',social_platform:'na',social_username:'N/A'},saved_at:Date.now()}));
+  },{date});
+  await page.goto(origin+'/voucher-handoff');
+  await page.getByRole('link',{name:'Use voucher'}).click();
+  await page.locator('#checkout-button').waitFor();assert.equal(new URL(page.url()).hash,'');
+  await page.reload();await page.locator('#checkout-button').click();
+  assert.equal(await field('promo_code').inputValue(),'TLB-CHECKOUT');
+  await page.locator('#apply-promo').click();await page.locator('#promo-status.success').waitFor();
+  assert.match(await page.locator('#promo-status').innerText(),/25\.00/);
+  await review();assert.match(await page.locator('#place-order').innerText(),/235\.00/);
+  await page.locator('#place-order').click();await page.locator('.order-title h1').waitFor();
+  const redeemed=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),fixtureKey);
+  assert.equal(redeemed.promo_code,'TLB-CHECKOUT');assert.equal(redeemed.items[0].quantity,2);assert.equal(redeemed.total_cents,23500);
+  await page.goto(page.url()+'&voucher=TLB-IGNORE');await page.locator('.order-title h1').waitFor();
+  assert.equal(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('order'),'local-order','Voucher handling must not break private order links');
+  await page.goto(origin+'/shop.html#voucher=%3Cscript%3E');await page.locator('#checkout-button').waitFor();
+  assert.equal(new URL(page.url()).hash,'');assert.notEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('tlb-checkout-v1')||'{}').promo_code),'<SCRIPT>');
   assert.deepEqual(errors, []);
   assert.deepEqual(forbidden, [], 'Production services must never be contacted');
-  console.log('PASS: real pickup/delivery checkout; buyer and recipient number validation; no invalid quote/order requests; required social contact, typed and selected N/A, switching, restoration, and payload; exact pickup newlines and literal HTML on checkout, review, and saved/reloaded order; local API only.');
+  console.log('PASS: pickup/delivery checkout and validation; wallet voucher handoff, basket preservation, apply, review, discounted order creation, private order links and invalid fragments; local API only.');
 } finally {
   await browser?.close();
   await new Promise(resolveClose => server.close(resolveClose));
