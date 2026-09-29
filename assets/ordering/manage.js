@@ -209,8 +209,8 @@ function render() {
   const views = { vouchers:()=>'<div id="voucher-manager"></div>', calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if (state.view === 'homepage') {
-    const root = $('#homepage-manager'); root.textContent = 'Opening the Home page editor…';
-    Promise.all([import('./homepage-manager.js?v=homepage-1'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
+    const root = $('#homepage-manager'); root.textContent = 'Opening the Website content editor…';
+    Promise.all([import('./homepage-manager.js?v=website-content-1'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
       if(root.isConnected) view.mountHomepage(root,{role:state.role,connected:state.connected,api:client.homepageApi,upload});
     }).catch(() => { if(root.isConnected) root.textContent = 'The Home page editor could not load. Open this tab again to retry.'; });
   }
@@ -887,8 +887,8 @@ document.addEventListener('click', async event => {
   if(view){const newsletterEditor=$('#voucher-manager')||$('#newsletter-manager')||$('#newsletter-offer-manager');if(newsletterEditor?.dataset.busy==='true'){toast('Please wait for the newsletter update to finish.');return;}if(newsletterEditor?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved newsletter changes will be lost.',{title:'Discard newsletter changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;}
   if(view && $('#payment-options-editor')?.dataset.busy==='true'){toast('Please wait for the settings save to finish.');return;}
   if(view && $('#payment-options-editor')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved payment options will be lost.',{title:'Discard payment changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
-  if(view && $('#homepage-manager')?.dataset.busy==='true'){toast('Please wait for the Home page update to finish.');return;}
-  if(view && $('#homepage-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved Home page changes will be lost.',{title:'Discard home page changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
+  if(view && $('#homepage-manager')?.dataset.busy==='true'){toast('Please wait for the website content update to finish.');return;}
+  if(view && $('#homepage-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved website content changes will be lost.',{title:'Discard website content changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if(view && $('#academy-manager')?.dataset.busy==='true'){toast('Please wait for the Academy update to finish.');return;}
   if(view && $('#academy-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved Academy changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if (view && $('#accounting-manager')?.dataset.busy === 'true') { toast('Please wait for the accounting update to finish.'); return; }

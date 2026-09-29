@@ -151,5 +151,10 @@
         }
       ]
     }
-  ]
+  ],
+  "shop_feature": {
+    "photo_url": "assets/img/products-webp/Pastries_4-800w.webp",
+    "alt": "Pastries from The Little Baker Kitchen",
+    "caption": "Baked with a little love."
+  }
 }

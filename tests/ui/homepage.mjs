@@ -13,7 +13,7 @@ const client=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpe
 const base={products:[],categories:[],orders:[],inventory:[],promos:[],zones:[],staff:[],email_status:[],settings:{paused:false}};
 const uploadUrl='https://aulhqofjjckwwjmdvqgi.supabase.co/storage/v1/object/public/product-images/00000000-0000-4000-8000-000000000000/00000000-0000-4000-8000-000000000001.webp';
 const mock=completeClientFixture(client,`export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{access_token:'owner-fixture',user:{id:'owner'}}}}),onAuthStateChange:()=>{}};
-export async function api(action){if(action==='admin_bootstrap')return {...${JSON.stringify(base)},role:window.fixtureRole};throw Error('Unexpected action '+action);}
+export async function api(action){if(action==='admin_bootstrap')return {...${JSON.stringify(base)},role:window.fixtureRole};if(action==='catalog')return (await fetch('/website-fixture-catalog')).json();throw Error('Unexpected action '+action);}
 export async function websiteVisitorStats(){return {}};
 export async function upload(file,options){window.uploads??=[];window.uploads.push({type:file.type,name:file.name,size:file.size,kind:options.kind});return {url:${JSON.stringify(uploadUrl)}};}
 ${helpers}`);
@@ -27,6 +27,7 @@ try{
   await context.addInitScript(role=>window.fixtureRole=role,role);
   await context.route('**/*',async route=>{
    const request=route.request(),u=new URL(request.url());
+   if(u.pathname==='/website-fixture-catalog')return route.fulfill({json:{...base,shop_feature:data.content.shop_feature}});
    if(u.pathname.endsWith('/rpc/homepage_api')){
     if(offline)return route.fulfill({status:503,body:'{}'});
     const {p_action,p_payload}=request.postDataJSON();calls.push(p_action);
@@ -50,6 +51,8 @@ try{
   const nav=await page.locator('#admin-nav [data-view]').evaluateAll(els=>els.map(el=>el.dataset.view));assert.equal(nav.indexOf('homepage')+1,nav.indexOf('academy'));
   if(role==='staff'){assert.equal(await page.locator('[data-view=homepage]').isVisible(),false);assert.deepEqual(errors,[]);await context.close();results.push({width,role,passed:true});continue;}
   await selectDashboardSection(page, 'homepage');await page.locator('.home-photo').first().waitFor();
+  assert.equal(await page.locator('#homepage-manager h1').innerText(),'Website content');
+  assert.equal(await page.locator('[data-view=homepage]').getAttribute('data-label'),'Website content');
   assert.equal(await page.locator('.home-photo').count(),4);assert.equal(await page.locator('[data-home-save]').isDisabled(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#homepage-manager').screenshot({path:join(out,`editor-${width}.png`)});
@@ -63,9 +66,24 @@ try{
   await page.locator('[data-home-replace]').setInputFiles(join(root,'assets/img/brands/Hat.png'));await page.waitForFunction(()=>window.uploads.length===2&&document.querySelector('#homepage-manager').dataset.busy==='false');
   await page.locator('[data-home-remove="1"]').click();await page.getByRole('button',{name:'Keep photo',exact:true}).click();assert.equal(await page.locator('.home-photo').count(),2);
   await selectDashboardSection(page, 'orders');await page.getByRole('button',{name:'Keep editing',exact:true}).click();assert.equal(await page.locator('#homepage-manager').count(),1);
+  await page.getByRole('button',{name:'Shop page',exact:true}).click();
+  assert.equal(await page.locator('[data-home-view]').getAttribute('href'),'shop.html');
+  assert.equal(await page.locator('[data-home-section-label]').isVisible(),false);
+  assert.match(await page.locator('[data-shop-feature-preview] img').getAttribute('src'),/Pastries_4-800w/);
+  await page.getByLabel('Photo caption · optional',{exact:true}).fill('A little treat <for you>');
+  await page.getByLabel('Photo description · for accessibility',{exact:true}).fill('Fresh macarons for your table');
+  await page.getByLabel('Replace shop feature photo',{exact:true}).setInputFiles(join(root,'assets/img/brands/Hat.png'));
+  await page.waitForFunction(()=>window.uploads.length===3&&document.querySelector('#homepage-manager').dataset.busy==='false');
+  assert.equal(await page.locator('[data-shop-feature-preview] .hero-stamp').innerText(),'A little treat <for you>');
+  assert.equal(await page.locator('[data-shop-feature-preview] for').count(),0);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#homepage-manager').screenshot({path:join(out,`shop-editor-${width}.png`)});
+  await page.getByRole('button',{name:'Home page',exact:true}).click();assert.equal(await page.locator('.home-photo').count(),2);
+  await page.getByRole('button',{name:'Shop page',exact:true}).click();assert.equal(await page.getByLabel('Photo caption · optional',{exact:true}).inputValue(),'A little treat <for you>');
   failSave=true;await page.locator('[data-home-save]').click();await page.locator('[data-home-message]').filter({hasText:'another window'}).waitFor();assert.equal(await page.locator('#homepage-manager').getAttribute('data-dirty'),'true');
   await page.locator('[data-home-save]').click();await page.locator('[data-home-message]').filter({hasText:'Saved.'}).waitFor();
   assert.equal(data.content.specialties[3].photos.length,2);assert.equal(data.content.hero[1].title,'Baking classes <summer>');assert.equal(data.content.hero[1].buttons.length,1);
+  assert.deepEqual(data.content.shop_feature,{photo_url:uploadUrl,caption:'A little treat <for you>',alt:'Fresh macarons for your table'});
   await page.reload();await selectDashboardSection(page, 'homepage');await page.locator('[data-home-select="1"]').click();assert.equal(await page.locator('[data-home-field=title]').inputValue(),'Baking classes <summer>');
   await page.locator('[data-home-section]').selectOption('academy');await page.locator('[data-home-remove="1"]').click();await page.getByRole('button',{name:'Remove photo',exact:true}).click();assert.equal(await page.locator('.home-photo').count(),1);
   await page.locator('[data-home-reset]').click();await page.getByRole('button',{name:'Discard changes',exact:true}).last().click();assert.equal(await page.locator('.home-photo').count(),2);
@@ -80,6 +98,14 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#carousel-1').screenshot({path:join(out,`banner-${width}.png`)});
   await page.locator('.home-specialties').scrollIntoViewIfNeeded();await page.locator('.home-specialties').screenshot({path:join(out,`categories-${width}.png`)});
+  await page.goto(origin+'/shop.html');await page.locator('.shop-hero .hero-photo img').waitFor();
+  assert.equal(await page.locator('.shop-hero .hero-photo img').getAttribute('src'),uploadUrl);
+  assert.equal(await page.locator('.shop-hero .hero-photo img').getAttribute('alt'),'Fresh macarons for your table');
+  assert.equal(await page.locator('.shop-hero .hero-stamp').textContent(),'A little treat <for you>');
+  assert.equal(await page.locator('.shop-hero for').count(),0);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('.shop-hero').screenshot({path:join(out,`shop-feature-${width}.png`)});
+  await page.goto(origin+'/index.html');
   offline=true;await page.reload();await page.waitForLoadState('networkidle');
   assert.equal(await page.getByRole('button',{name:/^(pause|play) slideshow$/i}).count(),0);
   assert.equal(await page.locator('#carousel-1 .carousel-item').count(),4);assert.equal(await page.locator('.specialty-grid>.col').count(),4);assert.equal(await page.locator('.home-managed-banner').count(),0);
