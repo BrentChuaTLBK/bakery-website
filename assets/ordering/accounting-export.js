@@ -1,7 +1,7 @@
 import {accountingSheetName, accountingTotals, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
 
 let library;
-async function excelLibrary() {
+export async function excelLibrary() {
   if (globalThis.ExcelJS) return globalThis.ExcelJS;
   if (!library) library = new Promise((resolve, reject) => {
     const script = document.createElement('script');

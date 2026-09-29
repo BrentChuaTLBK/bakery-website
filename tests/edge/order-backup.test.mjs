@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import {generateKeyPairSync} from 'node:crypto';
+import {backupSheets,recoverBackupRows,buildBackupWorkbook,validateBackup} from '../../assets/ordering/order-backup.js';
+import {sheetRequests,spreadsheetId,createGoogleSheets} from '../../supabase/functions/order-backup/google.ts';
+import {syncBackup,handle} from '../../supabase/functions/order-backup/handler.ts';
+const o={id:'test-1',reference:'TLB-TEST',fulfillment_date:'2026-09-30',payment_status:'paid',paid_amount_cents:12000,fulfillment_status:'confirmed',source:'direct_message',method:'delivery',data:{buyer:{name:'=IMPORTXML("https://invalid.test")',phone:'09170000000'},total_cents:12000,delivery_cents:0,deferred_delivery:true,delivery_payment_status:'pending',items:[{name:'Box',quantity:2,unit_price_cents:6000,selection_labels:[{label:'Matcha',quantity:2}],description:'🍰'.repeat(20000)}]},payments:[],history:[],allocations:[]};
+const snapshot={format:'tlb-order-backup',version:1,scope:'paid_active',generated_at:'2026-09-30T00:00:00Z',orders:[o]};
+const sheets=['Orders','Items','Recovery'].map((title,sheetId)=>({properties:{sheetId,title,gridProperties:{rowCount:100,columnCount:26}}}));
+const defs=backupSheets(snapshot);assert.equal(defs[0].rows[0][13],120);assert.match(defs[0].rows[0][12],/2 × Matcha/);
+const noContact={...snapshot,orders:[{...o,data:{...o.data,buyer:{},contact_phone:'BUSINESS-PHONE',contact_email:'shop@example.test'}}]};
+assert.deepEqual(backupSheets(noContact)[0].rows[0].slice(4,7),['','','']);
+assert.deepEqual(recoverBackupRows(defs[2].rows,snapshot.generated_at).orders,[o]);
+assert.throws(()=>recoverBackupRows(defs[2].rows.slice(1),snapshot.generated_at),/Missing/);
+assert.throws(()=>recoverBackupRows([...defs[2].rows,defs[2].rows[0]],snapshot.generated_at),/Conflicting/);
+assert.throws(()=>validateBackup({...snapshot,orders:[o,o]}),/duplicate/);
+const requests=sheetRequests(snapshot,sheets),writes=requests.filter(r=>r.updateCells);
+assert.equal(writes.length,3);assert.equal(writes[0].updateCells.range.endRowIndex,100);
+assert.deepEqual(writes[0].updateCells.rows[5].values[4].userEnteredValue,{stringValue:o.data.buyer.name});
+assert.ok(!JSON.stringify(requests).includes('formulaValue'));
+assert.throws(()=>sheetRequests(snapshot,sheets.slice(1)),/configuration/);
+assert.equal(sheetRequests({...snapshot,orders:[]},sheets).filter(r=>r.updateCells)[0].updateCells.rows[5].values[0].userEnteredValue.stringValue,'No orders in this backup.');
+assert.equal(spreadsheetId('https://docs.google.com/spreadsheets/d/12345678901234567890/edit'),'12345678901234567890');assert.throws(()=>spreadsheetId('https://evil.test'),/configuration/);
+let finishes=[];
+const start={lease_token:'lease',revision:1,spreadsheet_id:'12345678901234567890',snapshot};
+const dispatch=async(action,payload)=>action==='begin'?start:(finishes.push(payload),{pending:!!payload.error});
+assert.equal((await syncBackup({write:async()=>{throw Error('provider-secret');}},dispatch)).ok,false);
+assert.equal(finishes[0].error,'network');assert.ok(!JSON.stringify(finishes).includes('provider-secret'));
+assert.equal((await syncBackup({write:async()=>{}},dispatch)).ok,true);assert.equal(finishes[1].revision,1);
+assert.equal((await syncBackup({write:()=>{throw Error('must not run');}},async()=>({skipped:'unchanged'}))).skipped,'unchanged');
+const {privateKey}=generateKeyPairSync('rsa',{modulusLength:2048}),secret=JSON.stringify({type:'service_account',client_email:'test@fixture.iam.gserviceaccount.com',private_key:privateKey.export({type:'pkcs8',format:'pem'})});
+let calls=[],tokens=0,fail=false;
+const google=createGoogleSheets({getEnv:name=>name==='GA_SERVICE_ACCOUNT_JSON'?secret:'',request:async(url,options)=>{
+ if(url==='https://oauth2.googleapis.com/token'){tokens++;const claims=JSON.parse(Buffer.from(new URLSearchParams(options.body).get('assertion').split('.')[1],'base64url'));assert.equal(claims.scope,'https://www.googleapis.com/auth/spreadsheets');return Response.json({access_token:'fixture',token_type:'Bearer',expires_in:3600});}
+ calls.push({url,...options});
+ if(fail)return Response.json({error:{details:[{reason:'SERVICE_DISABLED'}]}},{status:403});
+ return Response.json(options.method==='GET'?{spreadsheetId:start.spreadsheet_id,sheets}:{spreadsheetId:start.spreadsheet_id,replies:JSON.parse(options.body).requests.map(()=>({}))});
+}});
+await google.write(start.spreadsheet_id,snapshot);await google.verify(start.spreadsheet_id);assert.equal(tokens,1);assert.equal(calls.filter(c=>c.method==='POST').length,1);
+fail=true;await assert.rejects(google.verify(start.spreadsheet_id),/api_disabled/);
+globalThis.Deno={env:{get:()=>''}};
+assert.equal((await handle(new Request('https://example.test',{method:'POST',body:'{}'}))).status,401);
+assert.equal((await handle(new Request('https://example.test',{method:'POST',headers:{'x-worker-token':'wrong'},body:'{}'}))).status,401);
+if(process.env.EXCELJS_PATH){
+ const {createRequire}=await import('node:module'),ExcelJS=createRequire(import.meta.url)(process.env.EXCELJS_PATH);
+ const wb=buildBackupWorkbook(snapshot,ExcelJS),buffer=await wb.xlsx.writeBuffer(),saved=new ExcelJS.Workbook();await saved.xlsx.load(buffer);
+ assert.equal(saved.getWorksheet('Orders').getCell('E6').value,o.data.buyer.name);assert.equal(saved.getWorksheet('Orders').getCell('N6').value,120);
+ const recovery=saved.getWorksheet('Recovery'),rows=[];for(let i=6;i<=recovery.rowCount;i++)rows.push(recovery.getRow(i).values.slice(1));
+ assert.deepEqual(recoverBackupRows(rows,snapshot.generated_at).orders,[o]);
+}
+console.log('PASS order backup: permissions, literal cells, chunk recovery, Excel round trip, atomic Sheets writes, OAuth scope, retries and authentication');

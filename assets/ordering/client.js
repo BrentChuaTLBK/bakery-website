@@ -109,6 +109,14 @@ export async function calendarConnection(action,payload={}) {
   return edge('calendar-sync',{action,...payload});
 }
 
+export async function orderBackupApi(action,payload={}) {
+  const client=await connection();
+  const {data,error}=await client.rpc('order_backup_api',{p_action:action,p_payload:payload});
+  if(error)throw new Error(error.message || 'Order backups could not be loaded.');
+  return data;
+}
+export const orderBackupConnection=(action,payload={})=>edge('order-backup',{action,...payload});
+
 export async function signedProofUrl(orderId) {
   return edge('proof-url', { order_id: orderId });
 }
