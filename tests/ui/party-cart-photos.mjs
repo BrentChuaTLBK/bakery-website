@@ -83,7 +83,7 @@ async function swipePhoto(page, selector, dx, dy=0) {
 try{
   const ctx=await context(),page=await frozenPage(ctx);await page.goto(origin+'/partycarts.html');await page.locator('[data-cart-thumb]').first().waitFor();
   assert.equal(await page.locator('[data-cart-thumb]').count(),17);assert.equal(await count(page),'1 / 17');
-  await page.evaluate(()=>document.fonts.ready);await page.locator('[data-cart-featured]').evaluate(img=>img.decode());await page.screenshot({path:join(output,'public-desktop.png')});
+  await page.evaluate(()=>document.fonts.ready);await page.waitForFunction(()=>{const img=document.querySelector('[data-cart-featured]');return img?.currentSrc&&img.complete&&img.naturalWidth>0;});await page.locator('[data-cart-featured]').evaluate(img=>img.decode());await page.screenshot({path:join(output,'public-desktop.png')});
   await page.clock.runFor(2999);assert.equal(await count(page),'1 / 17');await page.clock.runFor(1);assert.equal(await count(page),'2 / 17');
   for(let i=0;i<16;i++)await page.clock.runFor(3000);assert.equal(await count(page),'1 / 17');
   await page.locator('[data-cart-gallery]').dispatchEvent('pointerenter',{pointerType:'mouse'});await page.clock.runFor(3000);assert.equal(await count(page),'2 / 17');
