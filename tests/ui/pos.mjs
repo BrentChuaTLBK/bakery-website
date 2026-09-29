@@ -180,8 +180,15 @@ try{
   // Every customer field, including recipient and delivery address, stays empty.
   await page.locator('[name=social_username]').fill('@draft-client');await page.locator('[data-pos=section][data-section=orders]').click();await page.locator('[data-pos=section][data-section=sell]').click();await basket();assert.equal(await page.locator('[name=social_username]').inputValue(),'@draft-client');await page.locator('[name=social_username]').fill('');
   await page.screenshot({path:join(out,`direct-order-${width}.png`)});
+  if(role==='owner'){
+   await page.getByText('Owner date override',{exact:true}).click();
+   await page.locator('[name=override_dates]').check();
+   const reason=page.getByLabel('Reason for override · optional',{exact:true});
+   assert.equal(await reason.inputValue(),'');assert.equal(await reason.evaluate(el=>el.required),false);
+  }
   await page.getByRole('button',{name:'Review order',exact:true}).click();await page.getByRole('button',{name:'Create direct order',exact:true}).click();await page.locator('#pos-payment-form').waitFor();
   let saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.source,'direct_message');assert.equal(saved.buyer.name,'');assert.equal(saved.payment_deadline,null);assert.equal(saved.total_cents,30000);
+  if(role==='owner'){assert.equal(saved.override_dates,true);assert.equal(saved.override_reason,'');}
   await page.locator('[data-pos=details]').click();await page.locator('#pos-details-form [name=name]').fill('Optional client');await page.locator('[name=social_platform]').selectOption('Instagram');await page.locator('[name=social_username]').fill('@example');await page.getByRole('button',{name:'Save details',exact:true}).click();await page.locator('#pos-payment-form').waitFor();
   saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.buyer.social_username,'@example');assert.equal(saved.payment_status,'awaiting_payment');
   const editId=saved.id,editReference=saved.reference,editLink=await page.locator('[data-share-link]').inputValue(),orderCount=await page.evaluate(()=>window.posOrders.length);
@@ -199,6 +206,7 @@ try{
   await page.getByRole('button',{name:'Review changes',exact:true}).click();await page.locator('[name=amendment_reason]').fill('Customer added one cake');
   await page.evaluate(()=>window.loseEditResponse=true);await page.getByRole('button',{name:'Save changes',exact:true}).click();await page.locator('#pos-payment-form').waitFor();
   saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.id,editId);assert.equal(saved.reference,editReference);assert.equal(saved.total_cents,52500);assert.equal(saved.payment_status,'awaiting_payment');
+  if(role==='owner'){assert.equal(saved.override_dates,true);assert.equal(saved.override_reason,'');}
   assert.equal(await page.locator('[data-share-link]').inputValue(),editLink);assert.equal(await page.evaluate(()=>window.posOrders.length),orderCount);
   assert.equal(await page.evaluate(()=>window.posCalls.filter(c=>c.action==='pos_update_order').length),1);
   assert.equal(await page.evaluate(()=>window.posCalls.some(c=>c.action==='pos_find_edit')),true);
