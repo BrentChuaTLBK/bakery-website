@@ -51,8 +51,8 @@ export default async function({db,check,state}){
   assert.equal((await row()).desired.status,'completed');assert.equal((await row()).event_id,id);
   await db.query('update tlb.orders set refund_label=true where id=$1',[order.id]);assert.equal((await row()).desired,null);
   await db.query("update tlb.orders set refund_label=false,fulfillment_status='cancelled' where id=$1",[order.id]);assert.equal((await row()).desired,null);
-  const dependencies=(await db.query("select conrelid::regclass::text as name from pg_constraint where contype='f' and confrelid='tlb.orders'::regclass")).rows;
-  for(const {name} of dependencies)await db.query(`delete from ${name} where order_id=$1`,[order.id]);
+  const dependencies=(await db.query("select c.conrelid::regclass::text as name,quote_ident(a.attname) as column_name from pg_constraint c join pg_attribute a on a.attrelid=c.conrelid and a.attnum=c.conkey[1] where c.contype='f' and c.confrelid='tlb.orders'::regclass")).rows;
+  for(const {name,column_name} of dependencies)await db.query(`delete from ${name} where ${column_name}=$1`,[order.id]);
   await db.query('delete from tlb.orders where id=$1',[order.id]);assert.equal((await row()).desired,null);
  })();
  await check('Calendar: paid direct edits update date, total and flavors without another Google identity',async()=>{

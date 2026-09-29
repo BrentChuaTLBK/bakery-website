@@ -39,7 +39,7 @@ Deno.serve(async (request: Request) => {
             stats.failed++;
             continue;
           }
-          const welcome = ["newsletter_welcome","newsletter_test"].includes(message.payload.event_type);
+          const welcome = ["newsletter_welcome", "newsletter_voucher", "newsletter_test"].includes(message.payload.event_type);
           const key = (welcome && env("NEWSLETTER_RESEND_API_KEY")) || env("RESEND_API_KEY");
           const sender = (welcome && env("NEWSLETTER_FROM")) || env("EMAIL_FROM");
           if (!key || !sender) throw new HttpError(503, "Email delivery is waiting for RESEND_API_KEY and EMAIL_FROM configuration.");

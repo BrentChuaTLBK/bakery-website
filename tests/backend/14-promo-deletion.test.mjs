@@ -93,8 +93,14 @@ export default async function ({ db, check, state }) {
     const before = await snapshot();
     const definition = await scalar("select pg_get_functiondef('public.shop_api(text,jsonb,text)'::regprocedure)");
     const acl = await scalar("select proacl::text from pg_proc where oid='public.shop_api(text,jsonb,text)'::regprocedure");
-    await db.exec(migration);
-    await db.exec(migration);
+    // Replay this historical migration against its original listing contract;
+    // the later voucher migration intentionally extends that listing filter.
+    const historical = definition.replace(" and promo->>'voucher_managed' is distinct from 'true'", '');
+    try {
+      await db.exec(historical);
+      await db.exec(migration);
+      await db.exec(migration);
+    } finally { await db.exec(definition); }
     assert.deepEqual(await snapshot(), before);
     assert.equal(await scalar("select pg_get_functiondef('public.shop_api(text,jsonb,text)'::regprocedure)"), definition);
     assert.equal(await scalar("select proacl::text from pg_proc where oid='public.shop_api(text,jsonb,text)'::regprocedure"), acl);

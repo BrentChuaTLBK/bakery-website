@@ -37,7 +37,11 @@ try {
     process.stdout.write(`APPLIED ${name}\n`);
   }
   if (!process.argv.includes('--migrations-only')) {
-    const suites = (await readdir(here)).filter(name => name.endsWith('.test.mjs')).sort();
+    // Historical upgrade fixtures deliberately restore older functions. Run
+    // voucher contracts in a fresh database with the installed schema intact.
+    const suites = process.argv.includes('--vouchers')
+      ? ['02-order-contract.test.mjs', 'vouchers.mjs']
+      : (await readdir(here)).filter(name => name.endsWith('.test.mjs')).sort();
     if (!suites.length) throw new Error('No backend contract test suites found.');
     for (const name of suites) {
       const suite = await import(pathToFileURL(join(here, name)));
