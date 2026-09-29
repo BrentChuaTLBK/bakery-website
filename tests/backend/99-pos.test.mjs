@@ -79,11 +79,14 @@ export default async function({db,check,state}) {
   const rows=(await db.query('select * from tlb.accounting_rows_v2($1,$1) where order_id=$2',[today,dm.id])).rows;
   assert.equal(rows.length,3); assert(rows.every(r=>r.source==='Direct message'&&r.payment_method==='BDO'));
  })();
- await check('POS: owner date override requires a reason; does not bypass stock or pickup-only',async()=>{
-  const p=request('direct_message',{fulfillment_date:today,override_dates:true,override_reason:'Agreed with customer'});
+ await check('POS: owner date override reason is optional; does not bypass owner access or stock',async()=>{
+  const p=request('direct_message',{fulfillment_date:today,override_dates:true});
   await assert.rejects(api('pos_quote',p,ids.staff),/owner/i);
-  await assert.rejects(api('pos_quote',{...p,override_reason:''},ids.owner),/explain/i);
+  for(const override_reason of [undefined,null,'','   ','x','Agreed with customer'])assert.equal((await api('pos_quote',{...p,override_reason},ids.owner)).fulfillment_date,today);
+  await assert.rejects(api('pos_quote',{...p,override_reason:'x'.repeat(501)},ids.owner),/500 characters/i);
   assert.equal((await api('pos_quote',p,ids.owner)).fulfillment_date,today);
+  const created=await create(p);assert.equal(created.override_dates,true);assert.equal(created.override_reason,'');
+  await h.action('cancel_order',created,{reason:'Release test reservation'});
   await h.inventory(product,today,0);
   await assert.rejects(api('pos_quote',p,ids.owner),/stock/i);
   await h.inventory(product,today,10,false);

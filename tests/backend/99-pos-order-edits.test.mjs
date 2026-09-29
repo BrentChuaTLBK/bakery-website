@@ -7,7 +7,7 @@ export default async function({db,check,state}){
  const h=state.harness,date=await h.day(40),next=await h.day(41),today=await h.day(0);
  const product=await h.product({price_cents:10000}),custom={name:'Custom cake',description:'Made to order',quantity:1,unit_price_cents:5000};
  await h.inventory(product,date,6);await h.inventory(product,next,5);
- const base={source:'direct_message',method:'pickup',fulfillment_date:date,override_dates:true,override_reason:'Owner arranged date',buyer:{},items:[h.item(product,3),custom],discount:{kind:'none'},email_notifications:false};
+ const base={source:'direct_message',method:'pickup',fulfillment_date:date,override_dates:true,buyer:{},items:[h.item(product,3),custom],discount:{kind:'none'},email_notifications:false};
  const create=async(p=base)=>{const expected_quote=await h.api('pos_quote',p,h.ids.owner);return h.api('pos_create_order',{...p,expected_quote,idempotency_key:randomUUID()},h.ids.owner)};
  const request=(o,extra={})=>({...base,order_id:o.id,revision:o.revision,...extra});
  const edit=async(o,extra={})=>{const p=request(o,extra),expected_quote=await h.api('pos_preview_edit',p,h.ids.owner);return h.api('pos_update_order',{...p,expected_quote,idempotency_key:randomUUID()},h.ids.owner)};
@@ -25,6 +25,7 @@ export default async function({db,check,state}){
   order=await edit(order,{fulfillment_date:next,items:[h.item(product,4),{...custom,unit_price_cents:8000}],discount:{kind:'percent',value:10},method:'delivery',delivery_cents:1200});
   assert.equal(order.id,original.id);assert.equal(order.reference,original.reference);assert.equal(order.access_token,original.access_token);
   assert.equal(order.payment_deadline,null);assert.equal(order.payment_status,'awaiting_payment');assert.equal(order.total_cents,44400);
+  assert.equal(order.override_dates,true);assert.equal(order.override_reason,'');
   assert.equal(await h.remaining(product,date),4);assert.equal(await h.remaining(product,next),1);
   assert.deepEqual(await h.allocations(order.id),[{product_id:product.id,date:next,quantity:4,state:'held'}]);
   assert.equal(order.history.at(-1).action,'pos_order_updated');assert.equal(order.history.at(-1).before.total_cents,35000);
