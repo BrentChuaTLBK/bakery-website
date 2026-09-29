@@ -23,7 +23,7 @@ try{for(const width of [1440,768,390,320]){
   if(action==='voucher_campaigns')return{campaigns};
   if(action==='voucher_campaign_report'){const all=Array.from({length:51},(_,i)=>({code:'TLB-REPORT'+i,email:'customer.with.a.long.email.address@example.test',status:'used',sales_cents:260000,discount_cents:5000,issued_at:'2026-09-29T08:00:00Z',expires_at:'2026-10-29T08:00:00Z',email_status:'sent'}));return{total:51,limit:50,vouchers:all.slice(p.offset,p.offset+50)};}
   if(action==='voucher_save_campaign'){saves++;const c={...p.campaign,id:'campaign-1',revision:saves};campaigns=[c];return c;}
-  if(action==='voucher_email_preview'){previews++;const c=p.campaign||campaigns[0];return{subject:c.email_subject,payload:{event_type:'newsletter_voucher',email_copy:c.email_copy,offer:{...c.terms,code:'TLB-PREVIEW',expires_at:'2027-10-20T15:59:00+08:00'},settings:{site_url:origin,shop_name:'The Little Baker Kitchen',pickup_address:'QA Bakery Address'},unsubscribe_token:'a'.repeat(64)}};}
+  if(action==='voucher_email_preview'){previews++;const c=p.campaign||campaigns[0];return{subject:c.email_subject,payload:{event_type:'newsletter_voucher',email_copy:c.email_copy,offer:{...c.terms,code:'A7K2M9',expires_at:'2027-10-20T15:59:00+08:00'},settings:{site_url:origin,shop_name:'The Little Baker Kitchen',pickup_address:'QA Bakery Address'},unsubscribe_token:'a'.repeat(64)}};}
   throw Error('Unexpected action '+action);
  };
  await ctx.route('**/*',async route=>{const u=new URL(route.request().url());
@@ -49,7 +49,7 @@ try{for(const width of [1440,768,390,320]){
  await page.locator('input[name=name]').fill('A thank-you for your next sweet moment');
  await page.getByRole('button',{name:'Email preview',exact:true}).click();await page.waitForSelector('iframe');assert.equal(previews,1);assert.equal(saves,0);
  await page.getByRole('button',{name:'Mobile',exact:true}).click();assert.equal(await page.locator('[data-preview-canvas]').evaluate(e=>e.classList.contains('is-mobile')),true);
- await page.getByRole('button',{name:'Plain text',exact:true}).click();assert.match(await page.locator('[data-preview-text]').innerText(),/TLB-PREVIEW/);
+ await page.getByRole('button',{name:'Plain text',exact:true}).click();assert.match(await page.locator('[data-preview-text]').innerText(),/A7K2M9/);
  await page.keyboard.press('Escape');await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('button',{name:'Edit / activate'}).waitFor();assert.equal(campaigns[0].status,'draft');
   await page.getByRole('button',{name:'Edit / activate'}).click();await page.locator('[name=status]').selectOption('active');await page.getByRole('button',{name:'Save campaign',exact:true}).click();await page.getByRole('button',{name:'Edit / activate'}).waitFor();assert.equal(campaigns[0].status,'active');
  await page.getByRole('button',{name:'View report',exact:true}).click();await page.locator('.offer-recipient').first().waitFor();assert.equal(await page.locator('.offer-recipient').count(),50);

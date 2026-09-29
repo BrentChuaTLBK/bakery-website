@@ -67,7 +67,7 @@ try{
  await f.page.locator('[data-mode=signin]').click();await f.page.locator('[name=email]').fill('existing@example.test');await f.page.locator('[name=password]').fill('fixture-password');await f.page.locator('#auth-form button[type=submit]').click();await f.page.waitForURL(origin+'/shop.html');check('Password login remains available after OAuth error',true);await f.context.close();
  const user={id:'same-existing-user',email:'existing@example.test',email_confirmed_at:'2026-09-19T00:00:00Z'};
  f=await fixture({user});await f.context.addInitScript(()=>sessionStorage.setItem('tlb-newsletter-signup-consent',String(Date.now())));await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+'/shop.html');check('Explicit Google signup consent suppresses the newsletter popup',await f.page.evaluate(()=>localStorage.getItem('tlb-newsletter-preference'))==='subscribed');await f.context.close();
- for(const destination of ['/shop.html#checkout','/account.html','/manage.html']){
+ for(const destination of ['/shop.html#checkout','/account.html','/manage.html','/manage.html#pos']){
   f=await fixture({user,remembered:destination});await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+destination);
   check('Verified Google callback returns to '+destination,await f.page.evaluate(()=>localStorage.getItem('tlb-checkout-v1'))==='saved checkout fixture');
   if(destination==='/account.html'){await f.page.getByText('TLB-EXISTING',{exact:true}).waitFor();check('Existing signed-in account still loads its order history',true)}

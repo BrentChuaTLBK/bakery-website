@@ -44,6 +44,24 @@ const payload = event => ({ event_type: event, order: {
   history: [{ action: 'payment_rejected', reason: 'Reference did not match' }],
 }, settings: { site_url: 'https://preview.test', shop_name: 'TLB Kitchen', payment_instructions: 'Test instructions', contact_email: 'help@test.invalid', pickup_address: 'Test location' } });
 
+test('public uploads get year-long caching at unique URLs; replacements never overwrite',async()=>{
+ const paths=[];
+ globalThis.fetch=async(url,options)=>{
+  if(String(url).includes('/auth/v1/user'))return reply({id:userId,email_confirmed_at:'2026-09-30T00:00:00Z'});
+  if(String(url).includes('/rpc/'))return reply({allowed:true});
+  const headers=new Headers(options.headers);assert.equal(headers.get('cache-control'),'max-age=31536000');assert.equal(headers.get('x-upsert'),'false');paths.push(String(url));return reply({});
+ };
+ for(let n=0;n<2;n++){const r=await upload(request('proof-upload',form('product'),'staff-token'));assert.equal(r.status,201);assert.match((await r.json()).url,/object\/public\/product-images/)}
+ assert.notEqual(paths[0],paths[1]);
+});
+test('operational alert and recovery render without order details or private links',()=>{
+ for(const phase of ['opened','recovered']){
+  const p={event_type:'operational_alert',email_design_version:2,phase,channel:'calendar',affected:3,observed_at:'2026-09-30',incident_id:'<incident>',order:payload('order_submitted').order};
+  const message=renderEmail(p);assert.match(message.html,/<html lang="en">/);assert.match(message.text,/Google Calendar/);assert.match(message.text,/manage.html#calendar/);assert.doesNotMatch(message.html,/<incident>|private-guest-token|TLB-TEST/);
+  assert.match(message.text,phase==='recovered'?/recovered/:/Action needed/);
+ }
+});
+
 test('pickup follow-up emails contain the friendly reminder, saved pickup details and private order link', () => {
   const message=payload('pickup_reminder');
   message.order.pickup_address='Saved pickup location';
@@ -171,7 +189,7 @@ test('guest proof authorizes before storage and commits with server-chosen priva
       assert.equal(body.p_payload.payment_reference, 'TEST-123');
       return reply({ id: orderId, payment_status: 'under_review' });
     }
-    assert.ok(String(url).includes('/object/payment-proofs/')); actions.push('storage'); return reply({ Key: 'saved' });
+    assert.equal(new Headers(options.headers).has('Cache-Control'),false);assert.ok(String(url).includes('/object/payment-proofs/')); actions.push('storage'); return reply({ Key: 'saved' });
   };
   const response = await upload(request('proof-upload', form()));
   assert.equal(response.status, 201);

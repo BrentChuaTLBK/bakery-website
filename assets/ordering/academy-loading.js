@@ -30,15 +30,16 @@ export function applyAcademyImage(img,image){
 
 // Warm only the selected album. Two low-priority downloads at a time keep the
 // next swipe ready without competing with the hero or a newly selected batch.
-export function preloadAcademyBatch(cache,photos,{makeImage=()=>new Image(),connection=globalThis.navigator?.connection}={}){
+export function preloadAcademyBatch(cache,photos,{makeImage=()=>new Image(),connection=globalThis.navigator?.connection,startWhenVisible=null}={}){
  const limited=connection?.saveData||/^(slow-)?2g$/.test(connection?.effectiveType||'');
  const warmed=new Map(),running=new Set(),downloads=new Set();
  let queue=[...photos.slice(0,limited?24:photos.length)],active=0,signing=false,timer,disposed=false,failures=0;
+ let started=!startWhenVisible,observer;
  const doc=globalThis.document;
  const ready=p=>cache.get(p.asset_id)?.url===warmed.get(p.asset_id)&&warmed.has(p.asset_id);
  function schedule(delay=180){if(disposed)return;clearTimeout(timer);timer=setTimeout(pump,delay);}
  async function pump(){
-  if(disposed||doc?.hidden)return;
+  if(disposed||!started||doc?.hidden)return;
   queue=queue.filter(p=>!ready(p)&&!running.has(p.asset_id));
   if(!queue.length||active>=2||signing)return;
   if(!cache.get(queue[0].asset_id)){
@@ -65,12 +66,16 @@ export function preloadAcademyBatch(cache,photos,{makeImage=()=>new Image(),conn
  }
  function prioritize(photo){
   const index=photos.findIndex(p=>p.asset_id===photo.asset_id);if(index<0||disposed)return;
+  started=true;observer?.disconnect();
   const near=[...photos.slice(index+1,index+9),...photos.slice(Math.max(0,index-2),index)];
   const ids=new Set(near.map(p=>p.asset_id));queue=[...near,...queue.filter(p=>!ids.has(p.asset_id))];failures=0;schedule(0);
  }
  const visible=()=>{if(!doc.hidden)schedule(0);};doc?.addEventListener('visibilitychange',visible);
- schedule(100);
- return {prioritize,dispose(){disposed=true;clearTimeout(timer);queue=[];for(const cancel of [...downloads])cancel();doc?.removeEventListener('visibilitychange',visible);}};
+ if(startWhenVisible&&typeof IntersectionObserver==='function'){
+  observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){started=true;observer.disconnect();schedule(100);}},{rootMargin:'200px 0px'});
+  observer.observe(startWhenVisible);
+ }else{started=true;schedule(100);}
+ return {prioritize,dispose(){disposed=true;observer?.disconnect();clearTimeout(timer);queue=[];for(const cancel of [...downloads])cancel();doc?.removeEventListener('visibilitychange',visible);}};
 }
 
 // Resolve private image links near the viewport, not for every album in a class.

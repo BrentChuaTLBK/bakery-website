@@ -150,10 +150,11 @@ export async function verifiedUser(request: Request, required = false): Promise<
   return uuid(user.id, "User ID");
 }
 
-export async function storageRequest(path: string, method: string, body?: BodyInit, contentType?: string): Promise<any> {
+export async function storageRequest(path: string, method: string, body?: BodyInit, contentType?: string, cacheSeconds?: number): Promise<any> {
   const { url, key } = credentials();
   const headers: Record<string, string> = { apikey: key, Authorization: `Bearer ${key}` };
   if (contentType) headers["Content-Type"] = contentType;
+  if (cacheSeconds !== undefined) headers["Cache-Control"] = `max-age=${cacheSeconds}`;
   if (method === "POST" && contentType?.startsWith("image/")) headers["x-upsert"] = "false";
   const response = await fetch(`${url}/storage/v1/${path}`, { method, headers, body, signal: AbortSignal.timeout(25000) });
   const data = await response.json().catch(() => null);

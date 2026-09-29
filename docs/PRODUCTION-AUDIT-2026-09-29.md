@@ -196,3 +196,8 @@ Statuses refer to the explicitly described scope, not unlimited combinations. â€
 8. One initial tracking timeout and one transient post-submit style assertion passed subsequent runs. Future CI should retain logs/screenshots for recurring timing failures rather than relabel them as proven product defects.
 9. Current Supabase advisories include disabled leaked-password protection and security-definer notices. Checked public gateways enforce authorization; private helpers/tables were denied. The audit did not blindly revoke intentional APIs or remove indexes on a low-traffic database.
 10. The production UI still needs the tested source merge. Cleanup approval and ordinary test-account removal remain explicit follow-up items until resolved.
+
+
+## Cleanup follow-up â€” 30 September 2026
+
+The owner approved removing the remaining audit data only. The three exact private test proof objects were removed through the Storage API, using the reviewed temporary JWT-protected, verified-audit-user-only helper with a five-minute expiry. It was immediately retired to a pure HTTP 410 response and verified. The exact ordinary audit account, refresh tokens and sessions were deleted afterward. Final queries found zero remaining audit proof objects, accounts or sessions; the three business orders, 37 products and one legitimate staff membership remained. The helper has no remaining cleanup capability. This supersedes the pending-cleanup notes above. No reusable cleanup tool was built. Audit PR #107 has also been merged.

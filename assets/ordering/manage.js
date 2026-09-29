@@ -20,7 +20,7 @@ import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.
 import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
 import { quantitySelection, quantitySaveRows, quantityStatus } from './daily-quantities.js?v=daily-quantities-1';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=pos-1';
-import { renderAnalytics } from './analytics-view.js?v=pos-1';
+import { renderAnalytics } from './analytics-view.js?v=operations-1';
 import { bindSalesChart } from './sales-chart.js?v=sales-tooltip-1';
 import { renderPickupReminder } from './pickup-reminder.js?v=pickup-reminder-1';
 import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=pos-cash-1';
@@ -34,7 +34,7 @@ import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=package-categories-1';
 
 import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
-import {mountPOS} from './pos-manager.js?v=direct-order-edits-1';
+import {mountPOS} from './pos-manager.js?v=pos-app-1';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -254,14 +254,17 @@ function overviewView() {
     ${state.settings.paused ? '<p class="notice" style="margin-top:22px">New orders are paused. Existing order links and valid payment-proof uploads remain available.</p>' : ''}
     ${state.connected ? emailStatusCard() : ''}`;
 }
+function staffSignInUrl(){return 'account.html?next='+encodeURIComponent('manage.html'+(state.view==='pos'?'#pos':''))}
 function emailStatusCard() {
   const rows = Array.isArray(state.email_status) ? state.email_status : [];
   const counts = rows.reduce((result, row) => { result[row.status] = (result[row.status] || 0) + 1; return result; }, {});
   const alerts = rows.filter(row => row.last_error && row.status !== 'sent');
   const problems = alerts.filter(row => !row.alert_acknowledged);
   const acknowledged = alerts.filter(row => row.alert_acknowledged);
-  const description = row => `<strong>${esc(label(row.event_type))}</strong> · ${esc(row.order_id ? state.orders.find(o => o.id === row.order_id)?.reference || 'Order notification' : 'Newsletter notification')}<br>${esc(row.last_error)}`;
-  return `<section id="email-delivery" class="panel" style="margin-top:22px"><div class="section-heading"><h2 tabindex="-1">Email delivery</h2><a class="button button-quiet" href="docs/SETUP.md" target="_blank" rel="noopener">Email setup →</a></div>${rows.length ? `<p class="muted">Latest ${rows.length} notifications: ${Object.entries(counts).map(([status, count]) => `${count} ${label(status).toLowerCase()}`).map(esc).join(' · ')}</p>` : '<p class="muted">No notifications queued yet. Email sending requires the configured email service and scheduler.</p>'}${problems.slice(0,4).map(row => `<div class="notice danger email-delivery-alert"><p>${description(row)}</p><button type="button" class="button button-secondary" data-action="acknowledge-email-alert" data-id="${esc(row.id)}">Acknowledge &amp; dismiss</button></div>`).join('')}${problems.length>4?`<p class="help-text">${problems.length-4} more alerts will appear as you dismiss these.</p>`:''}${acknowledged.length?`<details class="email-delivery-acknowledged"><summary>Acknowledged alerts (${acknowledged.length})</summary>${acknowledged.map(row=>`<p class="notice">${description(row)}</p>`).join('')}</details>`:''}<p class="help-text">Acknowledging an alert clears it from this list. Email records and scheduled retries are kept; a new failure appears again.</p><p class="help-text no-margin">Queued or pending messages have not been confirmed delivered. A sent status means the email provider accepted the message; check the recipient inbox during acceptance testing.</p></section>`;
+  const description = row => `<strong>${esc(label(row.event_type))}</strong> · ${esc(row.order_id ? state.orders.find(o => o.id === row.order_id)?.reference || 'Order notification' : row.event_type==='operational_alert'?'Operational notification':'Newsletter notification')}<br>${esc(row.last_error)}`;
+  const incidents=(state.operation_incidents||[]).filter(i=>!i.resolved_at);
+  const operations=incidents.map(i=>`<div class="notice danger" role="status"><strong>${i.channel==='calendar'?'Calendar updates':'Email delivery'} need attention</strong><p>${i.affected} affected job(s) or an overdue calendar connection. Delayed since ${esc(new Date(i.opened_at).toLocaleString('en-PH',{timeZone:'Asia/Manila'}))} PHT.</p>${i.channel==='calendar'?'<button class="button button-secondary" data-view="calendar">View calendar sync</button>':`<p>Review the email jobs below, newsletter delivery and the provider logs. Pending messages have not been confirmed delivered.</p>${owner()?'<button class="button button-secondary" data-view="newsletters">View newsletters</button>':''}`}</div>`).join('');
+  return `<section id="email-delivery" class="panel" style="margin-top:22px"><div class="section-heading"><h2 tabindex="-1">Email delivery</h2><a class="button button-quiet" href="docs/SETUP.md" target="_blank" rel="noopener">Email setup →</a></div>${operations}${rows.length ? `<p class="muted">Latest ${rows.length} notifications: ${Object.entries(counts).map(([status, count]) => `${count} ${label(status).toLowerCase()}`).map(esc).join(' · ')}</p>` : '<p class="muted">No notifications queued yet. Email sending requires the configured email service and scheduler.</p>'}${problems.slice(0,4).map(row => `<div class="notice danger email-delivery-alert"><p>${description(row)}</p><button type="button" class="button button-secondary" data-action="acknowledge-email-alert" data-id="${esc(row.id)}">Acknowledge &amp; dismiss</button></div>`).join('')}${problems.length>4?`<p class="help-text">${problems.length-4} more alerts will appear as you dismiss these.</p>`:''}${acknowledged.length?`<details class="email-delivery-acknowledged"><summary>Acknowledged alerts (${acknowledged.length})</summary>${acknowledged.map(row=>`<p class="notice">${description(row)}</p>`).join('')}</details>`:''}<p class="help-text">Acknowledging an alert clears it from this list. Email records and scheduled retries are kept; a new failure appears again.</p><p class="help-text no-margin">Queued or pending messages have not been confirmed delivered. A sent status means the email provider accepted the message; check the recipient inbox during acceptance testing.</p></section>`;
 }
 function filteredOrders() {
   const f = state.filters;
@@ -1168,18 +1171,18 @@ async function init() {
     if (error) throw error;
     if (!data.session) {
       $('#shop-status').textContent = 'Staff sign-in required';
-      $('#workspace').innerHTML = heading('Welcome to the kitchen', 'Sign in with your authorized owner or staff account.') + `<section class="panel">${empty('Your dashboard is private', 'Only an owner or authorized staff member can access shop administration.', '<a class="button" href="account.html?next=manage.html">Sign in to manage the shop</a>')}</section>`;
+      $('#workspace').innerHTML = heading('Welcome to the kitchen', 'Sign in with your authorized owner or staff account.') + `<section class="panel">${empty('Your dashboard is private', 'Only an owner or authorized staff member can access shop administration.', '<a class="button" href="'+staffSignInUrl()+'">Sign in to manage the shop</a>')}</section>`;
       $('#admin-nav').hidden = true;
       $('#admin-nav-toggle').hidden = true;
       return;
     }
     await refresh();
-    auth.onAuthStateChange(event => { if (event === 'SIGNED_OUT') { state.connected = false; visitorPoller.reset(); location.replace('account.html?next=manage.html'); } });
+    auth.onAuthStateChange(event => { if (event === 'SIGNED_OUT') { state.connected = false; visitorPoller.reset(); location.replace(staffSignInUrl()); } });
   } catch (error) {
     $('#shop-status').textContent = 'Dashboard unavailable';
     $('#admin-nav').hidden = true;
     $('#admin-nav-toggle').hidden = true;
-    $('#workspace').innerHTML = heading('Dashboard access', 'Your shop information is protected.') + `<section class="panel"><p class="notice danger">${esc(error.message)}</p><p class="muted">Sign in using an authorized team account. For a new installation, follow the first-owner setup steps.</p><div class="row-actions"><a class="button" href="account.html?next=manage.html">Open account</a><a class="button button-secondary" href="docs/SETUP.md" target="_blank" rel="noopener">Setup guide</a></div></section>`;
+    $('#workspace').innerHTML = heading('Dashboard access', 'Your shop information is protected.') + `<section class="panel"><p class="notice danger">${esc(error.message)}</p><p class="muted">Sign in using an authorized team account. For a new installation, follow the first-owner setup steps.</p><div class="row-actions"><a class="button" href="${staffSignInUrl()}">Open account</a><a class="button button-secondary" href="docs/SETUP.md" target="_blank" rel="noopener">Setup guide</a></div></section>`;
   }
 }
 init();

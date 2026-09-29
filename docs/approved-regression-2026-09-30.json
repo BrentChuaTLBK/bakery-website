@@ -1,0 +1,467 @@
+{
+  "date": "2026-09-30",
+  "timezone": "Asia/Manila",
+  "run": "run-OCOKZJ",
+  "passed": 56,
+  "total": 56,
+  "exitCode": 0,
+  "scope": "Local fixtures and mocked providers; not a production load or inbox-delivery test.",
+  "counts": {
+    "unit": 227,
+    "backend": 380,
+    "voucherIncluding20Shared": 37,
+    "operationsIncluding20Shared": 25,
+    "edge": 111,
+    "browserSuites": 51
+  },
+  "suites": [
+    {
+      "name": "tests/ui/academy.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5564,
+      "log": "tests-ui-academy.mjs.log"
+    },
+    {
+      "name": "scripts/test-unit.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7586,
+      "log": "scripts-test-unit.mjs.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --vouchers",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4034,
+      "log": "tests-backend-run.mjs---vouchers.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --operations",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3403,
+      "log": "tests-backend-run.mjs---operations.log"
+    },
+    {
+      "name": "tests/backend/run.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 19745,
+      "log": "tests-backend-run.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-admin-loading.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6594,
+      "log": "tests-ui-academy-admin-loading.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-albums.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 17127,
+      "log": "tests-ui-academy-albums.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-dialogs.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3995,
+      "log": "tests-ui-academy-dialogs.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-lazy-loading.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 9177,
+      "log": "tests-ui-academy-lazy-loading.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-photo-refresh.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3206,
+      "log": "tests-ui-academy-photo-refresh.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-public-albums.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5515,
+      "log": "tests-ui-academy-public-albums.mjs.log"
+    },
+    {
+      "name": "tests/ui/accounting.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 11759,
+      "log": "tests-ui-accounting.mjs.log"
+    },
+    {
+      "name": "tests/ui/approved-loading.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 1693,
+      "log": "tests-ui-approved-loading.mjs.log"
+    },
+    {
+      "name": "tests/edge/run.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 68522,
+      "log": "tests-edge-run.mjs.log"
+    },
+    {
+      "name": "tests/ui/branded-calendars.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7958,
+      "log": "tests-ui-branded-calendars.mjs.log"
+    },
+    {
+      "name": "tests/ui/catalog-order.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7299,
+      "log": "tests-ui-catalog-order.mjs.log"
+    },
+    {
+      "name": "tests/ui/checkout-feedback.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5386,
+      "log": "tests-ui-checkout-feedback.mjs.log"
+    },
+    {
+      "name": "tests/ui/customer-calendar.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5390,
+      "log": "tests-ui-customer-calendar.mjs.log"
+    },
+    {
+      "name": "tests/ui/daily-quantities.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4940,
+      "log": "tests-ui-daily-quantities.mjs.log"
+    },
+    {
+      "name": "tests/ui/delivery-admin.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5489,
+      "log": "tests-ui-delivery-admin.mjs.log"
+    },
+    {
+      "name": "tests/ui/delete-products.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6749,
+      "log": "tests-ui-delete-products.mjs.log"
+    },
+    {
+      "name": "tests/ui/delivery-tracking.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7180,
+      "log": "tests-ui-delivery-tracking.mjs.log"
+    },
+    {
+      "name": "tests/ui/dessert-bar.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7821,
+      "log": "tests-ui-dessert-bar.mjs.log"
+    },
+    {
+      "name": "tests/ui/email-alerts.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6511,
+      "log": "tests-ui-email-alerts.mjs.log"
+    },
+    {
+      "name": "tests/ui/email-design.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5786,
+      "log": "tests-ui-email-design.mjs.log"
+    },
+    {
+      "name": "tests/ui/flavor-limits.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4005,
+      "log": "tests-ui-flavor-limits.mjs.log"
+    },
+    {
+      "name": "tests/ui/gallery-thumbnails.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2006,
+      "log": "tests-ui-gallery-thumbnails.mjs.log"
+    },
+    {
+      "name": "tests/ui/galleries.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6027,
+      "log": "tests-ui-galleries.mjs.log"
+    },
+    {
+      "name": "tests/ui/google-signin.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7009,
+      "log": "tests-ui-google-signin.mjs.log"
+    },
+    {
+      "name": "tests/ui/heic-gallery.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 13887,
+      "log": "tests-ui-heic-gallery.mjs.log"
+    },
+    {
+      "name": "tests/ui/homepage.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 15996,
+      "log": "tests-ui-homepage.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-manager.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2951,
+      "log": "tests-ui-newsletter-manager.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-promos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2312,
+      "log": "tests-ui-newsletter-promos.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-template-design.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2193,
+      "log": "tests-ui-newsletter-template-design.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-uploads.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 14058,
+      "log": "tests-ui-newsletter-uploads.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-calendar.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5153,
+      "log": "tests-ui-order-calendar.mjs.log"
+    },
+    {
+      "name": "tests/ui/homepage-sync.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 50616,
+      "log": "tests-ui-homepage-sync.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-item-photos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2604,
+      "log": "tests-ui-order-item-photos.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-reference-copy.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2930,
+      "log": "tests-ui-order-reference-copy.mjs.log"
+    },
+    {
+      "name": "tests/ui/package-categories.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 13826,
+      "log": "tests-ui-package-categories.mjs.log"
+    },
+    {
+      "name": "tests/ui/package-tools.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4059,
+      "log": "tests-ui-package-tools.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-slips.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 22851,
+      "log": "tests-ui-order-slips.mjs.log"
+    },
+    {
+      "name": "tests/ui/party-cart-photos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 23601,
+      "log": "tests-ui-party-cart-photos.mjs.log"
+    },
+    {
+      "name": "tests/ui/party-packages.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 35463,
+      "log": "tests-ui-party-packages.mjs.log"
+    },
+    {
+      "name": "tests/ui/payment-options.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 16947,
+      "log": "tests-ui-payment-options.mjs.log"
+    },
+    {
+      "name": "tests/ui/pickup-reminder.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4434,
+      "log": "tests-ui-pickup-reminder.mjs.log"
+    },
+    {
+      "name": "tests/ui/product-heic.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 25245,
+      "log": "tests-ui-product-heic.mjs.log"
+    },
+    {
+      "name": "tests/ui/product-labels.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5962,
+      "log": "tests-ui-product-labels.mjs.log"
+    },
+    {
+      "name": "tests/ui/pos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 44694,
+      "log": "tests-ui-pos.mjs.log"
+    },
+    {
+      "name": "tests/ui/public-loading-assets.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4372,
+      "log": "tests-ui-public-loading-assets.mjs.log"
+    },
+    {
+      "name": "tests/ui/product-photos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 15512,
+      "log": "tests-ui-product-photos.mjs.log"
+    },
+    {
+      "name": "tests/ui/run.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4719,
+      "log": "tests-ui-run.mjs.log"
+    },
+    {
+      "name": "tests/ui/sales-chart.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5172,
+      "log": "tests-ui-sales-chart.mjs.log"
+    },
+    {
+      "name": "tests/ui/site-dialog.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3850,
+      "log": "tests-ui-site-dialog.mjs.log"
+    },
+    {
+      "name": "tests/ui/vouchers.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 8051,
+      "log": "tests-ui-vouchers.mjs.log"
+    },
+    {
+      "name": "tests/newsletter-ui.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 9136,
+      "log": "tests-newsletter-ui.mjs.log"
+    }
+  ]
+}

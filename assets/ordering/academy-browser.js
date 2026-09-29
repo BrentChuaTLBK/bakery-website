@@ -1,7 +1,8 @@
 import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,instagramUrl,missingContent} from './academy-model.js';
-import {academyPhoto as renderPhoto,bindAcademyInteractions} from './academy-view.js?v=album-preload-1';
+import {academyPhoto as renderPhoto,bindAcademyInteractions} from './academy-view.js?v=first-view-2';
 import {academyApi,academyImages} from './academy-client.js';
-import {createAcademyImageCache,bindAcademyLazyImages,preloadAcademyBatch} from './academy-loading.js?v=album-preload-1';
+import {createAcademyImageCache,bindAcademyLazyImages,preloadAcademyBatch} from './academy-loading.js?v=first-view-2';
+import {showLoading,finishLoading} from './loading-state.js?v=loading-1';
 
 const academyPhoto=(photo,images,label,options={})=>renderPhoto(photo,images,label,{...options,deferred:true});
 
@@ -52,7 +53,7 @@ if(root){
   }else root.innerHTML=view.html;
   activeSlug=view.content?.slug||null;
   document.title=(view.content?.title||'Academy')+' · TLB Kitchen';
-  preloader=preloadAcademyBatch(cache,view.content?.batches.find(b=>b.id===view.batchId)?.photos||[]);
+  preloader=preloadAcademyBatch(cache,view.content?.batches.find(b=>b.id===view.batchId)?.photos||[],{startWhenVisible:root.querySelector('#bakers-in-action')});
   bindAcademyInteractions(root,{content:view.content,images:cache.images,onBatch:b=>navigate(view.content.slug,b),onMore:scope=>lazy?.observe(scope),onPhoto:p=>preloader?.prioritize(p),loadPhoto:async(p,options)=>{await cache.load(p,options);return cache.get(p.asset_id);}});
   lazy=bindAcademyLazyImages(root,cache);
   const picker=root.querySelector('.academy-picker');picker.open=matchMedia('(min-width: 900px)').matches;
@@ -62,6 +63,6 @@ if(root){
  root.addEventListener('click',e=>{const a=e.target.closest('[data-academy-class]');if(a&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){e.preventDefault();navigate(a.dataset.academyClass);}});
  window.addEventListener('popstate',()=>render());
  matchMedia('(min-width: 900px)').addEventListener('change',e=>{const picker=root.querySelector('.academy-picker');if(picker)picker.open=e.matches;});
- async function load(){try{root.innerHTML='<p class="academy-loading" role="status">Opening our class albums…</p>';if(preview){const r=await academyApi('admin');data={settings:r.settings.draft,classes:r.classes.map(c=>({id:c.id,content:c.draft}))};}else data=await academyApi('catalog');await render();}catch(e){root.innerHTML=`<section class="academy-empty"><h1>${preview?'Owner preview unavailable':'Our albums could not load'}</h1><p>${esc(e.message)}</p>${preview?'<a class="academy-button" href="account.html?next=academy.html%3Fpreview%3D1">Sign in as owner</a>':'<button class="academy-button" type="button" data-academy-retry>Try again</button>'}</section>`;root.querySelector('[data-academy-retry]')?.addEventListener('click',load);}}
+ async function load(){try{showLoading(root,'academy');if(preview){const r=await academyApi('admin');data={settings:r.settings.draft,classes:r.classes.map(c=>({id:c.id,content:c.draft}))};}else data=await academyApi('catalog');await render();}catch(e){root.innerHTML=`<section class="academy-empty"><h1>${preview?'Owner preview unavailable':'Our albums could not load'}</h1><p>${esc(e.message)}</p>${preview?'<a class="academy-button" href="account.html?next=academy.html%3Fpreview%3D1">Sign in as owner</a>':'<button class="academy-button" type="button" data-academy-retry>Try again</button>'}</section>`;root.querySelector('[data-academy-retry]')?.addEventListener('click',load);}finally{finishLoading(root);}}
  load();
 }

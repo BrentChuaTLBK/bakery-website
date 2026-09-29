@@ -8,7 +8,7 @@
     "test:party-packages": "node tests/backend/run.mjs && node tests/ui/party-packages.mjs",
     "test:galleries": "node --test tests/gallery-import.test.mjs && node tests/backend/run.mjs && node tests/ui/galleries.mjs",
     "dev": "python -m http.server 4173 --bind 127.0.0.1",
-    "test": "node scripts/test-unit.mjs && node tests/backend/run.mjs && node tests/backend/run.mjs --vouchers && node tests/edge/run.mjs",
+    "test": "node scripts/test-unit.mjs && node tests/backend/run.mjs && node tests/backend/run.mjs --vouchers && node tests/backend/run.mjs --operations && node tests/edge/run.mjs",
     "test:vouchers": "node tests/backend/run.mjs --vouchers && node --test tests/voucher-email.test.mjs && node tests/ui/vouchers.mjs",
     "test:shop": "node --test tests/shop-rules.test.mjs",
     "test:backend": "node tests/backend/run.mjs",
@@ -23,6 +23,12 @@
     "test:customer-calendar": "node --test tests/customer-calendar.test.mjs && node tests/ui/customer-calendar.mjs",
     "test:analytics": "node --test tests/analytics.test.mjs tests/analytics-view.test.mjs tests/website-visitors.test.mjs",
     "test:traffic": "node --test tests/traffic.test.mjs",
-    "test:unit": "node scripts/test-unit.mjs"
+    "test:unit": "node scripts/test-unit.mjs",
+    "test:full": "node scripts/test-full.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "sharp": "0.35.4",
+    "exceljs": "4.4.0"
   }
 }

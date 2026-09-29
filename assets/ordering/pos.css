@@ -124,3 +124,5 @@ body:has(dialog.pos-options-dialog[open]) { overflow:hidden; }
 .pos-edit-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:16px 0; }
 .pos-edit-heading h2 { margin:0 0 6px; }
 .pos-edit-heading p { margin:0; font-size:13px; color:#705b47; }
+
+.pos-app-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0;font-size:12px}.pos-app-tools p{margin:0}.pos-app-tools details{margin-left:auto;max-width:480px}.pos-app-tools details p{padding:12px 0;line-height:1.6}.pos-app-tools summary{cursor:pointer;color:#794b26}.pos-app-tools .notice{flex-basis:100%}@media(display-mode:standalone){.pos-app-tools details{display:none}.pos-shell{padding-bottom:env(safe-area-inset-bottom)}}

@@ -2,7 +2,7 @@ import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,missingContent} 
 
 export function academyPhoto(photo,images,label,{hero=false,placeholder=false,deferred=false}={}){
  const image=images[photo?.asset_id];
- if(!image?.url&&deferred&&photo?.asset_id)return `<img class="academy-photo" data-academy-asset="${esc(photo.asset_id)}" data-academy-pending src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E" alt="${esc(photo.alt||label)}" width="800" height="800" style="object-position:${Number(photo.focal_x??50)}% ${Number(photo.focal_y??50)}%" loading="lazy" decoding="async">`;
+ if(!image?.url&&deferred&&photo?.asset_id)return `<img class="academy-photo" data-academy-asset="${esc(photo.asset_id)}" data-academy-pending src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E" alt="${esc(photo.alt||label)}" width="800" height="800" style="object-position:${Number(photo.focal_x??50)}% ${Number(photo.focal_y??50)}%" ${hero?'fetchpriority="high" loading="eager"':'loading="lazy"'} decoding="async">`;
  if(!image?.url)return placeholder?`<div class="academy-placeholder" role="img" aria-label="${esc(label)} photo pending"><img src="assets/img/brands/Hatblack.png" alt=""><span>${esc(label)}</span><small>Photo to be added</small></div>`:'';
  return `<img class="academy-photo" data-academy-asset="${esc(photo.asset_id)}" src="${esc(image.url)}" alt="${esc(photo.alt||label)}" width="${image.width}" height="${image.height}" style="object-position:${Number(photo.focal_x??50)}% ${Number(photo.focal_y??50)}%" ${hero?'fetchpriority="high"':'loading="lazy"'} decoding="async">`;
 }

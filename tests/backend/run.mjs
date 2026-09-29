@@ -41,6 +41,7 @@ try {
     // voucher contracts in a fresh database with the installed schema intact.
     const suites = process.argv.includes('--vouchers')
       ? ['02-order-contract.test.mjs', 'vouchers.mjs']
+      : process.argv.includes('--operations') ? ['02-order-contract.test.mjs','operation-alerts.mjs']
       : (await readdir(here)).filter(name => name.endsWith('.test.mjs')).sort();
     if (!suites.length) throw new Error('No backend contract test suites found.');
     for (const name of suites) {

@@ -16,7 +16,7 @@ export default async function({db,check,state}) {
   for(const actor of [null,ids.customer,ids.staff])await assert.rejects(api('voucher_save_campaign',{campaign:{name:'Thanks',terms}},actor),/owner|authorized/i);
   await assert.rejects(save({name:'Thanks',status:'active',terms}),/draft/i);
   campaign=await save({name:'Thanks from TLB',terms});assert.equal(campaign.status,'draft');
-  const preview=await api('voucher_email_preview',{id:campaign.id},ids.owner);assert.equal(preview.payload.offer.code,'TLB-PREVIEW');assert.equal(await total(),0);
+  const preview=await api('voucher_email_preview',{id:campaign.id},ids.owner);assert.equal(preview.payload.offer.code,'A7K2M9');assert.equal(await total(),0);
   const existing=await user();await complete(await create(existing));assert.equal(await total(),0);
   campaign=await save({...campaign,status:'active'});
   await complete(await create(existing));assert.equal(await total(),0,'Previously completed customers do not become first-time buyers at activation');
@@ -25,11 +25,35 @@ export default async function({db,check,state}) {
   eligible=await user(true);source=await create(eligible);assert.equal(await total(),0);
   source=await h.action('approve_payment',await h.proof(source));assert.equal(await total(),0);
   source=await h.action('set_fulfillment',source,{status:'completed'});
-  reward=(await wallet(eligible)).vouchers[0];assert.match(reward.code,/^TLB-/);assert.equal(reward.value,2500);assert.equal(reward.status,'available');
+  reward=(await wallet(eligible)).vouchers[0];assert.match(reward.code,/^(?=.*[A-Z])(?=.*[2-9])[A-HJ-NP-Z2-9]{6}$/);assert.equal(reward.value,2500);assert.equal(reward.status,'available');
   assert.equal(await scalar('select count(*)::int from tlb.outbox where voucher_id=$1',[reward.id]),1);
   await db.query("update tlb.orders set fulfillment_status='preparing' where id=$1",[source.id]);await db.query("update tlb.orders set fulfillment_status='completed' where id=$1",[source.id]);
   assert.equal(await total(),1,'Status toggles are idempotent');
   await complete(await create(eligible));assert.equal(await total(),1,'First-order campaign cannot issue twice');
+ })();
+ await check('Vouchers: short mixed codes retry collisions with existing offers',async()=>{
+  const samples=(await db.query('select tlb.short_offer_code() code from generate_series(1,500)')).rows;
+  for(const {code} of samples)assert.match(code,/^(?=.*[A-Z])(?=.*[2-9])[A-HJ-NP-Z2-9]{6}$/);
+  await db.exec('begin');
+  try{
+   // Force the first candidate to collide; the issuer must retry without
+   // overwriting the earlier voucher or sending its code to another customer.
+   await db.exec('create temporary sequence offer_collision');
+   await db.query(`create or replace function tlb.short_offer_code() returns text language plpgsql volatile security invoker set search_path='' as $$ begin if nextval('pg_temp.offer_collision')=1 then return '${reward.code}'; end if; return 'Z8Y7X6'; end $$`);
+   const u=await user(true);await complete(await create(u));const v=(await wallet(u)).vouchers[0];
+   assert.equal(v.code,'Z8Y7X6');assert.equal((await wallet(eligible)).vouchers[0].code,reward.code);
+   assert.equal((await scalar('select payload from tlb.outbox where voucher_id=$1',[v.id])).offer.code,v.code);
+  }finally{await db.exec('rollback');}
+ })();
+ await check('Vouchers: previously issued long codes still display and redeem unchanged',async()=>{
+  await db.exec('begin');
+  try{
+   const oldCode='TLB-AB12CD34EF';
+   await db.query("update tlb.promos set code=$2,data=jsonb_set(data,'{code}',to_jsonb($2::text)) where id=$1",[reward.id,oldCode]);
+   assert.equal((await wallet(eligible)).vouchers[0].code,oldCode);
+   const {product,date}=await h.fixture(20,{price_cents:20000});
+   assert.equal((await api('quote',h.checkout(product,date,{promo_code:oldCode}),eligible.id)).discount_cents,2500);
+  }finally{await db.exec('rollback');}
  })();
  await check('Vouchers: POS and Direct Message orders never earn thank-you codes or completion history',async()=>{
   const before=await total(),u=await user(),date=await h.day(20),today=await h.day(0);
@@ -97,7 +121,7 @@ export default async function({db,check,state}) {
   const u=await user(true),token=randomBytes(32).toString('hex');await db.query('update tlb.newsletter_subscribers set unsubscribe_token_hash=$2 where email=$1',[u.email,createHash('sha256').update(token).digest('hex')]);
   await db.query('select tlb.queue_newsletter_welcome($1,$2)',[u.email,token]);
   const before=await scalar('select payload from tlb.outbox where to_email=$1 and event_type=$2',[u.email,'newsletter_welcome']);
-  const first=(await wallet(u)).vouchers[0];assert.equal(first.source,'newsletter');assert.equal(first.code,before.welcome_offer.code);assert.equal(Date.parse(first.expires_at),Date.parse(before.welcome_offer.expires_at));
+  const first=(await wallet(u)).vouchers[0];assert.equal(first.source,'newsletter');assert.equal(first.code,before.welcome_offer.code);assert.match(first.code,/^(?=.*[A-Z])(?=.*[2-9])[A-HJ-NP-Z2-9]{6}$/);assert.equal(Date.parse(first.expires_at),Date.parse(before.welcome_offer.expires_at));
   await wallet(u);assert.deepEqual(await scalar('select payload from tlb.outbox where to_email=$1 and event_type=$2',[u.email,'newsletter_welcome']),before);
  })();
  await check('Vouchers: unsubscribe tokens resolve only while their original consent remains current',async()=>{
@@ -143,7 +167,7 @@ export default async function({db,check,state}) {
   let expired=await save({name:'Expired draft',terms:{...terms,expiry_mode:'fixed',expires_at:'2000-01-01T00:00:00Z'}});await assert.rejects(save({...expired,status:'active'}),/future expiry/i);
  })();
  await check('Vouchers: private tables and helpers stay inaccessible to browser roles',async()=>{
-  for(const role of ['anon','authenticated','service_role'])for(const sig of ['tlb.voucher_api(text,jsonb)','tlb.voucher_completed_order()','tlb.voucher_email_settings()','tlb.promo_use_counts(uuid,uuid)'])assert.equal(await scalar("select has_function_privilege($1,$2,'execute')",[role,sig]),false);
+  for(const role of ['anon','authenticated','service_role'])for(const sig of ['tlb.short_offer_code()','tlb.voucher_api(text,jsonb)','tlb.voucher_completed_order()','tlb.voucher_email_settings()','tlb.promo_use_counts(uuid,uuid)'])assert.equal(await scalar("select has_function_privilege($1,$2,'execute')",[role,sig]),false);
   await assert.rejects(h.as(ids.customer,()=>db.query('select * from tlb.vouchers')),/permission/);
   await assert.rejects(api('voucher_campaign_report',{id:campaign.id},ids.staff),/owner|authorized/i);
   const r=await api('voucher_campaign_report',{id:campaign.id,offset:99999},ids.owner);assert.equal(r.vouchers.length,0);assert.equal(r.limit,50);
