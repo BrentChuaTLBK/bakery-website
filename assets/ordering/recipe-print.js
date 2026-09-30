@@ -1,5 +1,6 @@
+import {packagingItems,scaledPackagingItems,packagingReferenceMarkup} from './recipe-packaging.js?v=packaging-1';
 import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js';
-import {productionPlan,recipeSections} from './recipe-model.js?v=components-2';
+import {productionPlan,recipeSections} from './recipe-model.js?v=packaging-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,settings,api,fileUrl,dialog}) {
  let defaults={layout:'kitchen',paper:'A4',font_size:'10',spacing:'1.45',packaging:true,process:true,notes:false};
@@ -47,6 +48,7 @@ export async function preparePrintRecords(records,{production=null,api,kitchen=f
     const current=structuredClone(prep.record),size=structuredClone(current.document.variants.find(v=>v.id===prep.variant_id)),factor=quantity(prep.factor);
     size.groups=scaleIngredients(size.groups,factor).map(g=>({...g,ingredients:g.ingredients.map(r=>({...r,quantity:r.scaled_display}))}));
     const portionMode=prep.depth===0&&production?.mode==='portion';
+    size.packaging={...size.packaging,items:scaledPackagingItems(size,exact(factor))};
     size.yield=scaledYield(size.yield,factor,{mode:portionMode?'portion':'multiplier',target:production?.target});
     for(const c of size.components||[])c.quantity=exact(multiply(quantity(c.quantity),factor));
     current.document.variants=[size];current.print_id=`${current.id}-${output.length}`;
@@ -64,7 +66,7 @@ export function printBook(records,options,urls=new Map()) {
  const main=records.filter(r=>!r.is_component),contents=main.length>1?`<section class="recipe-print-cover"><p class="recipe-eyebrow">The Little Baker Kitchen</p><h1>Recipe collection</h1><p>${main.length} recipe sizes · ${new Date().toLocaleDateString('en-PH')}</p><h2>Alphabetical contents</h2><ol>${main.map(r=>`<li><a href="#print-${r.print_id||r.id}">${esc(r.document.name)} · ${esc(r.print_context||'')}</a> · Version ${r.version}</li>`).join('')}</ol></section>`:'';
  return contents+records.map(r=>{
   const d=r.document;
-  const hasReference=d.variants.some(v=>Object.entries(v.packaging||{}).some(([key,value])=>key==='photos'?value?.length:typeof value==='string'&&value.trim())||(v.equipment||[]).length)||(options.notes&&d.private_notes);
+  const hasReference=d.variants.some(v=>packagingItems(v).length||Object.entries(v.packaging||{}).some(([key,value])=>key==='photos'?value?.length:typeof value==='string'&&value.trim())||(v.equipment||[]).length)||(options.notes&&d.private_notes);
   return `<article id="print-${r.print_id||r.id}"><p class="recipe-eyebrow">The Little Baker Kitchen · ${esc(r.code)} · Version ${r.version}</p><h1>${esc(d.name)}</h1><p class="recipe-muted">${esc(r.print_context||'')} · Updated ${new Date(r.updated_at).toLocaleDateString('en-PH')} · ${esc(r.status)}</p><p>${esc(d.description)}</p>${photos(d.photos,urls)}${d.critical_notes?`<div class="recipe-print-note">${esc(d.critical_notes)}</div>`:''}
   ${d.variants.map(v=>`<h2>${esc(v.name)}</h2><div class="recipe-yield"><strong>Yield: ${esc(v.yield.quantity)} ${esc(v.yield.unit)}</strong>${v.yield.portions?`<span>${esc(v.yield.portions)} portions</span>`:''}${v.yield.portion_weight?`<span>${esc(v.yield.portion_weight)} g per portion</span>`:''}${v.yield.pan_size?`<span>${esc(v.yield.pan_size)}</span>`:''}</div>
    ${recipeSections(v).components.map(({group:g,methods})=>`<section class="recipe-print-group" data-print-component="${esc(g.name)}"><h3>${esc(g.name)}</h3><table><thead><tr><th>Ingredient</th><th>Quantity</th><th>Notes</th></tr></thead><tbody>${g.ingredients.map(row=>`<tr><td>${esc(row.name)}${row.brand?` · ${esc(row.brand)}`:''}</td><td>${esc(row.quantity)} ${esc(row.unit)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table>${methods.map(({method:m})=>printProcedure(m,options,urls,'h4')).join('')}</section>`).join('')}
@@ -72,6 +74,6 @@ export function printBook(records,options,urls=new Map()) {
    ${(v.baking||[]).length?`<h3>Baking & temperature stages</h3><table>${v.baking.map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${[['Top',s.top,'°C'],['Bottom setting',s.bottom,'°C'],['Actual',s.actual_bottom,'°C'],['Time',s.minutes,'min'],['Fan',s.fan,''],['Core',s.core,'°C'],['Ingredient',s.ingredient_temperature,'°C'],['Batter',s.batter_temperature,'°C'],['Resting',s.resting_temperature,'°C'],['Cooling',s.cooling_minutes,'min'],['Freezing',s.freezing_minutes,'min']].filter(([,value])=>value).map(([label,value,unit])=>`${label}: ${esc(value)} ${unit}`).join('<br>')}</td><td>${esc(s.notes)}</td></tr>`).join('')}</table>`:''}
    ${v.production_notes?`<h3>Production notes</h3><div class="recipe-print-note">${esc(v.production_notes)}</div>`:''}
   `).join('')}
-  ${options.packaging&&hasReference?`<section class="recipe-reference"><p class="recipe-eyebrow">${esc(d.name)} · Reference</p><h1>Packaging & special equipment</h1>${d.variants.map(v=>`<h2>${esc(v.name)}</h2><p>${[v.packaging?.description,v.packaging?.dimensions,v.packaging?.box,v.packaging?.board].filter(Boolean).map(esc).join(' · ')}</p><p>${esc(v.packaging?.notes)}</p>${photos(v.packaging?.photos,urls)}${(v.equipment||[]).length?`<h3>Special equipment</h3><ul>${v.equipment.map(e=>`<li><strong>${esc(e.name)}</strong>${e.notes?` · ${esc(e.notes)}`:''}</li>`).join('')}</ul>`:''}`).join('')}${options.notes&&d.private_notes?`<h2>Private notes</h2><div class="recipe-print-note">${esc(d.private_notes)}</div>`:''}</section>`:''}</article>`;
+  ${options.packaging&&hasReference?`<section class="recipe-reference"><p class="recipe-eyebrow">${esc(d.name)} · Reference</p><h1>Packaging & special equipment</h1>${d.variants.map(v=>`<h2>${esc(v.name)}</h2>${packagingReferenceMarkup(v)}<p>${[v.packaging?.description,v.packaging?.dimensions,v.packaging?.box,v.packaging?.board].filter(Boolean).map(esc).join(' · ')}</p><p>${esc(v.packaging?.notes)}</p>${photos(v.packaging?.photos,urls)}${(v.equipment||[]).length?`<h3>Special equipment</h3><ul>${v.equipment.map(e=>`<li><strong>${esc(e.name)}</strong>${e.notes?` · ${esc(e.notes)}`:''}</li>`).join('')}</ul>`:''}`).join('')}${options.notes&&d.private_notes?`<h2>Private notes</h2><div class="recipe-print-note">${esc(d.private_notes)}</div>`:''}</section>`:''}</article>`;
  }).join('');
 }

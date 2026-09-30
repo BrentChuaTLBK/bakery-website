@@ -1,4 +1,4 @@
-import {blankRecipe,group,ingredient,method,step,id} from './recipe-model.js?v=components-2';
+import {blankRecipe,group,ingredient,method,step,id} from './recipe-model.js?v=packaging-1';
 import {quantity} from './recipe-math.js';
 const base=new URL('./vendor/recipe-imports/',import.meta.url);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
