@@ -1,3 +1,9 @@
+async function saveAndView(page){
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#recipe-editor')?.inert===false&&document.querySelector('[data-save-status]')?.textContent.startsWith('Saved.'));
+ await page.getByRole('button',{name:'View saved recipe',exact:true}).click();
+ await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
+}
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,readdir,mkdir,writeFile} from 'node:fs/promises';
@@ -38,12 +44,12 @@ try{
  await fill(page,'variants.0.methods.0.steps.0.instruction','Mix the ingredients and bake.');
  const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=320;c.height=240;const x=c.getContext('2d');x.fillStyle='#e8d8ba';x.fillRect(0,0,320,240);x.fillStyle='#765135';x.beginPath();x.arc(160,120,70,0,Math.PI*2);x.fill();return c.toDataURL('image/png').split(',')[1];});const photoPath=join(out,'fixture-photo.png');await writeFile(photoPath,Buffer.from(png,'base64'));
  const choosing=page.waitForEvent('filechooser');await page.getByRole('button',{name:'+ Photo',exact:true}).click();await(await choosing).setFiles(photoPath);await page.locator('.recipe-photos img').first().waitFor();await page.waitForFunction(()=>document.querySelector('.recipe-photos img')?.naturalWidth>0);results.push('Upload, convert and preview a private product photo');
- await page.locator('#recipe-save-status').selectOption('production');await page.getByRole('button',{name:'Save new version',exact:true}).click();await page.getByRole('button',{name:'Confirm save',exact:true}).click();
+ await page.locator('#recipe-save-status').selectOption('production');await saveAndView(page);
  await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
  const stored=(await api(h.ids.owner,'list',{query:'QA Chocolate Cookies'})).rows[0];assert.ok(stored);results.push('Create and publish through the editor');
  await page.locator('[data-scale="target"]').fill('1.15');await page.locator('[data-scale="target"]').press('Tab');await page.getByText('487.6 g',{exact:true}).waitFor();
  assert.equal((await api(h.ids.owner,'get',{id:stored.id})).document.variants[0].groups[0].ingredients[0].quantity,'424');results.push('Temporary scaling preserves the saved formula');
- await page.getByRole('button',{name:'Edit recipe',exact:true}).click();await fill(page,'variants.0.groups.0.ingredients.0.quantity','450');await page.locator('#recipe-save-status').selectOption('draft');await page.getByRole('button',{name:'Save new version',exact:true}).click();await page.getByRole('button',{name:'Confirm save',exact:true}).click();await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Edit recipe',exact:true}).click();await fill(page,'variants.0.groups.0.ingredients.0.quantity','450');await page.locator('#recipe-save-status').selectOption('draft');await saveAndView(page);await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
  assert.equal((await api(h.ids.staff,'get',{id:stored.id})).document.variants[0].groups[0].ingredients[0].quantity,'424');results.push('Draft changes leave the kitchen recipe on its published version');
  await page.getByRole('button',{name:'Version history',exact:true}).click();await page.getByRole('button',{name:'Compare',exact:true}).last().click();assert.match(await page.locator('#recipe-dialog-body').innerText(),/424/);await page.locator('[data-dialog-close]').click();
  await page.getByRole('button',{name:'Duplicate',exact:true}).click();await page.locator('#recipe-editor').waitFor();assert.equal((await api(h.ids.owner,'list',{query:'QA Chocolate Cookies'})).total,2);results.push('Compare and duplicate saved versions');
