@@ -28,6 +28,8 @@ export default async function({db,check}){
  const image=await api('reserve_file',{filename:'packaging.png',mime_type:'image/png',size_bytes:blobBytes.length,sha256:sha});
  await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[image.path,JSON.stringify({size:blobBytes.length,mimetype:image.mime_type})]);await api('confirm_file',{id:image.id});
  await api('save_resource',{id:packaging.id,revision:packaging.revision,kind:'packaging',name:packaging.name,data:{...packaging.data,supplier_id:supplier.id,photos:[{file_id:image.id,caption:'Box for the cake'}]}});
+ const removed=await api('save_resource',{kind:'equipment',name:'Deleted but backed up',data:{notes:'Restore this note'}});await api('delete_resource',{id:removed.id,revision:removed.revision});
+ const removedCategory=await api('save_category',{name:'Deleted backup category'});await api('delete_category',{id:removedCategory.id,revision:1});
  let start,archive;
  await check('recipe backup is owner-only and cannot report success without Drive verification',async()=>{
   await assert.rejects(()=>backup('status',{},h.ids.staff),/Authorized recipe/);
@@ -54,6 +56,8 @@ export default async function({db,check}){
    assert.equal((await isolated.query('select count(*)::int n from tlb.staff where user_id=$1',[h.ids.customer])).rows[0].n,0);
    assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_invitations')).rows[0].n,2);
    assert.equal((await isolated.query('select data from tlb.recipe_resources where id=$1',[packaging.id])).rows[0].data.photos[0].caption,'Box for the cake');
+   const deletedResource=(await isolated.query('select * from tlb.recipe_resources where id=$1',[removed.id])).rows[0];assert.ok(deletedResource.deleted_at);assert.equal(deletedResource.data.notes,'Restore this note');
+   assert.ok((await isolated.query('select deleted_at from tlb.recipe_categories where id=$1',[removedCategory.id])).rows[0].deleted_at);
    assert.equal((await isolated.query('select document from tlb.recipe_versions')).rows[0].document.variants[0].groups[0].ingredients[0].quantity,'424');
    assert.equal(Number((await isolated.query('select actual_yield from tlb.recipe_runs')).rows[0].actual_yield),2);
    const maximum=Number((await isolated.query('select max(id) id from tlb.recipe_audit')).rows[0].id||0);

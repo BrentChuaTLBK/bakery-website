@@ -1,9 +1,11 @@
 import {ingredientCost,displayQuantity,compare} from './recipe-math.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountSupplierQuotes(container,{record,suppliers,defaultUnit}){
- let offers=structuredClone(record?.suppliers||[]),preferred=record?.data?.preferred_supplier_id||'';
+ const available=id=>!id||suppliers.some(s=>s.id===id);
+ let offers=structuredClone(record?.suppliers||[]).filter(o=>available(o.supplier_id)),preferred=record?.data?.preferred_supplier_id||'';
+ if(!available(preferred))preferred='';
  if(record?.unassigned_price&&record?.data?.allow_unassigned_price!==false)offers.push({supplier_id:'',price:record.unassigned_price});
- if(!offers.length)offers=[{supplier_id:record?.data?.supplier_id||record?.price?.supplier_id||'',price:record?.price||{}}];
+ if(!offers.length){const id=record?.price?.supplier_id||record?.data?.supplier_id||'';offers=[{supplier_id:available(id)?id:'',price:available(record?.price?.supplier_id)?record?.price||{}:{}}];}
  const form=container.closest('form');
  function read(){return [...container.querySelectorAll('[data-supplier-quote]')].map(row=>({supplier_id:row.querySelector('[name=supplier_id]').value||null,notes:row.querySelector('[name=price_notes]').value,price:{amount:row.querySelector('[name=price_amount]').value,quantity:row.querySelector('[name=price_quantity]').value,unit:row.querySelector('[name=price_unit]').value}}));}
  function comparePrices(){

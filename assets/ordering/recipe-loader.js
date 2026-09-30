@@ -13,7 +13,7 @@ function unavailable(){
 }
 try {
  await Promise.race([
-  import('./recipes.js?v=3').then(module=>module.startRecipeLibrary()),
+  import('./recipes.js?v=4').then(module=>module.startRecipeLibrary()),
   new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Recipe startup timed out.')),20000);}),
  ]);
 }catch{unavailable();}
