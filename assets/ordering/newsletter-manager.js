@@ -1,9 +1,9 @@
 import {uploadNewsletterImage,newsletterImageAccept} from './newsletter-image.js?v=newsletter-photos-1';
 import {newsletterAdmin} from './newsletter-admin-client.js';
-import {newsletterTemplates,renderNewsletterCampaign,sampleNewsletter} from './newsletter-templates.js?v=offer-heading-2';
+import {newsletterTemplates,renderNewsletterCampaign,sampleNewsletter} from './newsletter-templates.js?v=brand-20261001';
 import {newsletterPromos,newsletterPromoOffer} from './newsletter-promo-offer.js?v=offer-templates-1';
 import {offerLabel,offerTerms} from './newsletter-offer.js?v=newsletter-settings-1';
-import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
+import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {accountingDateTimePicker,bindAccountingDates,validateAccountingDates} from './accounting-date-picker.js?v=branded-calendars-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const field=(name,title,value='',extra='')=>`<label class="field">${title}<input name="${name}" value="${esc(value??'')}" ${extra}></label>`;

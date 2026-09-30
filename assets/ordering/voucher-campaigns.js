@@ -1,6 +1,6 @@
-import {createVoucherEmailPreview} from './voucher-email-preview.js';
+import {createVoucherEmailPreview} from './voucher-email-preview.js?v=brand-20261001';
 import {api,money,escapeHtml as esc,manilaDate} from './client.js';
-import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
+import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 const dateTime=value=>new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 const manilaInput=value=>value?new Date(new Date(value).getTime()+8*3600000).toISOString().slice(0,16):'';
 const manilaTimestamp=value=>value?new Date(value+':00+08:00').toISOString():null;

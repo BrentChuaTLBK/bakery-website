@@ -1,4 +1,4 @@
-import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
+import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import { catalogProductGroups, orderedCatalogProducts } from './catalog-ordering.js?v=multi-category-1';
 
 const grip = '<svg width="16" height="24" viewBox="0 0 16 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="6" r="1.6"/><circle cx="11" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="11" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="11" cy="18" r="1.6"/></svg>';

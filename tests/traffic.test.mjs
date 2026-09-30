@@ -92,7 +92,7 @@ test('all public website routes and generic customer landing pages count once wi
     assert.equal(fixture.scripts.length, 1, route);
     assert.equal(events.length, 1, route);
     assert.equal(events[0][2].page_location, origin + route, route);
-    assert.match(events[0][2].page_title, / · The Little Baker Kitchen$/, route);
+    assert.match(events[0][2].page_title, / · TLB Kitchen$/, route);
     vm.runInContext(source, fixture.context);
     assert.equal(fixture.scripts.length, 1, route);
   }

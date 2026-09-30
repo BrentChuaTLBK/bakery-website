@@ -2,7 +2,7 @@ import {ready,auth,recipeApi as api,uploadRecipeFile,recipeFileUrl} from './clie
 import {mountSupplierQuotes} from './recipe-suppliers.js?v=2';
 import {resourceTableMarkup} from './recipe-resource-table.js?v=2';
 import {recipeLoadingMarkup} from './recipe-loading.js';
-import {confirmDialog} from './site-dialog.js';
+import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {prepareProductImage} from './product-image.js';
 import * as model from './recipe-model.js?v=packaging-photos-1';
 import {componentEditor} from './recipe-component-editor.js?v=packaging-photos-1';
@@ -369,7 +369,7 @@ async function action(name,a={}){
  else if(name==='csv'){const plan=await currentProductionPlan();download(model.csvTotals(plan.totals),`${state.doc.name}-ingredients.csv`,'text/csv;charset=utf-8');return;}
  else if(name==='production-totals')return showProductionTotals();
  else if(name==='compare-base'){const link=state.record.links.find(l=>l.kind==='variation');if(!link)throw Error('Variation base was not found.');const base=await api('get',{id:link.recipe_id,version_id:link.version_id});const changes=model.differences(base.document,state.doc).filter(c=>!c.field.startsWith('base.')&&!c.field.startsWith('detected_allergens'));setDialog(`Changes from ${base.document.name} · version ${base.version}`,`<table class="recipe-table recipe-diff"><thead><tr><th>Field</th><th>Base</th><th>Variation</th></tr></thead><tbody>${changes.map(c=>`<tr><td>${esc(c.field)}</td><td>${esc(JSON.stringify(c.before))}</td><td>${esc(JSON.stringify(c.after))}</td></tr>`).join('')}</tbody></table>`);return;}
- else if(name==='export'||name==='export-library'){const m=await import('./recipe-print.js?v=packaging-photos-1');return m.openRecipeExport({record:name==='export'?state.record:null,production:name==='export'?{variant_id:v.id,factor:exact(scaleFactor(v.yield,state.scale.mode,state.scale.target)),mode:state.scale.mode,target:state.scale.target,wholeComponents:state.wholeComponents}:null,selection:[...state.selection],filters:state.filters,kitchen:state.kitchen,settings:state.settings,api,fileUrl:recipeFileUrl,dialog:setDialog});}
+ else if(name==='export'||name==='export-library'){const m=await import('./recipe-print.js?v=brand-20261001');return m.openRecipeExport({record:name==='export'?state.record:null,production:name==='export'?{variant_id:v.id,factor:exact(scaleFactor(v.yield,state.scale.mode,state.scale.target)),mode:state.scale.mode,target:state.scale.target,wholeComponents:state.wholeComponents}:null,selection:[...state.selection],filters:state.filters,kitchen:state.kitchen,settings:state.settings,api,fileUrl:recipeFileUrl,dialog:setDialog});}
  else if(name==='rebuild-import'){if(!await confirmDialog(`Rebuild ingredients and procedures for ${v.name} from the original import? This replaces those sections in your working draft, including any manual edits there. Yield, photos, packaging and other details stay as they are. Your saved recipe will not change until you save a new version.`,{confirmLabel:'Rebuild draft'}))return;const {rebuildImportedSections}=await import('./recipe-import.js?v=packaging-photos-1');const rebuilt=rebuildImportedSections(state.doc,state.variant);state.doc=rebuilt.document;notify(`Rebuilt ${rebuilt.recognized} ingredient rows. Review each component before saving.`);}
  else if(name==='import'){const m=await import('./recipe-import.js?v=packaging-photos-1');return m.openRecipeImport({dialog:setDialog,close:closeDialog,beginEdit,upload:uploadRecipeFile,notify});}
  else return;

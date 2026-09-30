@@ -1,5 +1,5 @@
 import {api,escapeHtml as esc} from './client.js';
-import {renderVoucherEmail} from './voucher-email.js';
+import {renderVoucherEmail} from './voucher-email.js?v=brand-20261001';
 
 export function createVoucherEmailPreview(){
  let dialog=null,version=0,alive=true;

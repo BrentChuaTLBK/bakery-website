@@ -76,7 +76,7 @@ export function recoverBackupRows(rows, generatedAt) {
 }
 
 export function buildBackupWorkbook(snapshot, ExcelJS) {
-  const wb = new ExcelJS.Workbook();wb.creator='The Little Baker Kitchen';wb.created=new Date(snapshot.generated_at);
+  const wb = new ExcelJS.Workbook();wb.creator='TLB Kitchen';wb.created=new Date(snapshot.generated_at);
   for (const definition of backupSheets(snapshot)) {
     const s=wb.addWorksheet(definition.name);s.columns=definition.widths.map(width=>({width}));
     s.views=[{state:'frozen',ySplit:5,showGridLines:false}];

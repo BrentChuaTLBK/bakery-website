@@ -1,7 +1,7 @@
 import {galleryPhoto,galleryThumbnail,bindThumbnailFallback} from './gallery-thumbnail.js?v=gallery-thumbnails-1';
 import { parseGalleryExport, safePhotoUrl } from './gallery-import.js';
 import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=heic-2';
-import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
+import { confirmDialog } from './site-dialog.js?v=brand-20261001';
 
 const names = { 'custom-orders': 'Custom Orders', pastries: 'Pastries' };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -14,7 +14,7 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
   let gallery = 'custom-orders', items = [], categories = [], total = 0, enabled = false, revision = 1;
   let offset = 0, query = '', category = '', request = 0, busy = false, imported = null, loaded = false;
   let draft = null, prepared = null, queue = [], previewUrl = '', uploadedUrl = '';
-  root.innerHTML = `<div class="page-heading"><div><p class="eyebrow">THE LITTLE BAKER KITCHEN</p><h1>Photo galleries</h1><p class="muted">Your past creations, ready to inspire the next order.</p></div></div>
+  root.innerHTML = `<div class="page-heading"><div><p class="eyebrow">TLB KITCHEN</p><h1>Photo galleries</h1><p class="muted">Your past creations, ready to inspire the next order.</p></div></div>
     <div class="gallery-tabs" role="group" aria-label="Choose gallery">${Object.entries(names).map(([slug, name]) => `<button type="button" class="button button-secondary" data-gallery="${slug}" aria-pressed="${slug === gallery}">${name}</button>`).join('')}</div>
     <p class="notice" data-gallery-status></p>
     <section class="panel gallery-tools"><div class="row-actions"><label class="button">Upload photos<input data-gallery-upload type="file" accept="${galleryImageAccept}" multiple class="gallery-file"></label><label class="button button-secondary">Import MongoDB JSON<input data-gallery-import type="file" accept=".json,.jsonl,.ndjson,application/json" class="gallery-file"></label><button class="button button-secondary" type="button" data-gallery-publish></button><a data-gallery-link target="_blank" rel="noopener">View page ↗</a></div>

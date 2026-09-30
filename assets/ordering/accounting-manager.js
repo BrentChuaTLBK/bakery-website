@@ -1,8 +1,8 @@
 import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
-import {exportAccounting} from './accounting-export.js?v=pos-cash-1';
+import {exportAccounting} from './accounting-export.js?v=brand-20261001';
 import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=branded-calendars-1';
 import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
-import {confirmDialog} from './site-dialog.js?v=branded-dialogs-1';
+import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 
 export function mountAccounting(root, {api, role, connected, money, escapeHtml: esc, today, filters, openOrder}) {
   if (!root) return;
@@ -13,7 +13,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
   const field = (name,label,value='',type='text',attrs='') => ['date','month'].includes(type) ? accountingDatePicker(name,label,value,today,{mode:type}) : `<label class="field">${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
   const selection = (name,label,options) => `<label class="field">${label}<select name="${name}">${options}</select></label>`;
   const error = '<p class="form-error" role="alert"></p>';
-  root.innerHTML=`<div class="view-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>Accounting</h1><p>Sales, expenses and delivery costs, together in one place.</p></div><div class="row-actions"><button class="button button-secondary" data-accounting="refresh">Refresh</button><button class="button button-secondary" data-accounting="export" disabled>Export to Excel</button><button class="button" data-accounting="add" disabled>Add entry</button></div></div>
+  root.innerHTML=`<div class="view-heading"><div><span class="eyebrow">TLB Kitchen</span><h1>Accounting</h1><p>Sales, expenses and delivery costs, together in one place.</p></div><div class="row-actions"><button class="button button-secondary" data-accounting="refresh">Refresh</button><button class="button button-secondary" data-accounting="export" disabled>Export to Excel</button><button class="button" data-accounting="add" disabled>Add entry</button></div></div>
     <form class="panel accounting-filters">${field('month','Choose a month',filters.start.slice(0,7),'month')}${field('start','From date',filters.start,'date','required')}${field('end','Through date',filters.end,'date','required')}<button class="button" type="submit">Apply timeframe</button>${error}</form>
     <p class="help-text">Only paid, confirmed orders and orders being prepared or already fulfilled are included. Cancelled and refunded orders are excluded entirely, including discounts and delivery costs. All dates use Manila time.</p>
     <p class="notice accounting-message" role="status" hidden></p><section class="panel accounting-editor" hidden></section>

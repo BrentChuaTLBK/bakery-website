@@ -107,7 +107,7 @@ export async function confirmDialog(message, {
       const close = make('button', 'site-dialog__close', '\u00d7');
       close.type = 'button';
       close.setAttribute('aria-label', 'Close confirmation');
-      const eyebrow = make('p', 'site-dialog__eyebrow', 'The Little Baker Kitchen');
+      const eyebrow = make('p', 'site-dialog__eyebrow', 'TLB Kitchen');
       const description = make('p', 'site-dialog__description', message);
       description.id = `${id}-description`;
       const actions = make('div', 'site-dialog__actions');

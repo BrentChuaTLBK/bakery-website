@@ -22,7 +22,7 @@ const quoted = name => "'" + name.replaceAll("'", "''") + "'";
 // formulas, literal text and sheet names can be tested without an external service.
 export function buildAccountingWorkbook(report, ExcelJS) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'The Little Baker Kitchen'; wb.created = new Date();
+  wb.creator = 'TLB Kitchen'; wb.created = new Date();
   wb.calcProperties.fullCalcOnLoad = true;
   const summary = wb.addWorksheet('Summary'), used = new Set(['summary', 'delivery comparison']);
   function header(sheet, title, columns, widths) {

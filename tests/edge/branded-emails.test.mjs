@@ -123,3 +123,10 @@ test('all 13 account templates preserve Supabase variables and action semantics'
  assert.equal(Object.keys(authEmails).length,13);
  for(const [name,c] of Object.entries(authEmails)){const html=renderAuthEmail(name);assert.match(html,/<html lang="en" dir="ltr">/);assert.match(html,/#764b25/);assert.equal((html.match(/<h1 /g)||[]).length,1);if(c.button)assert.match(html,/href="{{ .ConfirmationURL }}"/);if(c.code)assert.match(html,/{{ .Token }}/);assert.doesNotMatch(html,/newsletter|5%|private-token/);}
 });
+
+test('new shop-name snapshots use TLB Kitchen while historical provider retry snapshots remain unchanged',()=>{
+ for(const email_design_version of [1,2]){
+  const rendered=renderEmail({...base,email_design_version,settings:{...base.settings,shop_name:'TLB Kitchen'}});
+  for(const body of Object.values(rendered)){assert.match(body,/TLB Kitchen/);assert.doesNotMatch(body,/The Little Baker Kitchen/);}
+ }
+});

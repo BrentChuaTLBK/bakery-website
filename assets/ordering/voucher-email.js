@@ -1,3 +1,4 @@
+import {brandName} from './brand.js?v=brand-20261001';
 // Shared by the owner preview and email worker. Issued terms and editorial text
 // are snapshotted in the outbox; campaign edits never rewrite a queued message.
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,8 +16,8 @@ export function renderVoucherEmail(payload) {
  const fill=value=>String(value).replaceAll('{{discount}}',discount);
  const eyebrow=fill(copy.eyebrow||'A little thank-you from TLB');
  const heading=fill(copy.heading||'{{discount}} off your next order.');
- const message=fill(copy.message||'Your order is complete. Thank you for ordering with The Little Baker Kitchen. Here’s a little treat for your next order.');
- const shop=s.shop_name||'The Little Baker Kitchen';
+ const message=fill(copy.message||'Your order is complete. Thank you for ordering with TLB Kitchen. Here’s a little treat for your next order.');
+ const shop=brandName(s.shop_name);
  const account=new URL('/account.html#account-vouchers',site).href;
  const unsubscribe=new URL('/newsletter.html',site);unsubscribe.hash='unsubscribe='+payload.unsubscribe_token;
  const expiry=new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'long',timeStyle:'short'}).format(expires)+' PHT';
