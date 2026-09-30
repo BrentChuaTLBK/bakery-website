@@ -1,5 +1,6 @@
 import {ready,auth,recipeApi as api,uploadRecipeFile,recipeFileUrl} from './client.js?v=recipe-system-2';
 import {mountSupplierQuotes} from './recipe-suppliers.js';
+import {resourceTableMarkup} from './recipe-resource-table.js';
 import {confirmDialog} from './site-dialog.js';
 import {prepareProductImage} from './product-image.js';
 import * as model from './recipe-model.js';
@@ -14,6 +15,8 @@ const state={role:null,categories:[],settings:{},tab:'library',kitchen:new URLSe
  filters:{},offset:0,limit:24,selection:new Set(),record:null,doc:null,variant:0,editing:false,dirty:false,draftId:null,
  scale:{mode:'multiplier',target:'1',rounding:'exact',step:'1'},wholeComponents:false,fileUrls:new Map(),resources:[],request:0};
 let noticeTimer,autosaveTimer,draggedRow,ingredientSearchTimer,pendingAutosave=Promise.resolve();
+state.resourceDensity='compact';state.resourceSort='az';state.resourceRequest=0;
+try{if(localStorage.getItem('tlb-recipe-resource-density-v1')==='comfortable')state.resourceDensity='comfortable';}catch{}
 function notify(message,error=false) {
  const node=document.querySelector('#recipe-notice');node.textContent=message;node.setAttribute('role',error?'alert':'status');
  clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{node.textContent='';},error?12000:6000);
@@ -126,9 +129,26 @@ function renderRecipe(){
   ${canEdit()?`<section class="recipe-card"><div class="recipe-actions">${button('Costing','cost-preview')}${button('Testing / R&D','tests')}${button('Production history','runs')}${button('Version history','versions')}${button('Duplicate','duplicate')}${button('New variation','variation')}${isOwner()?button('Move to recently deleted','delete','','danger'):''}</div>${(r.files||[]).filter(f=>f.visibility==='private'||!f.mime_type.startsWith('image/')).length?`<h3>Private source files</h3><ul>${r.files.filter(f=>f.visibility==='private'||!f.mime_type.startsWith('image/')).map(f=>`<li><a data-attachment="${f.id}" target="_blank" rel="noopener noreferrer">${esc(f.filename)}</a></li>`).join('')}</ul>`:''}${d.private_notes?`<h3>Private notes</h3><p>${esc(d.private_notes).replaceAll('\n','<br>')}</p>`:''}</section>`:''}`,{tabs:false});hydratePhotos();
 }
 
-async function resources(kind){
- state.tab=kind;state.record=null;state.editing=false;shell('<p role="status">Loading…</p>');
- const result=await api('resources',{kind,query:state.resourceQuery||'',limit:100,include_inactive:true});state.resources=result.rows;
+function renderResourceResults(){
+ const container=root.querySelector('[data-resource-results]');if(!container)return;
+ container.innerHTML=resourceTableMarkup(state.resources,{kind:state.tab,sort:state.resourceSort});
+ const count=root.querySelector('[data-resource-count]');if(count)count.textContent=`${state.resources.length===100?'First 100':state.resources.length} matching ${state.tab==='packaging'?'packaging records':'ingredients'}${state.resources.length===100?' · Refine your search to see more':''}`;
+}
+function renderResourceTable(kind){
+ shell(`<section class="recipe-resource-card" data-resource-kind="${kind}" data-density="${state.resourceDensity}"><header class="recipe-resource-heading"><div><h2>${kind==='packaging'?'Packaging':'Ingredients'}</h2><p>Purchase prices and comparable unit costs, together.</p></div><div class="recipe-actions">${button('Record purchase','record-purchase','','primary')}${button(`+ Add ${kind}`,'add-resource')}</div></header><div class="recipe-resource-toolbar"><label class="recipe-resource-search"><span class="recipe-resource-sr">Search ${kind} records</span><input data-resource-search type="search" placeholder="${kind==='packaging'?'Search packaging…':'Search ingredients…'}" value="${esc(state.resourceQuery||'')}"></label><label class="recipe-resource-sort"><span class="recipe-resource-sr">Sort matching records</span><select data-resource-sort><option value="az" ${state.resourceSort==='az'?'selected':''}>Name: A–Z</option><option value="cost" ${state.resourceSort==='cost'?'selected':''}>Unit cost: grouped by unit</option></select></label><div class="recipe-resource-density" role="group" aria-label="Row spacing">${['compact','comfortable'].map(value=>button(value==='compact'?'Compact':'Comfortable','resource-density',`data-density="${value}" aria-pressed="${state.resourceDensity===value}"`)).join('')}</div></div><div data-resource-results aria-busy="false"></div><footer class="recipe-resource-footer"><span data-resource-count role="status"></span><span>Unit costs: per g, ml, pc, or the applicable unit</span></footer></section>`);
+ renderResourceResults();
+}
+async function resources(kind,{refresh=false}={}){
+ const request=++state.resourceRequest,query=state.resourceQuery||'';
+ state.tab=kind;state.record=null;state.editing=false;
+ const existing=refresh?root.querySelector(`[data-resource-kind="${kind}"]`):null;
+ if(existing)existing.querySelector('[data-resource-results]').setAttribute('aria-busy','true');else shell('<p role="status">Loading…</p>');
+ let result;
+ try{result=await api('resources',{kind,query,limit:100,include_inactive:true});}
+ finally{if(request===state.resourceRequest)existing?.querySelector('[data-resource-results]')?.setAttribute('aria-busy','false');}
+ if(request!==state.resourceRequest||state.tab!==kind||query!==(state.resourceQuery||'')||state.editing)return;
+ state.resources=result.rows;
+ if(['ingredient','packaging'].includes(kind)){if(existing?.isConnected)renderResourceResults();else renderResourceTable(kind);return;}
  shell(`<div class="recipe-toolbar"><label>Search ${esc(kind)} records<input data-resource-search value="${esc(state.resourceQuery||'')}" type="search"></label>${['ingredient','packaging','supplier'].includes(kind)?button('Record purchase','record-purchase','','primary'):''}${button(`+ Add ${kind}`,'add-resource')}</div><section class="recipe-card">${result.rows.length?result.rows.map(r=>`<div class="recipe-resource-row"><div><strong>${esc(r.name)}</strong><p class="recipe-muted">${r.active?'Active':'Inactive'}${r.data.brand?` · ${esc(r.data.brand)}`:''}${r.price?` · ${money(r.price.amount)} / ${esc(r.price.quantity)} ${esc(r.price.unit)}`:''}</p></div>${button('Edit','edit-resource',`data-id="${r.id}"`)}</div>`).join(''):'<div class="recipe-empty">Add your first record to reuse it across recipes.</div>'}</section><p class="recipe-muted">Showing up to 100 matching records. Use search to narrow your results.</p>`);
 }
 async function resourceEditor(record=null){
@@ -207,6 +227,12 @@ async function performSave(form){
 function move(array,from,to){if(to<0||to>=array.length)return;const [item]=array.splice(from,1);array.splice(to,0,item);}
 async function action(name,a={}){
  const v=state.doc?.variants[state.variant];
+ if(name==='resource-density'){
+  state.resourceDensity=a.density==='comfortable'?'comfortable':'compact';
+  const card=root.querySelector('.recipe-resource-card');if(card)card.dataset.density=state.resourceDensity;
+  root.querySelectorAll('[data-action="resource-density"]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.density===state.resourceDensity)));
+  try{localStorage.setItem('tlb-recipe-resource-density-v1',state.resourceDensity);}catch{}return;
+ }
  if(name==='remove-resource-photo'){state.resourcePhotos.splice(Number(a.index),1);await renderResourcePhotos();return;}
  if(name==='record-purchase'){const {openPurchase}=await import('./recipe-purchase.js');return openPurchase({api,dialog:setDialog,body:dialogBody,close:closeDialog,kind:state.tab==='packaging'?'packaging':'ingredient',onSaved:async kind=>{state.resourceQuery='';await resources(kind);notify('Purchase saved. Ingredient or packaging and supplier records are up to date.');}});}
  if(name==='tab'){if(!await leaveEditor())return;state.resourceQuery='';if(a.tab==='library')return library();if(a.tab==='categories')return categories();if(a.tab==='access')return access();if(a.tab==='backups'){state.tab='backups';shell('<div id="recipe-backups"></div>');const m=await import('./recipe-backups.js');return m.mountRecipeBackups(root.querySelector('#recipe-backups'));}return resources(a.tab);}
@@ -320,10 +346,11 @@ root.addEventListener('input',event=>{
    const list=root.querySelector('#recipe-ingredients');if(list)list.innerHTML=result.rows.map(r=>`<option value="${esc(r.data.brand?r.name+' · '+r.data.brand:r.name)}">${esc(r.data.brand||r.data.default_unit||'')}</option>`).join('');
   }catch(error){showError(error);}},250);}
  }else if(el.matches('[data-filter="query"]')){clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{state.filters.query=el.value;state.offset=0;library().catch(showError);},400);}
- else if(el.hasAttribute('data-resource-search')){clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{state.resourceQuery=el.value;resources(state.tab).catch(showError);},400);}
+ else if(el.hasAttribute('data-resource-search')){const kind=state.tab;clearTimeout(state.searchTimer);state.resourceQuery=el.value;state.resourceRequest++;state.searchTimer=setTimeout(()=>{if(state.tab===kind)resources(kind,{refresh:true}).catch(showError);},300);}
 });
 root.addEventListener('change',async event=>{const el=event.target;try{
- if(el.dataset.photoCaption){for(const photo of [...state.doc.photos,...state.doc.variants.flatMap(v=>[...v.photos,...v.packaging.photos])])if(photo.id===el.dataset.photoCaption)photo.caption=el.value;markDirty();}
+ if(el.hasAttribute('data-resource-sort')){state.resourceSort=el.value==='cost'?'cost':'az';renderResourceResults();}
+ else if(el.dataset.photoCaption){for(const photo of [...state.doc.photos,...state.doc.variants.flatMap(v=>[...v.photos,...v.packaging.photos])])if(photo.id===el.dataset.photoCaption)photo.caption=el.value;markDirty();}
  else if(el.dataset.path){setPath(state.doc,el.dataset.path,el.dataset.array?el.value.split(',').map(s=>s.trim()).filter(Boolean):el.value);markDirty();
   if(/\.ingredients\.\d+\.name$/.test(el.dataset.path)){const row=getPath(state.doc,el.dataset.path.replace(/\.name$/,'')),match=state.ingredientSuggestions?.find(r=>(r.data.brand?r.name+' · '+r.data.brand:r.name)===el.value);if(match){row.name=match.name;row.ingredient_id=match.id;row.unit=match.data.default_unit||row.unit;row.brand=match.data.brand||'';if(match.price)row.cost_snapshot={...match.price,amount:String(match.price.amount),quantity:String(match.price.quantity)};renderEditor();}else{if(row.ingredient_id){delete row.cost_snapshot;row.brand='';}delete row.ingredient_id;}}
  }else if(el.hasAttribute('data-whole-components')){state.wholeComponents=el.checked;}
