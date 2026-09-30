@@ -1,14 +1,17 @@
 # Recipe library and costing
 
-Release status: production database and backup worker deployed on 30 September.
-The library is not enabled on the live website yet: GitHub integration access to
-the production repository blocks publication. PR #39 in the fork is ready for review.
+Release status: the original recipe library was published through upstream PR #113.
+The purchase/access follow-up backend was deployed on 30 September; its website
+changes require merging the follow-up branch. See [release details](RECIPE-PURCHASE-RELEASE-2026-09-30.md).
 
 ## Access and approval
 
-Open **Recipes & costing** from the dashboard. The owner can grant selected staff
-either Chef or Kitchen permission in the recipe settings. Ordinary staff and
-customers receive no recipe access automatically.
+Open **Recipes & costing** from the dashboard. On **Access**, the owner enters an
+email and selects Chef or Kitchen permission. An invitation email is queued.
+Existing verified accounts receive access immediately; new accounts must sign up
+and verify the invited email within 14 days. Recipe access alone does not create
+a shop staff account. The owner can change/revoke access or resend an invitation.
+Ordinary staff and customers receive no recipe access automatically.
 
 | Permission | Access |
 | --- | --- |
@@ -93,6 +96,23 @@ records do not modify formulas. Kitchen permission alone cannot record or edit
 production records.
 
 ## Costs and allergens
+
+Use **Record purchase** from Ingredients, Packaging or Suppliers to enter the item,
+brand, supplier, total price, total quantity, unit, purchase date and notes together.
+One save creates missing supplier/item records and records a price. Existing
+matching names and brands are reused; retrying a save does not duplicate it.
+This records purchase pricing for costing; stock receipts and accounting expense
+posting are separate workflows.
+
+An item can have several supplier quotes. Automatic selection compares the latest
+quote from each active supplier using compatible units, then selects the lowest
+unit cost. A preferred supplier overrides automatic selection. If that supplier
+has no compatible price, costing shows the missing price instead of silently
+choosing someone else. Earlier prices remain in history. Pack sizes in unrelated
+units (for example a box versus grams) are not assumed equivalent.
+
+Packaging supports supplier links without a price and up to ten private photos,
+including captions. These uploads are included in recipe backup archives.
 
 Maintain reusable ingredients, suppliers, packaging and equipment. Supplier item
 links and price history are retained. Add ingredient purchase size, purchase price

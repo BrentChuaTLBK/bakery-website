@@ -260,10 +260,12 @@ async function renderAccount() {
     api('admin_bootstrap').then(async() => {
       if (version !== renderVersion) return;
       document.getElementById('staff-link')?.removeAttribute('hidden');
-      const {recipeApi}=await import('./client.js');if(typeof recipeApi!=='function')return;
-      const access=await recipeApi('bootstrap');if(version!==renderVersion)return;
-      const link=document.createElement('a');link.className='button button-quiet';link.href=access.role==='kitchen'?'recipes.html?view=kitchen':'recipes.html';link.textContent=access.role==='kitchen'?'Kitchen recipes':'Recipe library';document.getElementById('staff-link')?.before(link);
     }),
+    (async()=>{
+      const {checkRecipeAccess}=await import('./recipe-access-check.js');
+      const access=await checkRecipeAccess(auth);if(version!==renderVersion)return;
+      const link=document.createElement('a');link.className='button button-quiet';link.href=access.role==='kitchen'?'recipes.html?view=kitchen':'recipes.html';link.textContent=access.role==='kitchen'?'Kitchen recipes':'Recipe library';document.getElementById('staff-link')?.before(link);
+    })(),
   ]);
 }
 

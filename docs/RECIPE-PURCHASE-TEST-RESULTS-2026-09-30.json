@@ -1,0 +1,620 @@
+{
+  "verified_at": "2026-09-30T07:09:01.755Z",
+  "base_commit": "3d3c68fa8502cb2be4449241dffeab0baeb4d05c",
+  "branch": "codex/recipe-startup-fix",
+  "environment": "Isolated local PGlite and Playwright/Chrome; provider requests mocked. Live database and backup checks are recorded separately.",
+  "passed_suites": 63,
+  "total_suites": 63,
+  "suites": [
+    {
+      "name": "tests/ui/academy.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5485,
+      "log": "tests-ui-academy.mjs.log"
+    },
+    {
+      "name": "scripts/test-unit.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7718,
+      "log": "scripts-test-unit.mjs.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --vouchers",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4015,
+      "log": "tests-backend-run.mjs---vouchers.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --operations",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3468,
+      "log": "tests-backend-run.mjs---operations.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --recipes",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4055,
+      "log": "tests-backend-run.mjs---recipes.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --recipe-access",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2796,
+      "log": "tests-backend-run.mjs---recipe-access.log"
+    },
+    {
+      "name": "tests/backend/run.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 22181,
+      "log": "tests-backend-run.mjs.log"
+    },
+    {
+      "name": "--experimental-transform-types tests/backend/run.mjs --recipe-backups",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5272,
+      "log": "--experimental-transform-types-tests-backend-run.mjs---recipe-backups.log"
+    },
+    {
+      "name": "tests/ui/academy-admin-loading.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6335,
+      "log": "tests-ui-academy-admin-loading.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-albums.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 17633,
+      "log": "tests-ui-academy-albums.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-dialogs.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4071,
+      "log": "tests-ui-academy-dialogs.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-lazy-loading.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 9054,
+      "log": "tests-ui-academy-lazy-loading.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-photo-refresh.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3113,
+      "log": "tests-ui-academy-photo-refresh.mjs.log"
+    },
+    {
+      "name": "tests/ui/academy-public-albums.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5737,
+      "log": "tests-ui-academy-public-albums.mjs.log"
+    },
+    {
+      "name": "tests/ui/accounting.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 12346,
+      "log": "tests-ui-accounting.mjs.log"
+    },
+    {
+      "name": "tests/ui/approved-loading.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 1718,
+      "log": "tests-ui-approved-loading.mjs.log"
+    },
+    {
+      "name": "tests/ui/backups.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2696,
+      "log": "tests-ui-backups.mjs.log"
+    },
+    {
+      "name": "tests/edge/run.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 68539,
+      "log": "tests-edge-run.mjs.log"
+    },
+    {
+      "name": "tests/ui/catalog-order.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7215,
+      "log": "tests-ui-catalog-order.mjs.log"
+    },
+    {
+      "name": "tests/ui/branded-calendars.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 8197,
+      "log": "tests-ui-branded-calendars.mjs.log"
+    },
+    {
+      "name": "tests/ui/checkout-feedback.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5271,
+      "log": "tests-ui-checkout-feedback.mjs.log"
+    },
+    {
+      "name": "tests/ui/customer-calendar.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5364,
+      "log": "tests-ui-customer-calendar.mjs.log"
+    },
+    {
+      "name": "tests/ui/daily-quantities.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4859,
+      "log": "tests-ui-daily-quantities.mjs.log"
+    },
+    {
+      "name": "tests/ui/delete-products.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6758,
+      "log": "tests-ui-delete-products.mjs.log"
+    },
+    {
+      "name": "tests/ui/delivery-admin.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5629,
+      "log": "tests-ui-delivery-admin.mjs.log"
+    },
+    {
+      "name": "tests/ui/delivery-tracking.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7158,
+      "log": "tests-ui-delivery-tracking.mjs.log"
+    },
+    {
+      "name": "tests/ui/dessert-bar.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7710,
+      "log": "tests-ui-dessert-bar.mjs.log"
+    },
+    {
+      "name": "tests/ui/email-alerts.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6633,
+      "log": "tests-ui-email-alerts.mjs.log"
+    },
+    {
+      "name": "tests/ui/email-design.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5436,
+      "log": "tests-ui-email-design.mjs.log"
+    },
+    {
+      "name": "tests/ui/flavor-limits.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4085,
+      "log": "tests-ui-flavor-limits.mjs.log"
+    },
+    {
+      "name": "tests/ui/gallery-thumbnails.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 1779,
+      "log": "tests-ui-gallery-thumbnails.mjs.log"
+    },
+    {
+      "name": "tests/ui/galleries.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 6124,
+      "log": "tests-ui-galleries.mjs.log"
+    },
+    {
+      "name": "tests/ui/google-signin.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 7841,
+      "log": "tests-ui-google-signin.mjs.log"
+    },
+    {
+      "name": "tests/ui/heic-gallery.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 13625,
+      "log": "tests-ui-heic-gallery.mjs.log"
+    },
+    {
+      "name": "tests/ui/homepage.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 17163,
+      "log": "tests-ui-homepage.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-manager.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2941,
+      "log": "tests-ui-newsletter-manager.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-promos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2258,
+      "log": "tests-ui-newsletter-promos.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-template-design.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2230,
+      "log": "tests-ui-newsletter-template-design.mjs.log"
+    },
+    {
+      "name": "tests/ui/newsletter-uploads.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 14083,
+      "log": "tests-ui-newsletter-uploads.mjs.log"
+    },
+    {
+      "name": "tests/ui/homepage-sync.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 50610,
+      "log": "tests-ui-homepage-sync.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-calendar.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5374,
+      "log": "tests-ui-order-calendar.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-item-photos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2613,
+      "log": "tests-ui-order-item-photos.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-reference-copy.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 2978,
+      "log": "tests-ui-order-reference-copy.mjs.log"
+    },
+    {
+      "name": "tests/ui/package-categories.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 13809,
+      "log": "tests-ui-package-categories.mjs.log"
+    },
+    {
+      "name": "tests/ui/package-tools.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3974,
+      "log": "tests-ui-package-tools.mjs.log"
+    },
+    {
+      "name": "tests/ui/order-slips.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 22847,
+      "log": "tests-ui-order-slips.mjs.log"
+    },
+    {
+      "name": "tests/ui/party-cart-photos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 23440,
+      "log": "tests-ui-party-cart-photos.mjs.log"
+    },
+    {
+      "name": "tests/ui/party-packages.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 35238,
+      "log": "tests-ui-party-packages.mjs.log"
+    },
+    {
+      "name": "tests/ui/payment-options.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 16761,
+      "log": "tests-ui-payment-options.mjs.log"
+    },
+    {
+      "name": "tests/ui/pickup-reminder.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4537,
+      "log": "tests-ui-pickup-reminder.mjs.log"
+    },
+    {
+      "name": "tests/ui/product-heic.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 24504,
+      "log": "tests-ui-product-heic.mjs.log"
+    },
+    {
+      "name": "tests/ui/product-labels.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5910,
+      "log": "tests-ui-product-labels.mjs.log"
+    },
+    {
+      "name": "tests/ui/pos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 44688,
+      "log": "tests-ui-pos.mjs.log"
+    },
+    {
+      "name": "tests/ui/product-photos.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 15429,
+      "log": "tests-ui-product-photos.mjs.log"
+    },
+    {
+      "name": "tests/ui/public-loading-assets.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4417,
+      "log": "tests-ui-public-loading-assets.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-startup.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 1965,
+      "log": "tests-ui-recipe-startup.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-import-export.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4398,
+      "log": "tests-ui-recipe-import-export.mjs.log"
+    },
+    {
+      "name": "tests/ui/run.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 4777,
+      "log": "tests-ui-run.mjs.log"
+    },
+    {
+      "name": "tests/ui/sales-chart.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 5174,
+      "log": "tests-ui-sales-chart.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipes.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 14019,
+      "log": "tests-ui-recipes.mjs.log"
+    },
+    {
+      "name": "tests/ui/site-dialog.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 3927,
+      "log": "tests-ui-site-dialog.mjs.log"
+    },
+    {
+      "name": "tests/ui/vouchers.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 8586,
+      "log": "tests-ui-vouchers.mjs.log"
+    },
+    {
+      "name": "tests/newsletter-ui.mjs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "ms": 9596,
+      "log": "tests-newsletter-ui.mjs.log"
+    }
+  ],
+  "counts": {
+    "unit": 246,
+    "edge": 116,
+    "existing_database": 388,
+    "voucher_database": 37,
+    "operations_database": 25,
+    "recipe_database": 23,
+    "recipe_access_database": 8,
+    "recipe_backup_database": 6,
+    "migrations_applied": 76,
+    "recipe_browser": 17,
+    "recipe_import_export": 6,
+    "startup": 5
+  },
+  "recipe_browser_checks": [
+    "Upload, convert and preview a private product photo",
+    "Create and publish through the editor",
+    "Temporary scaling preserves the saved formula",
+    "Draft changes leave the kitchen recipe on its published version",
+    "Compare and duplicate saved versions",
+    "Create a master ingredient with a purchase price",
+    "Record purchase creates the ingredient, supplier, brand and price together",
+    "Packaging supplier and photo persist without price; unrelated edits preserve price history; desktop/mobile spacing",
+    "Compare supplier prices, set preferred override and view history without losing form edits",
+    "Owner invites recipe-only accounts from Access with Kitchen as default",
+    "Save an R&D photo and log, then explicitly promote the formula",
+    "Record finished production quantities separately from recipes",
+    "Backup UI does not imply success or allow an unconfigured upload",
+    "Mobile editor accepts fractions with no horizontal page overflow",
+    "Read-only kitchen layout, checkoffs and overflow at 390px",
+    "Read-only kitchen layout, checkoffs and overflow at 820px",
+    "Read-only kitchen layout, checkoffs and overflow at 1440px"
+  ],
+  "recipe_import_export_checks": [
+    "Real DOCX text and ingredient rows",
+    "Text PDF extraction",
+    "Photo OCR using locally hosted worker, WASM and language data",
+    "Scanned PDF page rendering and OCR",
+    "kitchen PDF: scaled main formula, pinned component, photos and separate references",
+    "presentation PDF: scaled main formula, pinned component, photos and separate references"
+  ],
+  "startup": [
+    "cached-client",
+    "signed-out",
+    "missing-export",
+    "module-failure",
+    "stalled"
+  ],
+  "live": {
+    "database_rollback_checks": 8,
+    "test_users_retained": 0,
+    "test_resources_retained": 0,
+    "email_worker_version": 30,
+    "recipe_backup_version": 2,
+    "migration": "20260930064959_recipe_account_access",
+    "import": {
+      "suppliers": 77,
+      "ingredients": 187,
+      "packaging": 68,
+      "supplier_links": 333,
+      "prices": 340,
+      "source_rows": 361,
+      "flagged_source_rows": 22
+    },
+    "backup": {
+      "size_bytes": 440695,
+      "record_count": 1022,
+      "files": 0,
+      "sha256": "7b5d126c48a917461c9e34c28a4002571057eedcb4d7d163af0e7e40d7c6daad",
+      "restore": {
+        "format": "tlb-recipe-restore-rehearsal",
+        "verified_at": "2026-09-30T06:55:47.061Z",
+        "record_count": 1022,
+        "files": 0,
+        "counts": {
+          "recipe_settings": 1,
+          "recipe_categories": 14,
+          "recipe_resources": 332,
+          "recipe_supplier_items": 333,
+          "recipe_prices": 340,
+          "recipes": 0,
+          "recipe_versions": 0,
+          "recipe_links": 0,
+          "recipe_ingredient_links": 0,
+          "recipe_tests": 0,
+          "recipe_runs": 0,
+          "recipe_files": 0,
+          "recipe_file_links": 0,
+          "recipe_user_state": 0,
+          "recipe_drafts": 0,
+          "recipe_audit": 1,
+          "recipe_access": 0,
+          "recipe_invitations": 0
+        },
+        "relationships": true,
+        "checksums": true,
+        "production_modified": false
+      }
+    }
+  },
+  "not_verified": [
+    "Authenticated live browser after upstream publication",
+    "A real recipient invitation email in this follow-up",
+    "Hosted large-photo-library backup capacity",
+    "Disaster recovery into live Auth and Storage"
+  ]
+}

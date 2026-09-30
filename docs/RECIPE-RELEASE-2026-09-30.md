@@ -2,6 +2,12 @@
 
 ## Release state
 
+**Subsequent update:** the owner merged upstream
+[PR #113](https://github.com/BrentChuaTLBK/bakery-website/pull/113), publishing the
+initial library. The historical publication limitations below describe the state
+of the initial release. Current purchase, supplier, permission and startup fixes
+are documented in [the follow-up release](RECIPE-PURCHASE-RELEASE-2026-09-30.md).
+
 Implemented on `codex/recipe-system`, based on `823f2be`. The backend is deployed;
 website publication is blocked by production-repository integration access.
 The owner-approved product decisions are implemented: owner-only approval,

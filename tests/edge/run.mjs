@@ -7,6 +7,7 @@ const result = spawnSync(process.execPath, [
   fileURLToPath(new URL('./calendar-sync.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./order-backup.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./recipe-backup.test.mjs', import.meta.url)),
+  fileURLToPath(new URL('./recipe-access-email.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./edge.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./website-analytics.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./newsletter.test.mjs', import.meta.url)),

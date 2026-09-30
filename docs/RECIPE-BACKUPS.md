@@ -2,18 +2,26 @@
 
 ## Current release status
 
-The owner approved deployment on 30 September 2026. Both recipe migrations and
-`recipe-backup` Edge Function v1 are deployed, and automatic backups are enabled.
+The owner approved deployment on 30 September 2026. The recipe/access migrations
+and `recipe-backup` Edge Function v2 are deployed, and automatic backups are enabled.
 A real daily archive completed at 05:43 UTC; the unattended scheduler made a
 matching monthly copy at 05:45 UTC. Both are 10,553 bytes with SHA-256
 `58c2059c9850c91102b163f02e9aa18595e948d5da19c5942f31987de33eabb8`.
 The downloaded daily copy restored into an isolated database with checksum and
 relationship checks passing. It contains 16 initial configuration/actor records
-and no recipes/files. Hosted photo-volume capacity remains unverified.
+and no recipes/files. After the supplier workbook import, a manual archive completed
+at 06:52 UTC: 440,695 bytes, 1,022 records and zero files. Its SHA-256 is
+`7b5d126c48a917461c9e34c28a4002571057eedcb4d7d163af0e7e40d7c6daad`.
+That archive was downloaded and restored into an isolated database, including all
+332 resources, 333 supplier links and 340 price records. Full nested values and
+relationships matched. Recovery comparison normalizes typed database timestamps
+so UTC/Manila representations of the same instant do not cause false failures.
+Schema 2 also backs up recipe invitations; schema 1 archives remain readable.
+Hosted photo-volume capacity remains unverified.
 
 The owner-selected [Drive folder](https://drive.google.com/drive/folders/1rRxDTqAVqliCdx0OTRJK0XuLC4iHQyeg)
 has Daily, Monthly and Manual subfolders and 44 private ZIP slots.
-Two contain verified initial snapshots; the other 42 remain unused placeholders.
+Three contain verified snapshots; the other 41 remain unused placeholders.
 Placeholders are not recovery points. The connected
 Drive account owns the files and the existing Google service account has writer
 access. This permits unattended updates without relying on a service account's
@@ -157,7 +165,8 @@ node scripts/benchmark-recipe-backup.mjs 100
 ## Restore rehearsal
 
 Use a trusted checkout containing the same schema/backup format. The current
-manifest is format version 1, schema version 1. Install PGlite in an isolated test
+manifest is format version 1, schema version 2; schema 1 archives are also accepted.
+Install PGlite in an isolated test
 environment; `PGLITE_PACKAGE_ROOT` can point to its node_modules directory.
 
 ```

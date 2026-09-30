@@ -12,7 +12,7 @@ for(const filename of pages){
   if(preview)html=html.replace('</head>','<meta name="robots" content="noindex,nofollow"></head>');
   await writeFile(join(output,filename),html);
 }
-for(const filename of ['robots.txt','sitemap.xml','_headers','pos.webmanifest']){
+for(const filename of ['robots.txt','sitemap.xml','_headers','pos.webmanifest','.nojekyll']){
  try{await cp(join(root,filename),join(output,filename))}catch(e){if(e.code!=='ENOENT')throw e}
 }
 if(preview)await writeFile(join(output,'robots.txt'),'User-agent: *\nDisallow: /\n');
@@ -23,4 +23,3 @@ for(const filename of ['SETUP.md','SERVICES.md','ACCEPTANCE.md','REQUIREMENTS.md
  try{await cp(join(root,'docs',filename),join(output,'docs',filename))}catch(e){if(e.code!=='ENOENT')throw e}
 }
 console.log(`Static ${preview?'preview':'website'} built: ${pages.length} pages, original assets preserved.`);
-
