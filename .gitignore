@@ -9,3 +9,7 @@ dist/
 build/
 .playwright/
 test-results/
+
+# Local acceptance-test fixtures and development scratch data
+work/
+tests/artifacts/

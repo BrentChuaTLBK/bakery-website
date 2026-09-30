@@ -24,7 +24,7 @@ function safeNext(value) {
   if (!value || /[\u0000-\u001f\\]/.test(value)) return 'shop.html';
   try {
     const target = new URL(value, new URL('./', location.href));
-    const allowed = ['shop.html', 'account.html', 'manage.html', 'recipes.html'].map(path => new URL(path, new URL('./', location.href)).pathname);
+    const allowed = ['shop.html', 'account.html', 'manage.html', 'recipes.html', '/academy/dashboard', '/academy/dashboard/', '/academy/admin', '/academy/admin/'].map(path => new URL(path, new URL('./', location.href)).pathname);
     if (target.origin !== location.origin || !allowed.includes(target.pathname)) return 'shop.html';
     return `${target.pathname}${target.search}${target.hash}`;
   } catch { return 'shop.html'; }
@@ -35,8 +35,9 @@ try { rememberedNext = sessionStorage.getItem('tlb-auth-return-v1'); } catch { /
 const next = safeNext(params.get('next') || rememberedNext);
 try { if (params.has('next')) sessionStorage.setItem('tlb-auth-return-v1', next); } catch { /* The explicit next query still works without storage. */ }
 const guestNext = /\/(manage|recipes)\.html$/.test(new URL(next, location.href).pathname) ? 'shop.html' : next;
-const returnLabel = new URL(next, location.href).pathname.endsWith('/recipes.html') ? 'Continue to recipe library' : new URL(next, location.href).pathname.endsWith('/manage.html') ? 'Continue to staff dashboard' : 'Continue to your order';
-const redirect = (path) => new URL(path, location.href).href;
+const returnLabel = new URL(next, location.href).pathname.startsWith('/academy/') ? 'Continue to TLB Academy' : new URL(next, location.href).pathname.endsWith('/recipes.html') ? 'Continue to recipe library' : new URL(next, location.href).pathname.endsWith('/manage.html') ? 'Continue to staff dashboard' : 'Continue to your order';
+const academyReturn = new URL(next, location.href).pathname.startsWith('/academy/');
+const redirect = (path) => { const url=new URL(path,location.href); if(academyReturn)url.searchParams.set('next',next); return url.href; };
 const statusText = value => String(value || '').replace(/_/g, ' ').replace(/^./, value => value.toUpperCase());
 
 function notice(message, type = 'notice') {
@@ -159,6 +160,7 @@ async function submitAuth(event) {
         catch { newsletterError = true; }
       }
       if (result?.session) {
+        if (academyReturn) { location.assign(next); return; }
         // The backend still enforces verified-email eligibility for promotions.
         // Owner setup must keep Confirm Email enabled in Supabase.
         await renderAccount();
@@ -233,6 +235,10 @@ async function renderAccount() {
   root.classList.add('account-dashboard');
   root.innerHTML = `<header class="account-welcome"><div class="account-welcome-main"><div><p class="eyebrow">Your little corner</p><h1>Welcome back</h1><p class="account-welcome-note">Your orders, little treats, and everything TLB.</p><p class="account-identity"><span>${esc(user.email)}</span><span class="badge">${verified?'Email verified':'Verification pending'}</span></p></div><a class="button" href="${esc(next)}">${esc(returnLabel)} <span aria-hidden="true">↗</span></a></div><div class="account-welcome-bottom"><nav class="account-section-links" aria-label="Your account"><a href="#account-orders">Your orders</a><a href="#account-vouchers">My vouchers</a><a href="#newsletter-preferences">Email preferences</a></nav><div class="dialog-actions"><a class="button button-quiet" id="staff-link" href="manage.html" hidden>Staff dashboard</a><button class="button button-quiet" id="sign-out" type="button">Sign out</button></div></div></header><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified?'':'<div class="notice"><p>Verify your email to view personal vouchers and use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<div class="account-content-grid"><section id="account-orders" class="panel" aria-labelledby="orders-title"><div class="section-heading"><div><p class="eyebrow">From our kitchen</p><h2 id="orders-title">Your orders</h2></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div><p class="account-guest-note muted">Placed an order as a guest? Open the secure link from your confirmation email.</p></section><section id="account-vouchers" class="panel" aria-label="My vouchers"></section></div>`;
   voucherController=mountVouchers(document.getElementById('account-vouchers'));
+  const academyCard=document.createElement('section');
+  academyCard.className='panel';
+  academyCard.innerHTML='<p class="eyebrow">Keep creating</p><h2>TLB Academy</h2><p>Access Academy announcements, student creations, upcoming workshops, and your classes and recipes.</p><p class="muted">Discover upcoming classes and Academy updates</p><a class="button button-secondary" href="/academy/dashboard">Open Student Dashboard →</a>';
+  root.querySelector('.account-content-grid').append(academyCard);
   root.setAttribute('aria-busy', 'false');
   const preferences = document.createElement('section');
   preferences.className = 'panel newsletter-preferences';
@@ -284,6 +290,7 @@ async function renderCallback() {
   if (!authLink.received || authLink.failed || authLink.type === 'recovery') { linkProblem(); return; }
   const { data: { user }, error } = await auth.getUser();
   if (error || !user?.email_confirmed_at) { linkProblem(); return; }
+  if (academyReturn) { location.replace(next); return; }
   root.innerHTML = `<section class="panel account-card"><p class="eyebrow">You're all set</p><h1>Email verified</h1><p>Your email address is verified. Your saved cart and checkout details are waiting on this browser.</p><div class="dialog-actions"><a class="button" href="${esc(next)}">${esc(returnLabel)}</a><a class="button button-secondary" href="account.html">View your account</a></div></section>`;
   root.setAttribute('aria-busy', 'false');
 }
@@ -336,6 +343,7 @@ async function renderReset() {
       await auth.signOut({ scope: 'local' });
       history.replaceState(null, '', location.pathname);
       root.innerHTML = '<section class="panel account-card"><p class="eyebrow">All done</p><h1>Password updated</h1><p>You can now sign in with your new password. Your cart and checkout details remain saved on this browser.</p><a class="button" href="account.html">Sign in</a></section>';
+      if(academyReturn)root.querySelector('a.button').href='account.html?next='+encodeURIComponent(next);
     } catch (error) {
       if (/expired|invalid|session|token|not authenticated/i.test(error.message)) linkProblem(true);
       else notice(friendlyError(error), 'danger');
