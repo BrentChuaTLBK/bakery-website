@@ -33,7 +33,7 @@ async function pageFor(user,width=1440){
 const fill=(page,path,value)=>page.locator(`[data-path="${path}"]`).fill(value);
 try{
  const {page,context}=await pageFor(h.ids.owner);await page.goto(origin+'/recipes.html');await page.getByRole('button',{name:'+ New recipe',exact:true}).click();
- await fill(page,'name','QA Chocolate Cookies');await fill(page,'variants.0.yield.quantity','24');await fill(page,'variants.0.yield.unit','cookies');await fill(page,'variants.0.yield.portions','24');
+ await fill(page,'name','QA Chocolate Cookies');await fill(page,'variants.0.yield.quantity','24');await fill(page,'variants.0.yield.unit','cookies');await page.getByText('Portions, weights & batch details',{exact:true}).click();await fill(page,'variants.0.yield.portions','24');
  await fill(page,'variants.0.groups.0.ingredients.0.name','Sugar');await fill(page,'variants.0.groups.0.ingredients.0.quantity','424');
  await fill(page,'variants.0.methods.0.steps.0.instruction','Mix the ingredients and bake.');
  const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=320;c.height=240;const x=c.getContext('2d');x.fillStyle='#e8d8ba';x.fillRect(0,0,320,240);x.fillStyle='#765135';x.beginPath();x.arc(160,120,70,0,Math.PI*2);x.fill();return c.toDataURL('image/png').split(',')[1];});const photoPath=join(out,'fixture-photo.png');await writeFile(photoPath,Buffer.from(png,'base64'));

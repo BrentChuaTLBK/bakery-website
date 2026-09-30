@@ -2,11 +2,11 @@ import {quantity,exact,multiply,scaleIngredients,ingredientTotals,componentPlan,
 export const id=()=>crypto.randomUUID();
 export const clone=value=>structuredClone(value);
 export const ingredient=()=>({id:id(),name:'',quantity:'',unit:'g',notes:'',brand:''});
-export const group=()=>({id:id(),name:'Ingredients',ingredients:[ingredient()]});
+export const group=(name='Ingredients')=>({id:id(),name,ingredients:[ingredient()]});
 export const step=()=>({id:id(),instruction:'',timer_minutes:'',temperature:'',equipment:'',warning:''});
-export const method=()=>({id:id(),name:'Method',steps:[step()]});
+export const method=(groupId='')=>({id:id(),name:'Procedure',group_id:groupId,steps:[step()]});
 export const stage=()=>({id:id(),name:'Bake',top:'',bottom:'',actual_bottom:'',fan:'',minutes:'',core:'',notes:''});
-export const variant=(name='Standard')=>({id:id(),name,yield:{quantity:'1',unit:'batch',portions:'',portion_weight:'',batch_weight:'',finished_weight:'',pan_size:'',pans:'',loss_percent:''},groups:[group()],methods:[method()],baking:[],components:[],equipment:[],packaging:{description:'',dimensions:'',notes:'',photos:[]},additional_costs:[],production_notes:'',photos:[]});
+export const variant=(name='Standard')=>{const g=group('Main component');return {id:id(),name,yield:{quantity:'1',unit:'batch',portions:'',portion_weight:'',batch_weight:'',finished_weight:'',pan_size:'',pans:'',loss_percent:''},groups:[g],methods:[method(g.id)],baking:[],components:[],equipment:[],packaging:{description:'',dimensions:'',notes:'',photos:[]},additional_costs:[],production_notes:'',photos:[]};};
 export const blankRecipe=()=>({name:'',description:'',category_id:'',tags:[],flavor:'',product_line:'',currency:'PHP',allergens:[],private_notes:'',critical_notes:'',photos:[],files:[],variants:[variant()]});
 export function normalizeRecipe(doc){
   const result={...blankRecipe(),...clone(doc)};
@@ -15,10 +15,27 @@ export function normalizeRecipe(doc){
 }
 export function freshVariant(value,name) {
   const v=clone(value);v.id=id();v.name=name||`${value.name} — copy`;
-  for(const g of v.groups){g.id=id();for(const r of g.ingredients)r.id=id();}
-  for(const m of v.methods){m.id=id();for(const s of m.steps)s.id=id();}
+  const associations=v.methods.map(m=>methodGroupId(v,m)),groupIds=new Map();
+  for(const g of v.groups){const old=g.id;g.id=id();groupIds.set(old,g.id);for(const r of g.ingredients)r.id=id();}
+  for(const [i,m] of v.methods.entries()){m.id=id();m.group_id=groupIds.get(associations[i])||'';for(const s of m.steps)s.id=id();}
   for(const s of v.baking)s.id=id();for(const c of v.components)c.id=id();return v;
 }
+// Legacy records remain unchanged. Only unambiguous names or a single generic
+// procedure are paired for display; assembly always stays separate.
+export function methodGroupId(v,m){
+  if(Object.hasOwn(m,'group_id'))return v.groups.some(g=>g.id===m.group_id)?m.group_id:'';
+  const key=s=>String(s||'').toLowerCase().replace(/\b(?:ingredients?|procedure|method|instructions|directions)\b/g,'').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+  if(/^(?:assembly|finishing|decoration|baking)\b/i.test(m.name||''))return '';
+  const matches=v.groups.filter(g=>key(g.name)&&key(g.name)===key(m.name));
+  if(matches.length===1)return matches[0].id||'';
+  return !key(m.name)&&v.groups.length===1?v.groups[0].id||'':'';
+}
+export function recipeSections(v){
+  const methods=(v.methods||[]).map((method,index)=>({method,index,groupId:methodGroupId(v,method)}));
+  return {components:v.groups.map((group,index)=>({group,index,methods:methods.filter(m=>m.groupId&&m.groupId===group.id)})),standalone:methods.filter(m=>!m.groupId)};
+}
+export function addComponent(v,name=`Component ${v.groups.length+1}`){const g=group(name);v.groups.push(g);v.methods.push(method(g.id));return g;}
+export function removeComponent(v,index){const {group,methods}=recipeSections(v).components[index];const removed=new Set(methods.map(m=>m.index));v.methods=v.methods.filter((m,i)=>!removed.has(i));v.groups=v.groups.filter(g=>g!==group);}
 export function validateRecipe(doc) {
   const errors=[];if(!doc.name?.trim())errors.push('Add a recipe name.');
   if(!doc.variants?.length)errors.push('Add a size variant.');
@@ -33,7 +50,11 @@ export function validateRecipe(doc) {
       if(!r.unit?.trim())errors.push(`${r.name||'Ingredient'}: choose a unit.`);
       if(unique.has(r.id))errors.push('Ingredient row identifiers must be unique.');unique.add(r.id);
     }
-    for(const m of v.methods)for(const s of m.steps)if(!s.instruction?.trim())errors.push(`${m.name}: fill or remove empty method steps.`);
+    const groupIds=v.groups.map(g=>g.id).filter(Boolean);if(new Set(groupIds).size!==groupIds.length)errors.push(`${v.name}: component identifiers must be unique.`);
+    for(const m of v.methods){
+      if(m.group_id&&!groupIds.includes(m.group_id))errors.push(`${m.name}: choose an existing component for this procedure.`);
+      for(const s of m.steps)if(!s.instruction?.trim())errors.push(`${m.name}: fill or remove empty method steps.`);
+    }
   }return errors;
 }
 export function scaledCopy(doc,variantId,factor,{mode='multiplier',target=null}={}) {

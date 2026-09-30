@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {makeHarness} from './helpers.mjs';
 
-export default async function({db,check}) {
+export default async function({db,check,state}) {
  const h=await makeHarness(db),{owner,staff,customer,stranger,unverified}=h.ids;
+ state.recipeHarness=h;
  const api=(action,payload={},user=owner)=>h.as(user,async()=> (await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
  const recipe=(name='Vanilla cookies')=>({name,tags:['cookie','vanilla'],private_notes:'OWNER_PRIVATE',variants:[{id:'base',name:'Standard',yield:{quantity:'24',unit:'cookies',portions:'24',portion_weight:'100',batch_weight:'2400',pans:'2'},groups:[{id:'batter',name:'Batter',ingredients:[{id:'sugar',name:'Sugar',quantity:'120',unit:'g'},{id:'flour',name:'Flour',quantity:'1½ + 1/16',unit:'kg'}]}],methods:[{name:'Mix',steps:[{id:'mix',instruction:'Combine the ingredients.',timer_minutes:'2'}]}],baking:[{name:'Bake',top:'180',bottom:'170',minutes:'12'}],packaging:{description:'Cookie pouch',private_notes:'PRIVATE_PACKAGING',cost:'500'},additional_costs:[{name:'Labor',amount:'200'}]}]});
  let cookie,component,parent,ingredient;
