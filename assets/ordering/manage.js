@@ -1,3 +1,5 @@
+import {mountMaintenance} from './maintenance-admin.js?v=maintenance-1';
+let maintenanceController=null;
 import {mountVoucherCampaigns} from './voucher-campaigns.js';
 let voucherController=null;
 import {bindDashboardNav} from './dashboard-nav.js?v=grouped-nav-1';
@@ -82,7 +84,7 @@ window.addEventListener('pageshow', syncVisitorPolling);
 window.addEventListener('pageshow', event => {if(event.persisted&&state.view==='calendar')render();});
 document.addEventListener('visibilitychange', syncPromoStatuses);
 window.addEventListener('pageshow', syncPromoStatuses);
-window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();});
+window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();maintenanceController?.destroy();});
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
   if (catalogOrder?.dirty || catalogOrder?.busy || ['#pos-manager','#payment-options-editor','#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#voucher-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
@@ -195,6 +197,9 @@ async function refresh() {
 }
 const syncDashboardNav = bindDashboardNav();
 function render() {
+  maintenanceController?.destroy();maintenanceController=null;
+  const maintenanceLink=$('[data-view=maintenance]');if(maintenanceLink)maintenanceLink.style.display=state.connected&&state.role==='owner'?'':'none';
+  if(state.view==='maintenance'&&state.role!=='owner')state.view='overview';
   const backupLink=$('[data-view=backups]');if(backupLink)backupLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='backups'&&state.role!=='owner')state.view='overview';
   voucherController?.destroy();voucherController=null;
@@ -216,7 +221,7 @@ function render() {
   if (state.view === 'accounting' && state.connected && state.role !== 'owner') state.view = 'overview';
   $$('.sidebar-link').forEach(button => { button.classList.toggle('active', button.dataset.view === state.view); button.setAttribute('aria-current', button.dataset.view === state.view ? 'page' : 'false'); });
   syncDashboardNav();
-  const views = { vouchers:()=>'<div id="voucher-manager"></div>', calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
+  const views = { maintenance:()=>'<div id="maintenance-manager"></div>', vouchers:()=>'<div id="voucher-manager"></div>', calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   views.backups=()=>'<div id="backup-manager"></div>';
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if(state.view==='backups'){
@@ -231,6 +236,7 @@ function render() {
       if(root.isConnected) view.mountHomepage(root,{role:state.role,connected:state.connected,api:client.homepageApi,upload});
     }).catch(() => { if(root.isConnected) root.textContent = 'The Home page editor could not load. Open this tab again to retry.'; });
   }
+  if(state.view==='maintenance')maintenanceController=mountMaintenance($('#maintenance-manager'),{owner:owner()});
   if (state.view === 'vouchers') voucherController=mountVoucherCampaigns($('#voucher-manager'),{owner:owner()});
   if (state.view === 'newsletters') mountNewsletters($('#newsletter-manager'),{settings:state.settings,products:state.products,promos:state.promos});
   if (state.view === 'settings') bindPaymentSettings($('[data-form="settings"]'),{readonly:Boolean(ownerLocked())});
@@ -902,6 +908,7 @@ document.addEventListener('click', async event => {
   if(view && $('#pos-manager')?.dataset.busy==='true'){toast('Please wait until the POS save is confirmed.');return;}
   if(view && $('#pos-manager')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved POS changes will be lost.',{title:'Leave point of sale?',confirmLabel:'Discard changes',cancelLabel:'Keep editing'}))return;
   if(view){const newsletterEditor=$('#voucher-manager')||$('#newsletter-manager')||$('#newsletter-offer-manager');if(newsletterEditor?.dataset.busy==='true'){toast('Please wait for the newsletter update to finish.');return;}if(newsletterEditor?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved newsletter changes will be lost.',{title:'Discard newsletter changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;}
+  if(view&&$('#maintenance-manager')?.dataset.busy==='true'){toast('Please wait for maintenance settings to finish saving.');return;}
   if(view && $('#payment-options-editor')?.dataset.busy==='true'){toast('Please wait for the settings save to finish.');return;}
   if(view && $('#payment-options-editor')?.dataset.dirty==='true'&&!await confirmDialog('Your unsaved payment options will be lost.',{title:'Discard payment changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true}))return;
   if(view && $('#homepage-manager')?.dataset.busy==='true'){toast('Please wait for the website content update to finish.');return;}

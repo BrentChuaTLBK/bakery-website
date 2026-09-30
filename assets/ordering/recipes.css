@@ -12,6 +12,21 @@
 #recipe-purchase-form>.recipe-muted{margin:14px 0}
 
 /* Compact resource tables: keep purchase packs and per-unit costs visible. */
+.recipe-skeleton{min-height:540px}
+.recipe-skeleton-heading{padding:0 0 20px;max-width:640px}.recipe-skeleton-heading>.recipe-skeleton-name{height:45px;max-width:340px;margin:15px 0}
+.recipe-skeleton-name,.recipe-skeleton-button,.recipe-skeleton-field{background:#e9dfd1;border-radius:7px;display:block}
+.recipe-skeleton-name{height:24px;width:75%;margin:20px 0}.recipe-skeleton-button{height:38px;width:105px;margin-top:20px}
+.recipe-skeleton-tabs{display:flex;gap:10px;padding:0 0 20px;margin-bottom:24px;overflow:hidden;border-bottom:1px solid #e5d8c7}.recipe-skeleton-tabs .recipe-skeleton-button{flex:0 0 95px;margin:0}
+.recipe-skeleton-filters{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:12px;margin-bottom:32px}.recipe-skeleton-field{height:44px;min-width:0}
+.recipe-skeleton .tlb-skeleton-card{min-height:220px;padding:24px}
+.recipe-skeleton-table{border:1px solid #e5d8c7;border-radius:12px;padding:10px 20px;background:#fffefa}.recipe-skeleton-row{display:grid;grid-template-columns:2fr 1fr 60px;gap:20px;align-items:center;border-bottom:1px solid #efe6d9;min-height:54px}.recipe-skeleton-row:last-child{border:0}.recipe-skeleton-row .recipe-skeleton-button{width:50px;height:30px;margin:0}
+.recipe-skeleton .tlb-skeleton-line,.recipe-skeleton-name,.recipe-skeleton-button,.recipe-skeleton-field{background:linear-gradient(100deg,#e9dfd1 25%,#f5eee3 45%,#e9dfd1 65%);background-size:220% 100%;animation:recipe-skeleton-shimmer 1.8s ease-in-out infinite}
+.recipe-loading-ready{animation:recipe-content-reveal .16s ease-out}
+@keyframes recipe-skeleton-shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+@keyframes recipe-content-reveal{from{opacity:.7}to{opacity:1}}
+@media(max-width:1050px){.recipe-skeleton-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.recipe-skeleton .tlb-skeleton-card{min-height:210px}.recipe-skeleton .tlb-skeleton-card:nth-child(n+3){display:none}.recipe-skeleton-tabs{gap:8px}.recipe-skeleton-row{grid-template-columns:2fr 1fr 50px;gap:8px}}
+@media(prefers-reduced-motion:reduce){.recipe-skeleton .tlb-skeleton-line,.recipe-skeleton-name,.recipe-skeleton-button,.recipe-skeleton-field,.recipe-loading-ready{animation:none}}
 .recipe-resource-card{--resource-space:7px;border:1px solid #e5d8c7;border-radius:12px;background:#fffefa;overflow:hidden;margin-bottom:20px}
 .recipe-resource-card[data-density=comfortable]{--resource-space:15px}
 .recipe-resource-heading{padding:20px 22px 0;display:flex;align-items:center;justify-content:space-between;gap:16px}
