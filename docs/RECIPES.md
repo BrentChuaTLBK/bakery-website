@@ -62,7 +62,24 @@ Search names, sort alphabetically or by unit cost within compatible units and
 currencies, and switch between Compact and Comfortable spacing. Spacing is saved
 in this browser and shared between the two tabs. Search returns up to 100 matching
 records; sorting applies to those results. Refine the search for a larger catalog.
-On phones, each table row stacks its name and prices beside its Edit button.
+On phones, each table row stacks its name and prices beside its actions.
+
+Suppliers, Equipment, and Categories also use compact searchable tables, with
+contact details, equipment notes, or the parent category alongside the name.
+Their spacing shares the same Compact/Comfortable browser preference.
+
+Owners can **Delete** an ingredient, supplier, packaging item, equipment item, or
+category from its row or editor. Confirming moves it to **Deleted records**, where
+**Restore** brings it back. These are recoverable deletions: existing recipe
+versions, purchase-price history, attachments, and backup archives retain their
+references and data. Chefs can still edit available resources but cannot delete or
+restore catalog records. Stale edits cannot reactivate a deleted record.
+
+Deleted suppliers disappear from new supplier choices. If a preferred supplier is
+deleted, new price lookups use another available comparable quote; existing recipe
+cost snapshots stay unchanged. Restoring that supplier restores its availability
+and retained preferences. A category with available subcategories must have those
+children moved or deleted first; restore a parent before its deleted children.
 
 ## Preserve approved formulas
 
