@@ -1,4 +1,4 @@
-import {recipeSections,methodGroupId} from './recipe-model.js?v=packaging-1';
+import {recipeSections,methodGroupId} from './recipe-model.js?v=packaging-photos-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function procedureEditor(v,p,index,{field,button,photoMarkup}){
  const m=v.methods[index],groupId=methodGroupId(v,m);

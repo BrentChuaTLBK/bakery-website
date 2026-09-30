@@ -1,6 +1,6 @@
-import {packagingItems,scaledPackagingItems,packagingReferenceMarkup} from './recipe-packaging.js?v=packaging-1';
+import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=packaging-photos-1';
 import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js';
-import {productionPlan,recipeSections} from './recipe-model.js?v=packaging-1';
+import {productionPlan,recipeSections} from './recipe-model.js?v=packaging-photos-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,settings,api,fileUrl,dialog}) {
  let defaults={layout:'kitchen',paper:'A4',font_size:'10',spacing:'1.45',packaging:true,process:true,notes:false};
@@ -74,6 +74,6 @@ export function printBook(records,options,urls=new Map()) {
    ${(v.baking||[]).length?`<h3>Baking & temperature stages</h3><table>${v.baking.map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${[['Top',s.top,'°C'],['Bottom setting',s.bottom,'°C'],['Actual',s.actual_bottom,'°C'],['Time',s.minutes,'min'],['Fan',s.fan,''],['Core',s.core,'°C'],['Ingredient',s.ingredient_temperature,'°C'],['Batter',s.batter_temperature,'°C'],['Resting',s.resting_temperature,'°C'],['Cooling',s.cooling_minutes,'min'],['Freezing',s.freezing_minutes,'min']].filter(([,value])=>value).map(([label,value,unit])=>`${label}: ${esc(value)} ${unit}`).join('<br>')}</td><td>${esc(s.notes)}</td></tr>`).join('')}</table>`:''}
    ${v.production_notes?`<h3>Production notes</h3><div class="recipe-print-note">${esc(v.production_notes)}</div>`:''}
   `).join('')}
-  ${options.packaging&&hasReference?`<section class="recipe-reference"><p class="recipe-eyebrow">${esc(d.name)} · Reference</p><h1>Packaging & special equipment</h1>${d.variants.map(v=>`<h2>${esc(v.name)}</h2>${packagingReferenceMarkup(v)}<p>${[v.packaging?.description,v.packaging?.dimensions,v.packaging?.box,v.packaging?.board].filter(Boolean).map(esc).join(' · ')}</p><p>${esc(v.packaging?.notes)}</p>${photos(v.packaging?.photos,urls)}${(v.equipment||[]).length?`<h3>Special equipment</h3><ul>${v.equipment.map(e=>`<li><strong>${esc(e.name)}</strong>${e.notes?` · ${esc(e.notes)}`:''}</li>`).join('')}</ul>`:''}`).join('')}${options.notes&&d.private_notes?`<h2>Private notes</h2><div class="recipe-print-note">${esc(d.private_notes)}</div>`:''}</section>`:''}</article>`;
+  ${options.packaging&&hasReference?`<section class="recipe-reference"><p class="recipe-eyebrow">${esc(d.name)} · Reference</p><h1>Packaging & special equipment</h1>${d.variants.map(v=>`<h2>${esc(v.name)}</h2>${packagingReferenceMarkup(v)}${packagingItems(v).length?'':`<p>${esc(packagingLegacyText(v))}</p>`}<p>${esc(v.packaging?.notes)}</p>${photos(packagingPhotos(v),urls)}${(v.equipment||[]).length?`<h3>Special equipment</h3><ul>${v.equipment.map(e=>`<li><strong>${esc(e.name)}</strong>${e.notes?` · ${esc(e.notes)}`:''}</li>`).join('')}</ul>`:''}`).join('')}${options.notes&&d.private_notes?`<h2>Private notes</h2><div class="recipe-print-note">${esc(d.private_notes)}</div>`:''}</section>`:''}</article>`;
  }).join('');
 }
