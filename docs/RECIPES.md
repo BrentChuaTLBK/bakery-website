@@ -1,8 +1,8 @@
 # Recipe library and costing
 
 Release status: the original recipe library was published through upstream PR #113.
-The purchase/access follow-up backend was deployed on 30 September; its website
-changes require merging the follow-up branch. See [release details](RECIPE-PURCHASE-RELEASE-2026-09-30.md).
+The purchase/access follow-up was merged through upstream PR #114; its backend
+was deployed on 30 September. See [release details](RECIPE-PURCHASE-RELEASE-2026-09-30.md).
 
 ## Access and approval
 
@@ -46,6 +46,23 @@ top/bottom heat, actual temperature, fan, time and cooling/freezing information.
 The library is alphabetical and paginated. Search/filter by name or ingredient,
 category, tag, status, flavor, product line, version, author and update date.
 Favorites, pins and recently used views are personal to each account.
+
+## Ingredients and packaging tables
+
+Both tabs show compact rows with the name, brand or packaging dimensions,
+purchase pack price, and cost per unit. Mass prices use **per g**, volume prices
+use **per ml**, and pieces use **per pc**. Other units, such as sheets, boxes or
+packs, keep their recorded unit; no contents or mass-to-volume conversion is assumed.
+For example, PHP 620 for 10 kg displays PHP 0.062/g; PHP 300 for 10 pieces displays
+PHP 30/pc. Small positive costs never display as zero.
+
+The price follows the existing lowest-comparable-cost or preferred-supplier
+selection. These display calculations do not update stored prices or recipe versions.
+Search names, sort alphabetically or by unit cost within compatible units and
+currencies, and switch between Compact and Comfortable spacing. Spacing is saved
+in this browser and shared between the two tabs. Search returns up to 100 matching
+records; sorting applies to those results. Refine the search for a larger catalog.
+On phones, each table row stacks its name and prices beside its Edit button.
 
 ## Preserve approved formulas
 
