@@ -1,3 +1,9 @@
+async function saveAndView(page){
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#recipe-editor')?.inert===false&&document.querySelector('[data-save-status]')?.textContent.startsWith('Saved.'));
+ await page.getByRole('button',{name:'View saved recipe',exact:true}).click();
+ await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
+}
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,readdir,mkdir,writeFile} from 'node:fs/promises';
@@ -40,10 +46,10 @@ try{
  const ingredient=page.locator('[data-ingredient-search]').first(),row=page.locator('[data-ingredient-row]').first(),amount=row.locator('[data-path$=".quantity"]'),unit=row.locator('[data-path$=".unit"]');
  await ingredient.fill('QA Flour');await page.getByRole('option').filter({hasText:'Pastry Brand'}).waitFor();assert.equal(await page.locator('[data-ingredient-choice]').count(),2);await page.getByRole('option').filter({hasText:'Pastry Brand'}).click();assert.equal(await ingredient.inputValue(),'QA Flour');assert.equal(await unit.inputValue(),'g');assert.equal(await amount.evaluate(el=>el===document.activeElement),true);assert.match(await row.locator('[data-ingredient-link]').innerText(),/Pastry Brand.*Linked.*0\.12/);
  assert.equal(await page.locator('[data-path$=".percentage"],[data-path$=".rounding_step"],[data-path*=".cost_snapshot."]').count(),0);await amount.fill('500');
- await page.locator('#recipe-save-status').selectOption('production');await page.getByRole('button',{name:'Save new version',exact:true}).click();await page.getByRole('button',{name:'Confirm save',exact:true}).click();await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
+ await page.locator('#recipe-save-status').selectOption('production');await saveAndView(page);await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
  const saved=(await api(h.ids.owner,'list',{query:'QA linked ingredient cake'})).rows[0],first=await api(h.ids.owner,'get',{id:saved.id});assert.equal(first.document.variants[0].groups[0].ingredients[0].ingredient_id,flour.id);assert.equal(Number(first.cost_snapshot.variants[0].total),60);results.push('Explicit ingredient selection distinguishes brands, fills the unit, links costing and saves the correct supplier price');
  flour=await api(h.ids.owner,'save_resource',{id:flour.id,revision:flour.revision,kind:'ingredient',name:flour.name,data:flour.data,price:{amount:'200',quantity:'1',unit:'kg',supplier_id:supplier.id}});
- await page.getByRole('button',{name:'Edit recipe',exact:true}).click();await page.locator('#recipe-save-status').selectOption('draft');await page.getByRole('button',{name:'Save new version',exact:true}).click();await page.getByRole('button',{name:'Confirm save',exact:true}).click();await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Edit recipe',exact:true}).click();await page.locator('#recipe-save-status').selectOption('draft');await saveAndView(page);await page.getByRole('button',{name:'Edit recipe',exact:true}).waitFor();
  assert.equal(Number((await api(h.ids.owner,'get',{id:saved.id})).cost_snapshot.variants[0].total),100);assert.equal(Number((await api(h.ids.owner,'get',{id:saved.id,version_id:first.version_id})).cost_snapshot.variants[0].total),60);results.push('Saving refreshes linked ingredient prices while historical recipe costs remain unchanged');
  await page.getByRole('button',{name:'Edit recipe',exact:true}).click();await ingredient.fill('QA Cream');await page.getByRole('option',{name:/QA Cream without price/}).waitFor();assert.match(await row.locator('[data-ingredient-link]').innerText(),/Select from Ingredients/);await ingredient.press('ArrowDown');await ingredient.press('Enter');assert.match(await row.locator('[data-ingredient-link]').innerText(),/Price not set/);assert.equal(await unit.inputValue(),'g');assert.equal(await amount.inputValue(),'500');
  await page.getByRole('button',{name:'View cost summary',exact:true}).click();assert.match(await page.locator('#recipe-dialog-body').innerText(),/Partial cost/);assert.match(await page.locator('#recipe-dialog-body').innerText(),/Price not entered/);await page.locator('[data-dialog-close]').click();results.push('Typing clears the old link; keyboard selection of an unpriced ingredient never reuses the previous ingredient price');
