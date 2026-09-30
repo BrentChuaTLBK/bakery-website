@@ -1,2 +1,16 @@
 /*
   Cache-Control: public, max-age=31536000, immutable
+
+/academy/*
+  Cache-Control: private, no-store
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+
+/assets/ordering/academy-portal*
+  Cache-Control: no-cache
+
+/assets/ordering/academy-recipe-editor.js
+  Cache-Control: no-cache
+
+/assets/ordering/academy-unsubscribe.js
+  Cache-Control: no-cache

@@ -242,7 +242,10 @@ function render() {
   if (state.view === 'settings') bindPaymentSettings($('[data-form="settings"]'),{readonly:Boolean(ownerLocked())});
   if (state.view === 'promos'&&owner()) mountWelcomeOffer($('#newsletter-offer-manager'));
   if (state.view === 'pos') { mountPOS($('#pos-manager'),{api,role:state.role,connected:state.connected,products:state.products,settings:state.settings,printOrderSlips,openOrder,orderId:state.posOrderId,onOrderSaved(o){state.orders=state.orders.filter(x=>x.id!==o.id);state.orders.unshift(o);}});state.posOrderId=null;}
-  if (state.view === 'academy') mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
+  if (state.view === 'academy') {
+    $('#academy-manager').insertAdjacentHTML('beforebegin','<section class="panel"><h2>TLB Academy Student Dashboard</h2><p>Manage class access, instructors, student recipes, gallery moderation, and private conversations.</p><a class="button" href="/academy/admin">Open Academy administration →</a></section>');
+    mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
+  }
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
   if(state.view==='calendar')calendarController=mountCalendar($('#order-calendar-manager'),{api,calendarConnection:async(...args)=>(await import('./client.js?v=fulfillment-calendar-1')).calendarConnection(...args),role:state.role,connected:state.connected,openOrder,toast,esc,filters:state.calendarFilters});
   clearSalesChart = bindSalesChart($('#workspace'));

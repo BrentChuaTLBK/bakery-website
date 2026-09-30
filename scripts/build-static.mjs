@@ -6,6 +6,7 @@ const preview=process.argv.includes('--preview');
 await rm(output,{recursive:true,force:true});
 await mkdir(output,{recursive:true});
 await cp(join(root,'assets'),join(output,'assets'),{recursive:true});
+await cp(join(root,'academy'),join(output,'academy'),{recursive:true});
 const pages=(await readdir(root)).filter(p=>p.endsWith('.html'));
 for(const filename of pages){
   let html=await readFile(join(root,filename),'utf8');

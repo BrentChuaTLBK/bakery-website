@@ -1,5 +1,17 @@
 project_id = "tlb-kitchen-ordering"
 
+[functions.academy-media]
+# The handler verifies the current customer/admin JWT and upload ownership.
+verify_jwt = false
+
+[functions.academy-backup]
+# Verified owner or the dedicated private cron token only.
+verify_jwt = false
+
+[functions.academy-unsubscribe]
+# A random, account-scoped unsubscribe token is required; no read access.
+verify_jwt = false
+
 [functions.newsletter]
 # Public capture and token actions; account actions validate Auth JWTs in code.
 verify_jwt = false

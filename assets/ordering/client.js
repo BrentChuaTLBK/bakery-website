@@ -177,6 +177,41 @@ export async function academyApi(action, payload = {}) {
   if(error)throw new Error(error.message || 'Academy could not complete that request.');
   return data;
 }
+
+export async function academyPortalApi(action, payload = {}) {
+  const client = await connection();
+  const { data, error } = await client.rpc('academy_portal_api', { p_action: action, p_payload: payload });
+  if (error) throw new Error(error.message || 'Academy could not complete this request.');
+  return data;
+}
+export const academyBackupConnection=(action,payload={})=>edge('academy-backup',{action,...payload});
+export async function academyBackupApi(action,payload={}) {
+  const client=await connection();const {data,error}=await client.rpc('academy_backup_api',{p_action:action,p_payload:payload});
+  if(error)throw new Error(error.message||'Academy backup status could not be loaded.');return data;
+}
+export async function academyPortalMedia(path) {
+  const client = await connection();
+  // Authenticated download, never a public URL or shareable bearer signed URL.
+  const { data, error } = await client.storage.from('academy-student-media').download(path);
+  if (error) throw new Error('This Academy photo is not available to your account.');
+  return data;
+}
+export async function academyPortalUpload(id, file, onProgress = () => {}) {
+  const client = await connection(), { data } = await client.auth.getSession();
+  if (!data.session) throw new Error('Sign in to upload your photo.');
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${config.supabaseUrl.replace(/\/$/, '')}/functions/v1/academy-media?id=${encodeURIComponent(id)}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${data.session.access_token}`);
+    xhr.setRequestHeader('apikey', config.supabasePublishableKey);
+    xhr.setRequestHeader('Content-Type', 'image/webp');
+    xhr.timeout = 90000;
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
+    xhr.onerror = xhr.ontimeout = () => reject(new Error('Photo upload interrupted. Please retry.'));
+    xhr.onload = () => { let result; try { result = JSON.parse(xhr.responseText); } catch {} if (xhr.status >= 200 && xhr.status < 300) resolve(result); else reject(new Error(result?.error || 'Photo upload failed. Please retry.')); };
+    xhr.send(file);
+  });
+}
 export async function academyUpload(file,id) {
   if(file.type!=='image/webp'||file.size>5*1024*1024)throw new Error('Choose a converted WebP image up to 5 MB.');
   const client=await connection();
@@ -288,3 +323,5 @@ export function toast(message, type = 'notice') {
   region.append(item);
   window.setTimeout(() => item.remove(), 8000);
 }
+
+export async function recipeFileBlob(path){const client=await connection();const {data,error}=await client.storage.from('recipe-files').download(path);if(error)throw Error('The source product photo could not be read.');return data;}
