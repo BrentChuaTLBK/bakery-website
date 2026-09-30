@@ -1,7 +1,8 @@
 # Recipe library and costing
 
-Release status: implemented on `codex/recipe-system`; production database and worker
-deployment require approval. The library is not enabled on the live website yet.
+Release status: production database and backup worker deployed on 30 September.
+The library is not enabled on the live website yet: GitHub integration access to
+the production repository blocks publication. PR #39 in the fork is ready for review.
 
 ## Access and approval
 

@@ -2,16 +2,29 @@
 
 ## Release state
 
-Implemented on `codex/recipe-system`, based on `823f2be`. Not deployed to production.
+Implemented on `codex/recipe-system`, based on `823f2be`. The backend is deployed;
+website publication is blocked by production-repository integration access.
 The owner-approved product decisions are implemented: owner-only approval,
 selected chef/kitchen permissions, hidden private information in kitchen mode,
 exact component requirements with optional batch rounding, costing included,
 and 30 daily / 12 monthly recipe backup retention in the dedicated Drive folder.
 
-Automatic approval review rejected applying the new production Supabase schema
-and RLS rules without explicit approval for this deployment. The migrations were
-not applied. The new worker is not deployed and no automatic recipe backups are
-active. The provisioned private Drive ZIP files are marked unused placeholders.
+The owner explicitly approved deployment on 30 September. Both migrations and
+recipe-backup Edge Function v1 are deployed. All 44 private Drive slots were
+verified before connection. The daily archive completed at 05:43 UTC and the
+unattended scheduler made its matching monthly copy at 05:45 UTC.
+
+Live checks: four unauthorized HTTP requests returned 401; twelve rollback-only
+database checks passed for owner/chef/kitchen permissions, publication, version
+isolation, duplication and private-data protection. No test accounts or formulas
+persisted. The downloaded Drive archive restored successfully into an isolated
+database with checksums and relationships verified. It contains 16 initial
+configuration/actor records, zero recipes and zero uploaded files; this does not
+verify photo-volume capacity.
+
+[PR #39](https://github.com/PlayerBC/TLBK-Website/pull/39) is ready for review.
+Creating the upstream PR still returns HTTP 403: Resource not accessible by
+integration. The live recipe page returns 404 until production source publication.
 
 ## Delivered
 
@@ -129,13 +142,14 @@ environment overrides are supported for the shared Codex dependency installation
 
 ## Remaining limits and release requirements
 
-1. **Production deployment and acceptance are pending explicit approval.** Do not
-   describe the tool as live or backups as active until deployment, a verified
-   Drive copy and an unattended scheduled run are recorded.
+1. **Website publication remains blocked by GitHub integration access.** The backend
+   and scheduler are active, but live browser acceptance requires publishing the
+   source to the production repository. The fork PR targets a review baseline;
+   merging it there does not publish the website.
 2. **Backup volume has a hosted runtime constraint.** The Edge worker processes a
    complete archive in one invocation. Supabase's CPU/wall-clock limits can be
    reached by a large photo/version library. The local 100 MiB benchmark is not a
-   hosted guarantee. Test representative volume before activation; use persisted
+   hosted guarantee. Test representative volume before importing a large library; use persisted
    continuation or a longer-running scheduled worker if it does not fit.
 3. OCR and table parsing produce review drafts, not guaranteed exact transcriptions.
    Word/PDF embedded photos are not automatically split into the recipe photo fields.
@@ -154,7 +168,7 @@ environment overrides are supported for the shared Codex dependency installation
 9. Your provided recipe originals and private preview assets remain local and are
    not published in this source PR. No live batch import has been performed.
 
-Recommended next work after approved deployment: record hosted backup capacity,
+Recommended next work: publish the website, record hosted backup capacity,
 verify next-day unattended retention, perform a staged hosted recovery, then add
 optional offline kitchen viewing and a consolidated production planner as separate
 changes. Detailed user and recovery instructions are in [RECIPES.md](RECIPES.md)

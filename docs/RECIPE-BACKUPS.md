@@ -2,14 +2,19 @@
 
 ## Current release status
 
-The implementation and isolated restore rehearsal are tested. The production
-recipe migrations and `recipe-backup` Edge Function have **not** been deployed.
-Automatic approval review rejected the live schema/RLS migration pending explicit
-owner approval. No successful live recipe backup is claimed.
+The owner approved deployment on 30 September 2026. Both recipe migrations and
+`recipe-backup` Edge Function v1 are deployed, and automatic backups are enabled.
+A real daily archive completed at 05:43 UTC; the unattended scheduler made a
+matching monthly copy at 05:45 UTC. Both are 10,553 bytes with SHA-256
+`58c2059c9850c91102b163f02e9aa18595e948d5da19c5942f31987de33eabb8`.
+The downloaded daily copy restored into an isolated database with checksum and
+relationship checks passing. It contains 16 initial configuration/actor records
+and no recipes/files. Hosted photo-volume capacity remains unverified.
 
 The owner-selected [Drive folder](https://drive.google.com/drive/folders/1rRxDTqAVqliCdx0OTRJK0XuLC4iHQyeg)
-has Daily, Monthly and Manual subfolders and 44 private placeholder ZIP slots.
-Each placeholder says it is unused; these are not recovery points. The connected
+has Daily, Monthly and Manual subfolders and 44 private ZIP slots.
+Two contain verified initial snapshots; the other 42 remain unused placeholders.
+Placeholders are not recovery points. The connected
 Drive account owns the files and the existing Google service account has writer
 access. This permits unattended updates without relying on a service account's
 unavailable personal Drive storage quota. No public/domain sharing was added.
@@ -108,7 +113,9 @@ the expected Google API origin/path. All supplied archive paths are validated.
 4. Using a verified owner session, connect the provisioned slot IDs in the private
    deployment record. Do not commit live access tokens or private deployment files.
    `connect` verifies all slots before enabling the connection. Provisioning alone
-   does not enable backups.
+   does not enable backups. For this deployment, the authorized database operator
+   configured the service connection after checking all 44 files through Drive;
+   the worker independently checked each actual upload target through Google.
 5. Verify real owner/chef/kitchen access against the deployed API. Run a small manual
    backup, download it from Drive, verify its manifest, and rehearse restoration.
 6. Verify an unattended scheduled run, monthly rotation, failure/retry status and

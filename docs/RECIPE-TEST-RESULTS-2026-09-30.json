@@ -1,5 +1,5 @@
 {
-  "verified_at": "2026-09-30T01:07:40.740Z",
+  "verified_at": "2026-09-30T01:07:40.74Z",
   "base_commit": "823f2bebcc75eeadf1235a9216ecd0acbf113868",
   "branch": "codex/recipe-system",
   "environment": "Isolated local PGlite and Playwright/Chrome, with mocked provider requests; not a live production acceptance run",
@@ -546,16 +546,28 @@
     "environment": "Local Node; not a hosted Edge runtime capacity claim"
   },
   "deployment": {
-    "database_applied": false,
-    "edge_deployed": false,
-    "automatic_backup_enabled": false,
+    "live_rollback_database_checks_passed": 12,
+    "automatic_backup_enabled": true,
+    "live_archive_files": 0,
+    "edge_deployed": true,
+    "live_archive_restore_verified": true,
+    "database_applied": true,
+    "edge_version": 1,
+    "website_blocker": "GitHub integration HTTP 403 for production repository",
+    "verified_live_recipe_archives": 2,
+    "live_archive_records": 16,
+    "deployed_migrations": [
+      "20260930053854_recipe_platform",
+      "20260930053912_recipe_backups"
+    ],
     "drive_slots_provisioned": 44,
-    "verified_live_recipe_archives": 0
+    "live_http_denials_passed": 4,
+    "website_published": false
   },
   "not_verified": [
-    "Live hosted access acceptance",
-    "Scheduled unattended Drive upload and retention",
+    "Live browser access acceptance after website publication",
     "Hosted large-photo-library capacity",
-    "Actual Supabase Auth/Storage disaster recovery"
+    "Actual Supabase Auth/Storage disaster recovery",
+    "Next-day daily retention"
   ]
 }
