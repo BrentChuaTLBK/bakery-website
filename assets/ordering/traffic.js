@@ -71,7 +71,7 @@
   const fields = {
     page_location: page.origin + page.pathname,
     page_referrer: referrer,
-    page_title: `${pages.get(page.pathname)} · The Little Baker Kitchen`,
+    page_title: `${pages.get(page.pathname)} · TLB Kitchen`,
     allow_google_signals: false,
     allow_ad_personalization_signals: false
   };

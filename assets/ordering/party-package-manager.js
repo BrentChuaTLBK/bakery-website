@@ -1,7 +1,7 @@
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { packageCard, packageGroups, packagePrice, packageEscape as esc, packageInclusions } from './party-packages-view.js?v=package-categories-1';
-import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
-import { bindOrderDrag, orderDragGrip } from './catalog-order.js?v=package-order-1';
+import { confirmDialog } from './site-dialog.js?v=brand-20261001';
+import { bindOrderDrag, orderDragGrip } from './catalog-order.js?v=brand-20261001';
 
 export function mountPartyPackageManager(root, { role, connected, api, cartApi, page = 'party' }) {
   const service = eventPage(page);
@@ -10,7 +10,7 @@ export function mountPartyPackageManager(root, { role, connected, api, cartApi, 
   }
   let items = [], categories = [], settings, cart, draft, mode, busy = false, operation, dragBindings;
   let loaded = false, dirty = false, returnFocus;
-  root.innerHTML = `<div class="view-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>${esc(service.adminTitle)}</h1><p>Manage the packages and inclusions on your ${service.pageName} page.</p></div><a class="button button-secondary" href="${service.pageUrl}" target="_blank" rel="noopener">View ${service.pageName.toLowerCase()} ↗</a></div>
+  root.innerHTML = `<div class="view-heading"><div><span class="eyebrow">TLB Kitchen</span><h1>${esc(service.adminTitle)}</h1><p>Manage the packages and inclusions on your ${service.pageName} page.</p></div><a class="button button-secondary" href="${service.pageUrl}" target="_blank" rel="noopener">View ${service.pageName.toLowerCase()} ↗</a></div>
     <div class="row-actions party-manager-actions"><button class="button" type="button" data-party-new disabled>Add package</button><button class="button button-secondary" type="button" data-party-categories disabled>Manage categories</button><button class="button button-secondary" type="button" data-party-settings disabled>Edit shared inclusions</button><button class="button button-secondary" type="button" data-party-refresh>Refresh</button></div>
     <p class="muted party-order-help" id="party-order-help">Drag the handles to rearrange packages within a category. Use arrow keys when a handle is focused. Order saves automatically. Edit a package to change its category.</p><p data-party-message role="status" aria-live="polite"></p><div data-party-list class="party-admin-list"></div><div data-party-shared></div>
     <section class="panel party-cart-admin"><div class="section-heading"><div><h2>Customize your own ${service.customName}</h2><p>Edit the treats customers can choose for a custom ${service.customName}.</p></div><button type="button" class="button button-secondary" data-party-cart disabled>Edit ${service.customName} items</button></div><p data-party-cart-message role="status"></p><ul data-party-cart-list class="party-cart-admin-list"></ul></section>

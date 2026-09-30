@@ -1,5 +1,5 @@
 import {escapeHtml as esc} from './client.js?v=order-backups-2';
-import {buildBackupWorkbook,validateBackup} from './order-backup.js?v=order-backups-2';
+import {buildBackupWorkbook,validateBackup} from './order-backup.js?v=brand-20261001';
 const errors={proof_missing:'An attached proof image could not be copied. The last good backup has been kept; check the image in the order and try again.',access:'Google access was denied. Check that the backup spreadsheet and proof ZIP are shared with the service account as an Editor.',api_disabled:'Enable Google Sheets API and Google Drive API in the service account’s Google Cloud project.',configuration:'The Google connection or the Orders, Items and Recovery tabs need attention.',quota:'Google has temporarily limited requests. The next scheduled run will retry.',too_large:'The backup is too large for this spreadsheet sync. Download the JSON recovery file and contact support.',network:'The last sync could not reach the backup service. It will retry automatically.'};
 const date=value=>value?new Date(value).toLocaleString('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}):'Not yet';
 const download=(blob,name)=>{const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);};
@@ -42,7 +42,7 @@ export function mountBackups(root,{role,connected,api,connection,archive,save=do
     const snapshot=validateBackup(await api('download',{scope}));
     const name=`TLB-orders-${scope}-${snapshot.generated_at.replace(/[:.]/g,'-')}`;
     if(action==='json')save(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),name+'.json');
-    else{const {excelLibrary}=await import('./accounting-export.js?v=order-backups-2');const wb=buildBackupWorkbook(snapshot,await excelLibrary());save(new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),name+'.xlsx');}
+    else{const {excelLibrary}=await import('./accounting-export.js?v=brand-20261001');const wb=buildBackupWorkbook(snapshot,await excelLibrary());save(new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),name+'.xlsx');}
     message=`Downloaded ${snapshot.orders.length} orders.`;
    }
    if(action==='refresh')message='Status refreshed. Times are shown in Asia/Manila.';

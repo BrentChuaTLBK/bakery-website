@@ -1,3 +1,4 @@
+import {brandName} from './brand.js?v=brand-20261001';
 import { escapeHtml as esc, money, formatDate } from './client.js?v=academy-1';
 
 import {deliveryStatusText} from './pos.js?v=pos-1';
@@ -46,7 +47,7 @@ function printModel(order, products, settings) {
   if(order.deferred_delivery) details.push({title:'Delivery payment',value:lines([deliveryStatusText(order),order.delivery_paid_cents?`Received: ${money(order.delivery_paid_cents)} via ${order.delivery_payment_method_label||label(order.delivery_payment_method)}`:'',order.delivery_payment_method==='cash'?`Cash: ${money(order.delivery_cash_received_cents)} | Change: ${money(order.delivery_change_cents)}`:''])});
   const status = [order.refund_label ? 'Refund label' : '', ['cancelled', 'expired'].includes(order.fulfillment_status) ? label(order.fulfillment_status) : '', `Payment: ${label(order.payment_status) || 'Not recorded'}`].filter(Boolean).join(' | ');
   return {
-    shop: text(settings.shop_name) || 'The Little Baker Kitchen', reference: text(order.reference) || 'Order',
+    shop: brandName(settings.shop_name), reference: text(order.reference) || 'Order',
     date: formatDate(order.fulfillment_date), method: popup ? 'In-person sale' : pickup ? 'Pickup' : 'Delivery', status,
     window: popup ? '' : text(pickup ? order.pickup_hours ?? settings.pickup_hours : order.delivery_window ?? settings.delivery_window),
     buyer: { name: text(buyer.name) || 'Not recorded', phone: text(buyer.phone) || 'Not recorded', social }, details,

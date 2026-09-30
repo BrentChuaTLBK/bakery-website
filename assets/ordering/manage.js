@@ -1,13 +1,14 @@
+import {brandName} from './brand.js?v=brand-20261001';
 import {mountMaintenance} from './maintenance-admin.js?v=maintenance-1';
 let maintenanceController=null;
-import {mountVoucherCampaigns} from './voucher-campaigns.js';
+import {mountVoucherCampaigns} from './voucher-campaigns.js?v=brand-20261001';
 let voucherController=null;
 import {bindDashboardNav} from './dashboard-nav.js?v=grouped-nav-1';
-import {paymentSettingsMarkup,readPaymentSettings,bindPaymentSettings} from './payment-options-manager.js?v=settings-layout-2';
-import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=offer-heading-2';
-import { confirmDialog } from './site-dialog.js?v=branded-dialogs-1';
+import {paymentSettingsMarkup,readPaymentSettings,bindPaymentSettings} from './payment-options-manager.js?v=brand-20261001';
+import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=brand-20261001';
+import { confirmDialog } from './site-dialog.js?v=brand-20261001';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
-import { mountAcademy } from './academy-manager.js?v=admin-lazy-1';
+import { mountAcademy } from './academy-manager.js?v=brand-20261001';
 import { renderNewsletterPromos } from './newsletter-promos.js?v=vouchers-1';
 import { prepareProductImage, productImageAccept } from './product-image.js?v=heic-2';
 import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=pos-2';
@@ -16,7 +17,7 @@ import { confirmOrderTotalChange } from './order-edit-confirmation.js?v=custom-c
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=pos-2';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
-import { printOrderSlips } from './order-slips.js?v=pos-cash-1';
+import { printOrderSlips } from './order-slips.js?v=brand-20261001';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
 import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
@@ -25,18 +26,18 @@ import { analyticsDateRange, buildAnalytics } from './analytics.js?v=pos-1';
 import { renderAnalytics } from './analytics-view.js?v=operations-1';
 import { bindSalesChart } from './sales-chart.js?v=sales-tooltip-1';
 import { renderPickupReminder } from './pickup-reminder.js?v=pickup-reminder-1';
-import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=pos-cash-1';
+import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=brand-20261001';
 import { monthRange } from './accounting.js?v=accounting-1';
 import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-2';
-import { mountGalleryManager } from './gallery-manager.js?v=gallery-thumbnails-1';
-import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=heic-2';
+import { mountGalleryManager } from './gallery-manager.js?v=brand-20261001';
+import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=brand-20261001';
 import { orderedCatalogProducts, productCategoryIds } from './catalog-ordering.js?v=multi-category-1';
-import { mountCatalogOrder } from './catalog-order.js?v=package-order-1';
+import { mountCatalogOrder } from './catalog-order.js?v=brand-20261001';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
-import { mountPartyPackageManager } from './party-package-manager.js?v=package-categories-1';
+import { mountPartyPackageManager } from './party-package-manager.js?v=brand-20261001';
 
 import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
-import {mountPOS} from './pos-manager.js?v=optional-override-reason-1';
+import {mountPOS} from './pos-manager.js?v=brand-20261001';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -134,7 +135,7 @@ const formError = '<div class="form-error" role="alert"></div>';
 const actions = (text = 'Save changes', permission = 'owner') => `<div class="dialog-actions"><button type="button" class="button button-secondary" data-action="close-dialog">Cancel</button><button type="submit" class="button" ${permission === 'owner' ? ownerLocked() : locked()}>${esc(text)}</button></div>`;
 const fieldValue = (form, name) => form.elements.namedItem(name)?.value?.trim() ?? '';
 const fieldChecked = (form, name) => Boolean(form.elements.namedItem(name)?.checked);
-const heading = (title, subtitle, buttons = '') => `<div class="view-heading"><div><span class="eyebrow">The Little Baker Kitchen</span><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>${buttons ? `<div class="row-actions">${buttons}</div>` : ''}</div>`;
+const heading = (title, subtitle, buttons = '') => `<div class="view-heading"><div><span class="eyebrow">TLB Kitchen</span><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>${buttons ? `<div class="row-actions">${buttons}</div>` : ''}</div>`;
 const empty = (title, description, action = '') => `<div class="empty-state"><div class="empty-icon" aria-hidden="true">♧</div><h3>${esc(title)}</h3><p>${esc(description)}</p>${action}</div>`;
 
 function setupNotice() {
@@ -226,13 +227,13 @@ function render() {
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if(state.view==='backups'){
     const root=$('#backup-manager');root.textContent='Opening order backups…';
-    Promise.all([import('./backup-manager.js?v=order-backups-2'),import('./client.js?v=order-backups-2')]).then(([view,client])=>{
+    Promise.all([import('./backup-manager.js?v=brand-20261001'),import('./client.js?v=order-backups-2')]).then(([view,client])=>{
       if(root.isConnected)view.mountBackups(root,{role:state.role,connected:state.connected,api:client.orderBackupApi,connection:client.orderBackupConnection,archive:client.orderBackupDownload});
     }).catch(()=>{if(root.isConnected)root.textContent='Order backups could not load. Open this tab again to retry.';});
   }
   if (state.view === 'homepage') {
     const root = $('#homepage-manager'); root.textContent = 'Opening the Website content editor…';
-    Promise.all([import('./homepage-manager.js?v=website-content-1'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
+    Promise.all([import('./homepage-manager.js?v=brand-20261001'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
       if(root.isConnected) view.mountHomepage(root,{role:state.role,connected:state.connected,api:client.homepageApi,upload});
     }).catch(() => { if(root.isConnected) root.textContent = 'The Home page editor could not load. Open this tab again to retry.'; });
   }
@@ -434,7 +435,7 @@ function settingsView() {
       <div class="settings-grid">
         <section class="panel">
           <h2>Your business</h2>
-          ${input('shop_name', 'Shop name', s.shop_name || 'The Little Baker Kitchen', 'text', 'required maxlength="120"')}
+          ${input('shop_name', 'Shop name', brandName(s.shop_name), 'text', 'required maxlength="120"')}
           ${input('contact_email', 'Contact email', s.contact_email, 'email', 'required')}
           ${input('contact_phone', 'Contact number', s.contact_phone, 'tel', 'required maxlength="40"')}
           ${input('site_url', 'Ordering website URL', s.site_url || '', 'url', 'placeholder="https://thelittlebakerkitchen.com"', 'Order emails link customers to this website.')}

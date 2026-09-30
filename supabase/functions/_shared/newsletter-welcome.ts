@@ -14,7 +14,7 @@ function renderLegacyNewsletterWelcome(payload: any): { html: string; text: stri
   if (site.protocol !== "https:" || site.username || site.password || !/^[a-f0-9]{64}$/.test(payload.unsubscribe_token || "")) {
     throw new HttpError(503, "Newsletter welcome needs an HTTPS site URL and unsubscribe link.");
   }
-  const shop = settings.shop_name || "The Little Baker Kitchen";
+  const shop = (settings.shop_name || "The Little Baker Kitchen");
   const menu = new URL("/shop.html", site).toString();
   const unsubscribe = new URL("/newsletter.html", site);
   unsubscribe.hash = `unsubscribe=${payload.unsubscribe_token}`;
@@ -46,7 +46,7 @@ function renderNewsletterWelcomeV2(payload: any): { html: string; text: string }
   if (site.protocol !== "https:" || site.username || site.password || !/^[a-f0-9]{64}$/.test(payload.unsubscribe_token || "")) {
     throw new HttpError(503, "Newsletter welcome needs an HTTPS site URL and unsubscribe link.");
   }
-  const shop = settings.shop_name || "The Little Baker Kitchen";
+  const shop = (settings.shop_name || "The Little Baker Kitchen");
   const menu = new URL("/shop.html", site).toString();
   const unsubscribe = new URL("/newsletter.html", site);
   unsubscribe.hash = `unsubscribe=${payload.unsubscribe_token}`;
