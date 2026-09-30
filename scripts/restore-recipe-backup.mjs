@@ -16,10 +16,10 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
  try{
   for(const actor of tables.actors)await db.query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) on conflict(id) do nothing',[actor.id,actor.email]);
   const actors=new Set(tables.actors.map(a=>a.id));
-  for(const rows of Object.values(tables))for(const row of rows)for(const key of ['created_by','updated_by','actor','user_id','granted_by'])if(row[key]&&!actors.has(row[key]))throw Error(`Actor ${row[key]} is not present in the recovery map.`);
+  for(const rows of Object.values(tables))for(const row of rows)for(const key of ['created_by','updated_by','actor','user_id','granted_by','accepted_by'])if(row[key]&&!actors.has(row[key]))throw Error(`Actor ${row[key]} is not present in the recovery map.`);
   for(const actor of tables.actors)if(['owner','staff'].includes(actor.role))await db.query('insert into tlb.staff(user_id,role) values($1,$2) on conflict(user_id) do nothing',[actor.id,actor.role]);
-  for(const permission of tables.recipe_access)await db.query("insert into tlb.staff(user_id,role) values($1,'staff') on conflict(user_id) do nothing",[permission.user_id]);
   const order=['recipe_settings','recipe_categories','recipe_resources','recipe_supplier_items','recipe_prices','recipes','recipe_versions','recipe_links','recipe_ingredient_links','recipe_tests','recipe_runs','recipe_files','recipe_file_links','recipe_user_state','recipe_drafts','recipe_audit','recipe_access'];
+  if(tables.recipe_invitations)order.push('recipe_invitations');
   const counts={};
   for(const table of order){
    const columns=(await db.query("select column_name from information_schema.columns where table_schema='tlb' and table_name=$1 and is_generated='NEVER' order by ordinal_position",[table])).rows.map(r=>r.column_name);
@@ -37,9 +37,14 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
   await db.exec("select setval(pg_get_serial_sequence('tlb.recipe_audit','id'),coalesce((select max(id) from tlb.recipe_audit),1),exists(select 1 from tlb.recipe_audit))");
   // Compare the complete restored JSON, not just counts. Generated search fields
   // are derived from the document and therefore excluded from the comparison.
-  for(const table of order){const restored=(await db.query(`select to_jsonb(t)${table==='recipe_versions'?"-'search_text'-'kitchen_search'":''} row from tlb.${table} t`)).rows.map(r=>r.row);
+  for(const table of order){const exclude=table==='recipe_versions'?"-'search_text'-'kitchen_search'":'';
+   const restored=(await db.query(`select to_jsonb(t)${exclude} row from tlb.${table} t`)).rows.map(r=>r.row);
+   // Use the database types for both sides. A timestamptz can serialize in UTC
+   // or the recovery machine's timezone while retaining the same microseconds.
+   // Nested JSON and user-entered date strings remain untouched.
+   const expected=(await db.query(`select to_jsonb(t)${exclude} row from jsonb_populate_recordset(null::tlb.${table},$1::jsonb) t`,[JSON.stringify(tables[table])])).rows.map(r=>r.row);
    const sorted=value=>Array.isArray(value)?value.map(sorted):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,sorted(value[k])])):value;
-   const canonical=value=>JSON.stringify(sorted(value));const before=tables[table].map(canonical).sort(),after=restored.map(canonical).sort();if(JSON.stringify(before)!==JSON.stringify(after))throw Error(`Restored values differ: ${table}`);
+   const canonical=value=>JSON.stringify(sorted(value));const before=expected.map(canonical).sort(),after=restored.map(canonical).sort();if(JSON.stringify(before)!==JSON.stringify(after))throw Error(`Restored values differ: ${table}`);
   }
   await db.exec('commit');return {format:'tlb-recipe-restore-rehearsal',verified_at:new Date().toISOString(),record_count:backup.manifest.record_count,files:backup.files.length,counts,relationships:true,checksums:true,production_modified:false};
  }catch(error){await db.exec('rollback');throw error;}

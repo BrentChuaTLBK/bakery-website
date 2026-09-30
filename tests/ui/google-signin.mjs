@@ -25,7 +25,7 @@ const errors=[],requests=[],out=resolve(root,'work');await mkdir(out,{recursive:
 let checks=0;
 const check=(name,value)=>{assert.ok(value,name);checks++;};
 try{
- async function fixture({enabled=true,settingsError=false,oauthFails=false,user=null,remembered=null}={}){
+ async function fixture({enabled=true,settingsError=false,oauthFails=false,user=null,remembered=null,recipeRole=null}={}){
   const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
   await context.addInitScript(({oauthFails,user,remembered})=>{
    window.oauthFails=oauthFails;window.testUser=user;
@@ -34,6 +34,7 @@ try{
   },{oauthFails,user,remembered});
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());
+   if(url.pathname==='/rest/v1/rpc/recipe_api'){assert.deepEqual(route.request().postDataJSON(),{p_action:'bootstrap',p_payload:{}});assert.equal(route.request().headers().authorization,'Bearer fixture');return route.fulfill({status:recipeRole?200:403,contentType:'application/json',body:JSON.stringify(recipeRole?{role:recipeRole}:{message:'No recipe access'})});}
    if(url.pathname==='/auth/v1/settings')return route.fulfill({status:settingsError?503:200,contentType:'application/json',body:JSON.stringify({external:{google:enabled}})});
    if(url.pathname==='/rest/v1/rpc/newsletter_offer')return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:true,kind:'percent',value:5,valid_days:30,min_subtotal_cents:30000,cap_cents:10000})});
    if(url.pathname==='/functions/v1/newsletter'){const input=route.request().postDataJSON();if(input.action==='subscribe')await route.request().frame().evaluate(()=>window.newsletterSubscribes=(window.newsletterSubscribes||0)+1);return route.fulfill({contentType:'application/json',body:JSON.stringify({status:input.action==='subscribe'?'subscribed':'not_subscribed'})});}
@@ -66,6 +67,7 @@ try{
  check('Google signup does not opt into the newsletter',await f.page.locator('[name=newsletter]').isChecked()===false);
  await f.page.locator('[data-mode=signin]').click();await f.page.locator('[name=email]').fill('existing@example.test');await f.page.locator('[name=password]').fill('fixture-password');await f.page.locator('#auth-form button[type=submit]').click();await f.page.waitForURL(origin+'/shop.html');check('Password login remains available after OAuth error',true);await f.context.close();
  const user={id:'same-existing-user',email:'existing@example.test',email_confirmed_at:'2026-09-19T00:00:00Z'};
+ for(const recipeRole of ['kitchen','chef']){f=await fixture({user,recipeRole});await f.page.goto(origin+'/account.html');await f.page.getByRole('link',{name:recipeRole==='kitchen'?'Kitchen recipes':'Recipe library',exact:true}).waitFor();check('Recipe-only '+recipeRole+' account has a recipe link without shop staff access',await f.page.locator('#staff-link').isHidden());await f.context.close();}
  f=await fixture({user});await f.context.addInitScript(()=>sessionStorage.setItem('tlb-newsletter-signup-consent',String(Date.now())));await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+'/shop.html');check('Explicit Google signup consent suppresses the newsletter popup',await f.page.evaluate(()=>localStorage.getItem('tlb-newsletter-preference'))==='subscribed');await f.context.close();
  for(const destination of ['/shop.html#checkout','/account.html','/manage.html','/manage.html#pos']){
   f=await fixture({user,remembered:destination});await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+destination);

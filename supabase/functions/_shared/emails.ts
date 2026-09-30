@@ -1,4 +1,5 @@
 import {renderOperationEmail} from './operation-email.ts';
+import {renderRecipeAccessEmail} from './recipe-access-email.ts';
 import {renderNewsletterCampaign} from '../../../assets/ordering/newsletter-templates.js';
 import { HttpError } from "./server.ts";
 import { renderNewsletterWelcome } from "./newsletter-welcome.ts";
@@ -7,6 +8,7 @@ import { renderBrandedEmail } from "./emails-branded.ts";
 import { renderVoucherEmail } from '../../../assets/ordering/voucher-email.js';
 
 export function renderEmail(payload: any): {html: string; text: string} {
+  if (payload?.event_type === 'recipe_access_invitation') return renderRecipeAccessEmail(payload);
   if (payload?.event_type === 'operational_alert') return renderOperationEmail(payload);
   if (payload?.event_type === 'newsletter_voucher') return renderVoucherEmail(payload);
   const legacy = renderLegacyEmail(payload);

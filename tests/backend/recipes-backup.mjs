@@ -8,6 +8,7 @@ import {digestBytes} from '../../assets/ordering/recipe-archive.js';
 import {readRecipeArchive} from '../../assets/ordering/recipe-recovery.js';
 import {rehearseRecipeRestore} from '../../scripts/restore-recipe-backup.mjs';
 export default async function({db,check}){
+ await db.exec("set timezone='UTC'");
  const h=await makeHarness(db),owner=h.ids.owner;
  const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
  const backup=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
@@ -22,6 +23,11 @@ export default async function({db,check}){
  let recipe=await api('create',{document:doc,status:'production'});
  await api('save_test',{recipe_id:recipe.id,version_id:recipe.version_id,data:{observations:'Soft center',rating:4},proposed_document:doc});
  await api('record_run',{version_id:recipe.version_id,variant_id:'base',multiplier:'2',actual_yield:'2',produced_on:'2026-09-30',notes:'Backup fixture production run'});
+ await api('invite_access',{email:'customer@example.test',permission:'kitchen',send_email:false});
+ await api('invite_access',{email:'pending-restore@example.test',permission:'chef',send_email:false});
+ const image=await api('reserve_file',{filename:'packaging.png',mime_type:'image/png',size_bytes:blobBytes.length,sha256:sha});
+ await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[image.path,JSON.stringify({size:blobBytes.length,mimetype:image.mime_type})]);await api('confirm_file',{id:image.id});
+ await api('save_resource',{id:packaging.id,revision:packaging.revision,kind:'packaging',name:packaging.name,data:{...packaging.data,supplier_id:supplier.id,photos:[{file_id:image.id,caption:'Box for the cake'}]}});
  let start,archive;
  await check('recipe backup is owner-only and cannot report success without Drive verification',async()=>{
   await assert.rejects(()=>backup('status',{},h.ids.staff),/Authorized recipe/);
@@ -35,16 +41,19 @@ export default async function({db,check}){
   const changed=structuredClone(doc);changed.name='QA Newer cake';recipe=await api('save',{id:recipe.id,revision:recipe.revision,document:changed,status:'draft'});
   await api('save_resource',{id:ingredient.id,revision:ingredient.revision,kind:'ingredient',name:'QA Sugar',data:{default_unit:'g'},price:{amount:'120',quantity:'1',unit:'kg'}});
   const page=await service('page',{job_id:start.job_id,lease_token:start.lease_token,table:'recipes'});assert.equal(page.rows[0].data.name,'QA Backed-up cake');
-  const parts=[];for await(const part of buildRecipeArchive(start,service,async f=>{assert.equal(f.id,file.id);return blobBytes;}))parts.push(part);archive=new Blob(parts);
-  const recovered=await readRecipeArchive(archive);assert.equal(recovered.files.length,1);assert.equal(await recovered.files[0].blob.text(),new TextDecoder().decode(blobBytes));
+  const parts=[];for await(const part of buildRecipeArchive(start,service,async f=>{assert.ok([file.id,image.id].includes(f.id));return blobBytes;}))parts.push(part);archive=new Blob(parts);
+  const recovered=await readRecipeArchive(archive);assert.equal(recovered.files.length,2);assert.equal(await recovered.files[0].blob.text(),new TextDecoder().decode(blobBytes));
   assert.equal(recovered.tables.recipes[0].name,'QA Backed-up cake');assert.equal(recovered.tables.recipe_prices.length,2);
   assert.equal(recovered.tables.recipe_versions[0].document.variants[0].groups[0].ingredients[0].cost_snapshot.amount,'100');
   assert.equal(recovered.tables.recipe_runs.length,1);assert.equal(Number(recovered.tables.recipe_runs[0].actual_yield),2);
  })();
- await check('complete archive restores into an isolated database with matching nested formulas and relationships',async()=>{
+ await check('complete archive restores across timezones with matching nested formulas, timestamps and relationships',async()=>{
   const require=createRequire(process.env.PGLITE_PACKAGE_ROOT?join(resolve(process.env.PGLITE_PACKAGE_ROOT),'package.json'):import.meta.url);
   const {PGlite}=require('@electric-sql/pglite'),{pgcrypto}=require('@electric-sql/pglite/contrib/pgcrypto');const isolated=new PGlite({extensions:{pgcrypto}});
-  try{const restored=await rehearseRecipeRestore(archive,{db:isolated});assert.equal(restored.relationships,true);assert.equal(restored.files,1);assert.equal(restored.production_modified,false);
+  try{await isolated.exec("set timezone='Asia/Manila'");const restored=await rehearseRecipeRestore(archive,{db:isolated});assert.equal(restored.relationships,true);assert.equal(restored.files,2);assert.equal(restored.production_modified,false);
+   assert.equal((await isolated.query('select count(*)::int n from tlb.staff where user_id=$1',[h.ids.customer])).rows[0].n,0);
+   assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_invitations')).rows[0].n,2);
+   assert.equal((await isolated.query('select data from tlb.recipe_resources where id=$1',[packaging.id])).rows[0].data.photos[0].caption,'Box for the cake');
    assert.equal((await isolated.query('select document from tlb.recipe_versions')).rows[0].document.variants[0].groups[0].ingredients[0].quantity,'424');
    assert.equal(Number((await isolated.query('select actual_yield from tlb.recipe_runs')).rows[0].actual_yield),2);
    const maximum=Number((await isolated.query('select max(id) id from tlb.recipe_audit')).rows[0].id||0);

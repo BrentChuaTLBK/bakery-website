@@ -49,6 +49,7 @@ try {
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin === origin) return route.continue();
+      if (url.pathname === '/rest/v1/rpc/recipe_api') { assert.deepEqual(route.request().postDataJSON(), {p_action:'bootstrap',p_payload:{}}); return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({message:'Recipe access not granted to newsletter fixture'})}); }
       if (url.pathname === '/rest/v1/rpc/homepage_api' && route.request().postDataJSON()?.p_action === 'browse') return route.fulfill({contentType:'application/json',body:'null'});
       if (url.pathname === '/rest/v1/rpc/newsletter_offer') return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:true,kind:'percent',value:5,min_subtotal_cents:30000,cap_cents:10000,valid_days:30,expires_at:null})});
       if (url.pathname === '/auth/v1/settings') return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({external:{google:false}})});
@@ -201,4 +202,3 @@ try {
   assert.deepEqual(errors,[]); assert.deepEqual(forbidden,[]);
   console.log('PASS: once-only popup on mobile and across devices; modal exclusion; demo/order suppression; immediate subscription, legacy links and private-token scrubbing; optional signup and independent retry; subscribe/unsubscribe preferences. No live emails.');
 } catch(e){console.log('UI errors',errors);throw e;} finally { await browser?.close(); await new Promise(resolveClose => server.close(resolveClose)); }
-

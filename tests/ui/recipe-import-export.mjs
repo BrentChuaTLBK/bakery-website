@@ -11,7 +11,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript'
 const server=createServer(async(req,res)=>{try{const file=resolve(root,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));if(!file.startsWith(root+sep))throw Error();res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.statusCode=404;res.end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const origin=`http://127.0.0.1:${server.address().port}`,browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||'C:/Program Files/Google/Chrome/Application/chrome.exe'}),page=await browser.newPage({viewport:{width:1200,height:1000}}),errors=[],checks=[];
 page.on('pageerror',e=>errors.push(e.message));
-await page.route('**/assets/ordering/client.js',route=>route.fulfill({contentType:'text/javascript',body:'export const ready=Promise.resolve(),auth=null,recipeApi=async()=>({}),uploadRecipeFile=async()=>({}),recipeFileUrl=async()=>"";'}));
+await page.route('**/assets/ordering/client.js*',route=>route.fulfill({contentType:'text/javascript',body:'export const ready=Promise.resolve(),auth=null,recipeApi=async()=>({}),uploadRecipeFile=async()=>({}),recipeFileUrl=async()=>"";'}));
 const source='QA Vanilla Cookies\nSugar 120 g\nFlour 250 g\nMethod\n1. Mix sugar and flour.\n2. Bake at 180 C for 12 minutes.';
 try{
  await page.goto(origin+'/recipes.html');
