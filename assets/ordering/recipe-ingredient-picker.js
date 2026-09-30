@@ -1,5 +1,5 @@
-import {convert,exact,unitInfo} from './recipe-math.js';
-import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=2';
+import {convert,exact,unitInfo} from './recipe-math.js?v=production-audit-1';
+import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=production-audit-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function selectRecipeIngredient(row,resource){

@@ -1,4 +1,4 @@
-import {safeArchivePath,validateRecipeManifest,newDigest,finishDigest} from './recipe-archive.js';
+import {safeArchivePath,validateRecipeManifest,newDigest,finishDigest} from './recipe-archive.js?v=production-audit-1';
 const decoder=new TextDecoder('utf-8',{fatal:true});
 async function view(blob,offset,length){if(offset<0||offset+length>blob.size)throw Error('Archive is truncated.');return new DataView(await blob.slice(offset,offset+length).arrayBuffer());}
 async function zipDirectory(blob){

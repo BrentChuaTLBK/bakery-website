@@ -1,4 +1,4 @@
-import {ingredientCost,displayQuantity,compare} from './recipe-math.js';
+import {ingredientCost,displayQuantity,compare} from './recipe-math.js?v=production-audit-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountSupplierQuotes(container,{record,suppliers,defaultUnit}){
  const available=id=>!id||suppliers.some(s=>s.id===id);

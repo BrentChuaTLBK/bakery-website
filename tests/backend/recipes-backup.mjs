@@ -20,6 +20,8 @@ export default async function({db,check}){
  const file=await api('reserve_file',{filename:'source.txt',mime_type:'text/plain',size_bytes:blobBytes.length,sha256:sha});
  await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[file.path,JSON.stringify({size:blobBytes.length,mimetype:file.mime_type})]);await api('confirm_file',{id:file.id});
  const doc={name:'QA Backed-up cake',category_id:null,private_notes:'Keep recipe private',files:[{id:file.id,visibility:'private'}],variants:[{id:'base',name:'8 inch',yield:{quantity:'1',unit:'cake',portions:'8'},groups:[{id:'batter',name:'Batter',ingredients:[{id:'sugar',ingredient_id:ingredient.id,name:'Sugar',quantity:'424',unit:'g'}]}],methods:[{name:'Bake',steps:[{id:'bake',instruction:'Bake carefully.'}]}],additional_costs:[{name:'Packaging',amount:'30'}]}]};
+ doc.variants[0].costing={mode:'saleable',saleable_yield:'1',sale_unit:'whole_cake',price_basis:'unit',selling_price:'200',labor_percent:'20'};
+ doc.variants[0].additional_costs[0].kind='packaging';
  let recipe=await api('create',{document:doc,status:'production'});
  await api('save_test',{recipe_id:recipe.id,version_id:recipe.version_id,data:{observations:'Soft center',rating:4},proposed_document:doc});
  await api('record_run',{version_id:recipe.version_id,variant_id:'base',multiplier:'2',actual_yield:'2',produced_on:'2026-09-30',notes:'Backup fixture production run'});
@@ -47,6 +49,8 @@ export default async function({db,check}){
   const recovered=await readRecipeArchive(archive);assert.equal(recovered.files.length,2);assert.equal(await recovered.files[0].blob.text(),new TextDecoder().decode(blobBytes));
   assert.equal(recovered.tables.recipes[0].name,'QA Backed-up cake');assert.equal(recovered.tables.recipe_prices.length,2);
   assert.equal(recovered.tables.recipe_versions[0].document.variants[0].groups[0].ingredients[0].cost_snapshot.amount,'100');
+  assert.deepEqual(recovered.tables.recipe_versions[0].document.variants[0].costing,doc.variants[0].costing);
+  assert.equal(Number(recovered.tables.recipe_versions[0].cost_snapshot.variants[0].profit),113.12);
   assert.equal(recovered.tables.recipe_runs.length,1);assert.equal(Number(recovered.tables.recipe_runs[0].actual_yield),2);
  })();
  await check('complete archive restores across timezones with matching nested formulas, timestamps and relationships',async()=>{
@@ -59,6 +63,8 @@ export default async function({db,check}){
    const deletedResource=(await isolated.query('select * from tlb.recipe_resources where id=$1',[removed.id])).rows[0];assert.ok(deletedResource.deleted_at);assert.equal(deletedResource.data.notes,'Restore this note');
    assert.ok((await isolated.query('select deleted_at from tlb.recipe_categories where id=$1',[removedCategory.id])).rows[0].deleted_at);
    assert.equal((await isolated.query('select document from tlb.recipe_versions')).rows[0].document.variants[0].groups[0].ingredients[0].quantity,'424');
+   const recoveredVersion=(await isolated.query('select document,cost_snapshot from tlb.recipe_versions')).rows[0];
+   assert.deepEqual(recoveredVersion.document.variants[0].costing,doc.variants[0].costing);assert.equal(Number(recoveredVersion.cost_snapshot.variants[0].adjusted_cost),86.88);
    assert.equal(Number((await isolated.query('select actual_yield from tlb.recipe_runs')).rows[0].actual_yield),2);
    const maximum=Number((await isolated.query('select max(id) id from tlb.recipe_audit')).rows[0].id||0);
    const event=(await isolated.query("insert into tlb.recipe_audit(action,details) values('restore_rehearsal_next_edit','{}') returning id")).rows[0];assert.ok(Number(event.id)>maximum);
