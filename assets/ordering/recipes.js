@@ -1,6 +1,7 @@
 import {ready,auth,recipeApi as api,uploadRecipeFile,recipeFileUrl} from './client.js?v=recipe-system-2';
 import {mountSupplierQuotes} from './recipe-suppliers.js?v=2';
 import {resourceTableMarkup} from './recipe-resource-table.js?v=2';
+import {recipeLoadingMarkup} from './recipe-loading.js';
 import {confirmDialog} from './site-dialog.js';
 import {prepareProductImage} from './product-image.js';
 import * as model from './recipe-model.js';
@@ -27,6 +28,9 @@ const closeDialog=()=>dialog.close();
 const canEdit=()=>state.role!=='kitchen'&&!state.kitchen;
 const isOwner=()=>state.role==='owner'&&!state.kitchen;
 function shell(content,{tabs=true}={}) {
+ const loading=content.includes('data-recipe-loading'),wasLoading=root.getAttribute('aria-busy')==='true';
+ root.classList.toggle('recipe-loading-ready',wasLoading&&!loading);
+ if(loading)root.setAttribute('aria-busy','true');else root.removeAttribute('aria-busy');
  root.classList.toggle('recipe-production',state.kitchen||state.role==='kitchen');
  root.innerHTML=`${tabs?`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.kitchen?'Approved formulas, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div><nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['access','Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
 }
@@ -54,8 +58,9 @@ async function leaveEditor(){
 }
 async function library(){
  state.record=null;state.editing=false;state.tab='library';const request=++state.request;
- shell('<p role="status">Loading recipes…</p>');
- const data=await api('list',{...state.filters,offset:state.offset,limit:state.limit,kitchen:state.kitchen});if(request!==state.request)return;
+ shell(recipeLoadingMarkup());
+ let data;try{data=await api('list',{...state.filters,offset:state.offset,limit:state.limit,kitchen:state.kitchen});}catch(error){if(request===state.request&&state.tab==='library')sectionLoadError(error);return;}
+ if(request!==state.request||state.tab!=='library')return;
  shell(`<div class="recipe-filters"><label>Find a recipe or ingredient<input type="search" data-filter="query" value="${esc(state.filters.query||'')}" placeholder="Search your recipes"></label>
   <label>Category<select data-filter="category_id"><option value="">All categories</option>${state.categories.filter(c=>!c.deleted_at).map(c=>`<option value="${c.id}" ${state.filters.category_id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
   ${!state.kitchen?`<label>Status<select data-filter="status"><option value="">All statuses</option>${['draft','testing','approved','production','archived'].map(s=>`<option ${state.filters.status===s?'selected':''}>${s}</option>`).join('')}</select></label>`:''}
@@ -130,6 +135,7 @@ function renderRecipe(){
 }
 
 const resourceLabels={ingredient:'Ingredients',packaging:'Packaging',supplier:'Suppliers',equipment:'Equipment',categories:'Categories & subcategories'};
+function sectionLoadError(error){shell(`<section class="recipe-card recipe-empty" role="alert"><h2>This section could not load</h2><p>${esc(error.message||'Check your connection and try again.')}</p>${button('Try again','reload-section','','primary')}</section>`);}
 function renderResourceResults(){
  const container=root.querySelector('[data-resource-results]');if(!container)return;
  container.innerHTML=resourceTableMarkup(state.resources,{kind:state.tab,sort:state.resourceSort,canDelete:isOwner()});
@@ -144,9 +150,10 @@ async function resources(kind,{refresh=false}={}){
  const request=++state.resourceRequest,query=state.resourceQuery||'';
  state.tab=kind;state.record=null;state.editing=false;
  const existing=refresh?root.querySelector(`[data-resource-kind="${kind}"]`):null;
- if(existing)existing.querySelector('[data-resource-results]').setAttribute('aria-busy','true');else shell('<p role="status">Loading…</p>');
+ if(existing)existing.querySelector('[data-resource-results]').setAttribute('aria-busy','true');else shell(recipeLoadingMarkup({rows:true}));
  let result;
  try{result=await api('resources',{kind,query,limit:100,include_inactive:true,deleted:!!state.resourceDeleted});}
+ catch(error){if(request===state.resourceRequest&&state.tab===kind){if(existing)showError(error);else sectionLoadError(error);}return;}
  finally{if(request===state.resourceRequest)existing?.querySelector('[data-resource-results]')?.setAttribute('aria-busy','false');}
  if(request!==state.resourceRequest||state.tab!==kind||query!==(state.resourceQuery||'')||state.editing)return;
  state.resources=result.rows;
@@ -229,6 +236,7 @@ async function performSave(form){
 function move(array,from,to){if(to<0||to>=array.length)return;const [item]=array.splice(from,1);array.splice(to,0,item);}
 async function action(name,a={}){
  const v=state.doc?.variants[state.variant];
+ if(name==='reload-section')return state.tab==='library'?library():resources(state.tab);
  if(name==='toggle-deleted'){state.resourceDeleted=!state.resourceDeleted;state.resourceQuery='';return state.tab==='categories'?categories():resources(state.tab);}
  if(['delete-resource','restore-resource','delete-category','restore-category'].includes(name)){
   const category=name.endsWith('category'),restore=name.startsWith('restore'),record=state.resources.find(r=>r.id===a.id)||(state.resourceEditing?.id===a.id?state.resourceEditing:null);

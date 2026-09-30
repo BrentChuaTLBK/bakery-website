@@ -3,6 +3,7 @@
 const root=document.querySelector('#recipe-main');
 let timeout;
 function unavailable(){
+ root.removeAttribute('aria-busy');
  const panel=document.createElement('section');panel.className='recipe-empty';panel.setAttribute('role','alert');
  const title=document.createElement('h1');title.textContent='Your recipe library could not open';
  const message=document.createElement('p');message.textContent='Check your connection, then reload. If you just updated the website, use Ctrl + Shift + R on Windows or Command + Shift + R on Mac.';
@@ -13,7 +14,7 @@ function unavailable(){
 }
 try {
  await Promise.race([
-  import('./recipes.js?v=4').then(module=>module.startRecipeLibrary()),
+  import('./recipes.js?v=5').then(module=>module.startRecipeLibrary()),
   new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Recipe startup timed out.')),20000);}),
  ]);
 }catch{unavailable();}

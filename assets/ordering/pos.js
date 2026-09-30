@@ -13,6 +13,7 @@ export function posEstimate(items,discount,delivery=0) {
  return {subtotal_cents:subtotal,discount_cents:off,delivery_cents:delivery,total_cents:subtotal-off+delivery};
 }
 export function paymentProofAllowed(order,now=Date.now()) {
+ if(order.uploads_paused)return false;
  if(deliveryProofAllowed(order))return true;
  return order.payment_status==='awaiting_payment'&&order.fulfillment_status==='pending_confirmation'&&
   ((order.source==='direct_message'&&order.payment_deadline===null)||new Date(order.payment_deadline).getTime()>now);
