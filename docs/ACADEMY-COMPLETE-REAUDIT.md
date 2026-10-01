@@ -10,7 +10,7 @@ This change fixes three reproduced defects and adds the requested announcement p
 - Announcement editors have a Preview button. Admin can inspect the student card and full announcement using unsaved fields and the selected photo, then return to editing. Preview performs no save, upload reservation, publication or read-state write. Existing photos use the authorized media path; local photo URLs are released when the preview closes or the route changes.
 - Student announcements and Admin preview share rendering. Empty CTA URLs do not produce an unintended link. Unsafe links and text are handled by the existing URL policy and HTML escaping.
 
-The announcement preview was explicitly requested during the audit. Upcoming-class preview, separate Save draft / Publish actions, and the other optional UI proposals remain unimplemented pending approval. Current status and scheduling rules remain in use.
+At this audit checkpoint, announcement preview was the only approved optional addition. The owner subsequently approved the visual comparisons on 2 October 2026; the implementation and current validation are recorded in [ACADEMY-APPROVED-REAUDIT.md](ACADEMY-APPROVED-REAUDIT.md).
 
 ## Validation
 

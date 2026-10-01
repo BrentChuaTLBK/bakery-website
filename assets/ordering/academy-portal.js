@@ -1,13 +1,18 @@
-import {ready,auth,academyPortalApi as rawApi,academyPortalMedia,academyPortalUpload,escapeHtml as esc} from './client.js?v=academy-audit-1';
+import {createPortalMedia} from './academy-media-view.js?v=academy-r2-1';
+import {mountConversationList,conversationTime} from './academy-conversations.js?v=academy-r2-1';
+import {ready,auth,academyPortalApi as rawApi,academyPortalMedia,academyPortalUpload,escapeHtml as esc} from './client.js?v=academy-r2-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
-import {prepareProductImage,productImageAccept} from './product-image.js';
-import {photoTrayMarkup,mountPhotoTray} from './academy-photo-tray.js?v=academy-ux-1';
-import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=academy-ux-1';
+import {productImageAccept} from './product-image.js';
+import {prepareAcademyPhoto} from './academy-photo-prepare.js?v=academy-original-1';
+import {photoTrayMarkup,mountPhotoTray} from './academy-photo-tray.js?v=academy-original-1';
+import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=academy-r2-1';
 import {mountAcademyGallery} from './academy-gallery-view.js?v=academy-reaudit-1';
-import {createAnnouncementView} from './academy-announcement-view.js?v=academy-preview-1';
+import {createAnnouncementView,createUpcomingView} from './academy-announcement-view.js?v=academy-r2-1';
+import {classSearchMarkup,bindClassSearch,enhanceClassDiscovery} from './academy-discovery.js?v=academy-r2-1';
 const root=document.getElementById('academy-app'),isAdmin=location.pathname.includes('/academy/admin');
-let user=null,dashboard=null,generation=0;const urls=new Set(),viewCleanups=new Set(),mediaCache=new Map(),mediaLoading=new Set(),mediaQueue=new Set();
-let mediaEpoch=0,mediaObserver=null,activeThread=null,galleryController=null,galleryMemory=null;
+let user=null,dashboard=null,generation=0,pendingNotice=null;const viewCleanups=new Set();
+let activeThread=null,galleryController=null,galleryMemory=null;
+const mediaView=createPortalMedia({api,download:academyPortalMedia});
 async function api(action,payload={}){
  const epoch=generation,actor=user?.id;
  const result=await rawApi(action,payload);
@@ -19,7 +24,7 @@ const brand='<a class="ap-brand" href="/academy/dashboard" aria-label="TLB Acade
 const link=(text,href,secondary=false)=>`<a class="ap-button ${secondary?'secondary':''}" href="${esc(href)}">${esc(text)}</a>`;
 const button=(text,action,secondary=false)=>`<button type="button" class="ap-button ${secondary?'secondary':''}" data-action="${esc(action)}">${esc(text)}</button>`;
 const field=(label,name,value='',type='text',required=false)=>`<label>${esc(label)}<input name="${esc(name)}" type="${type}" value="${esc(value??'')}" ${required?'required':''}></label>`;
-const area=(label,name,value='')=>`<label>${esc(label)}<textarea name="${esc(name)}">${esc(value??'')}</textarea></label>`;
+const area=(label,name,value='')=>`<label>${esc(label)}<textarea name="${esc(name)}" aria-label="${esc(label)}">${esc(value??'')}</textarea></label>`;
 const options=(items,selected)=>items.map(([value,label])=>`<option value="${esc(value)}" ${String(selected??'')===String(value)?'selected':''}>${esc(label)}</option>`).join('');
 const select=(label,name,items,selected='',required=false)=>`<label>${esc(label)}<select name="${name}" aria-label="${esc(label)}" ${required?'required':''}>${options(items,selected)}</select></label>`;
 const check=(label,name,checked=false)=>`<label class="ap-check"><input type="checkbox" name="${name}" ${checked?'checked':''}>${esc(label)}</label>`;
@@ -27,12 +32,8 @@ const empty=(title,copy='')=>`<div class="ap-empty"><h3>${esc(title)}</h3>${copy
 const heading=(title,copy='',action='')=>`<div class="ap-section-head"><div><h2>${esc(title)}</h2>${copy?`<p>${esc(copy)}</p>`:''}</div>${action}</div>`;
 const photo=(id,alt='',className='ap-photo')=>id?`<img class="${className}" data-media-id="${esc(id)}" alt="${esc(alt)}" loading="lazy">`:`<div class="${className} empty" aria-hidden="true">TLB Academy</div>`;
 const safeHref=value=>{if(typeof value!=='string'||!value.trim())return '';try{const u=new URL(value,location.origin);return u.protocol==='https:'||(u.origin===location.origin&&value.startsWith('/'))?u.href:'';}catch{return '';}};
-const announcementView=createAnnouncementView({esc,date,photo,safeHref,link});
-function clearMedia(){
- mediaEpoch++;mediaObserver?.disconnect();mediaObserver=null;mediaQueue.clear();mediaLoading.clear();
- for(const url of urls)URL.revokeObjectURL(url);urls.clear();mediaCache.clear();
- document.querySelectorAll('.ap-dialog').forEach(d=>d.remove());
-}
+const announcementView=createAnnouncementView({esc,date,photo,safeHref,link}),upcomingView=createUpcomingView({esc,date,photo,safeHref,link});
+function clearMedia(){mediaView.clear();document.querySelectorAll('.ap-dialog').forEach(d=>d.remove());}
 function cleanupView(){for(const cleanup of viewCleanups)cleanup();viewCleanups.clear();activeThread=null;galleryController=null;clearMedia();}
 function registerCleanup(fn){viewCleanups.add(fn);}
 function notice(message,error=false){if(!message)return;const n=document.getElementById('ap-notice');if(n){n.hidden=false;n.className='ap-banner'+(error?' error':'');n.textContent=message;n.focus();}}
@@ -66,34 +67,15 @@ function shell(content,active='dashboard',config={}){
  const page=root.querySelector('#ap-page-content');page.inert=false;page.innerHTML=content;
  root.querySelector('#ap-notice').hidden=true;root.querySelector('#ap-route-progress').hidden=true;
  hydrate(page);
+ if(pendingNotice){const flash=pendingNotice;if(flash.actor!==user?.id)pendingNotice=null;else if(location.hash===flash.hash){pendingNotice=null;notice(flash.text);if(flash.next){const next=document.createElement('button');next.type='button';next.className='ap-button secondary small ap-confirmation-next';next.textContent=flash.next.submission?'View your submission':'Continue conversation';next.onclick=()=>root.querySelector(flash.next.submission?'[data-submission="'+flash.next.submission+'"]':'[data-action=composer]')?.click();root.querySelector('#ap-notice').append(next);}}}
 }
 function showLoading(){
  root.setAttribute('aria-busy','true');
  const progress=root.querySelector('#ap-route-progress'),page=root.querySelector('#ap-page-content');
  if(progress){progress.hidden=false;progress.textContent='Opening Academy…';}if(page)page.inert=true;
 }
-function hydrate(scope){
- const nodes=[...scope.querySelectorAll('[data-media-id]')].filter(n=>!n.src);
- const enqueue=node=>{const ready=mediaCache.get(node.dataset.mediaId);if(ready){node.src=ready;return;}mediaQueue.add(node);queueMicrotask(flushMedia);};
- if(!('IntersectionObserver' in window)){nodes.forEach(enqueue);return;}
- mediaObserver ||= new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){mediaObserver.unobserve(entry.target);enqueue(entry.target);}},{rootMargin:'180px'});
- for(const node of nodes)mediaObserver.observe(node);
-}
-async function flushMedia(){
- const nodes=[...mediaQueue].filter(n=>n.isConnected&&!n.src);mediaQueue.clear();
- const ids=[...new Set(nodes.map(n=>n.dataset.mediaId))].filter(id=>!mediaLoading.has(id)&&!mediaCache.has(id));if(!ids.length)return;
- const epoch=generation,mediaVersion=mediaEpoch;ids.forEach(id=>mediaLoading.add(id));
- const current=()=>epoch===generation&&mediaVersion===mediaEpoch;
- const targets=id=>[...document.querySelectorAll('[data-media-id]')].filter(n=>n.dataset.mediaId===id&&n.isConnected);
- try{
-  const records=await api('media',{ids});
-  await Promise.all(records.map(async record=>{
-   try{const blob=await academyPortalMedia(record.path);if(!current()||!targets(record.id).length)return;const url=URL.createObjectURL(blob);urls.add(url);mediaCache.set(record.id,url);targets(record.id).forEach(n=>n.src=url);}
-   catch{if(current())targets(record.id).forEach(n=>n.alt='Photo unavailable');}
-  }));
- }catch{if(current())ids.forEach(id=>targets(id).forEach(n=>n.alt='Photo unavailable'));}
- finally{if(current())ids.forEach(id=>mediaLoading.delete(id));}
-}
+function hydrate(scope){mediaView.hydrate(scope);}
+function inspectPhotos(scope){mediaView.bindInspection(scope,{dialog,notice,photo,registerCleanup});}
 function dialog(title,content){
  const el=document.createElement('dialog');el.className='ap-dialog';el.setAttribute('aria-labelledby','ap-dialog-'+crypto.randomUUID());
  el.innerHTML=`<button class="ap-dialog-close" aria-label="Close">×</button><h2 id="${el.getAttribute('aria-labelledby')}">${esc(title)}</h2>${content}`;
@@ -111,7 +93,7 @@ function formSubmit(form,handler){
  form.addEventListener('input',event=>{const control=event.target,id=control.getAttribute('data-error-id');if(id){document.getElementById(id)?.remove();control.removeAttribute('aria-invalid');control.removeAttribute('data-error-id');control.setAttribute('aria-describedby',(control.getAttribute('aria-describedby')||'').split(' ').filter(v=>v!==id).join(' '));} });
  form.addEventListener('submit',async event=>{
   event.preventDefault();if(busy)return;busy=true;const buttons=[...form.querySelectorAll('button[type=submit]')];buttons.forEach(b=>b.disabled=true);form.querySelector('[data-form-error]')?.remove();
-  try{await handler(new FormData(form),form);}catch(error){
+  try{await handler(new FormData(form),form,event.submitter);}catch(error){
    if(error.code==='ACADEMY_STALE'||!form.isConnected)return;
    const message=academyErrorMessage(error);
    if(error.field==='photos'&&form.querySelector('[data-photo-error]')){const n=form.querySelector('[data-photo-error]');n.textContent=message;n.hidden=false;n.tabIndex=-1;form.elements.photos.setAttribute('aria-invalid','true');n.focus();return;}
@@ -126,7 +108,7 @@ function classCards(classes){return classes.length?`<div class="ap-grid two ap-c
 function replyCards(classes){const unread=classes.filter(c=>c.unread&&c.reply_thread_id);return unread.length?`<section class="ap-reply-summary" aria-label="New instructor replies"><div><p class="ap-category">From your instructors</p><h2>${unread.reduce((sum,c)=>sum+Number(c.unread),0)} new ${unread.reduce((sum,c)=>sum+Number(c.unread),0)===1?'reply':'replies'}</h2></div><div>${unread.map(c=>`<a href="#thread/${c.reply_thread_id}">${esc(c.name)} · Read reply →</a>`).join('')}</div></section>`:'';}
 function galleryCards(posts){return posts.length?`<div class="ap-grid gallery">${posts.map(p=>`<article class="ap-card"><button class="ap-gallery-open" data-post="${p.id}" aria-label="View ${esc(p.title)}">${photo(p.media[0]?.id,p.title)}${p.media.length>1?`<span class="ap-photo-count">${p.media.length} photos</span>`:''}</button><div class="ap-card-content"><p class="ap-category">${esc(p.category)}</p><h3>${esc(p.title)}</h3><p class="ap-small ap-muted">Made in: ${esc(p.class_name)}</p><p class="ap-small">Shared by ${esc(p.display_name)}</p></div></article>`).join('')}</div>`:empty('The gallery is warming up.','Approved student creations will appear here, from every Academy class.');}
 function bindGallery(){root.querySelectorAll('[data-post]').forEach(b=>b.onclick=()=>{history.pushState({academyGalleryParent:location.hash||'#dashboard'},'','#gallery/'+b.dataset.post);route();});}
-function upcomingCards(rows){return rows.length?`<div class="ap-grid two">${rows.map(c=>`<article class="ap-card ap-upcoming-card">${c.thumbnail_id?photo(c.thumbnail_id,c.title):''}<div class="ap-card-content"><p class="ap-schedule"><span>When</span><strong>${esc(c.schedule||date(c.starts_at)||'Schedule to be announced')}</strong></p><h3>${esc(c.title)}</h3><p class="ap-muted">${esc(c.description)}</p>${c.products.length?`<p class="ap-small"><strong>What you will make</strong></p><ul class="ap-product-list">${c.products.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}${safeHref(c.inquiry_url)?link(c.cta||'Inquire about this class',safeHref(c.inquiry_url),true):''}</div></article>`).join('')}</div>`:empty('More time in the kitchen, coming soon.','New workshops will be announced here.');}
+function upcomingCards(rows){return rows.length?'<div class="ap-grid two">'+rows.map(c=>upcomingView.card(c)).join('')+'</div>':empty('More time in the kitchen, coming soon.','New workshops will be announced here.');}
 function announcements(rows){return rows.length?`<div class="ap-grid two">${[...rows].sort((a,b)=>Number(a.read)-Number(b.read)||new Date(b.publish_at)-new Date(a.publish_at)).map(announcementView.card).join('')}</div>`:empty('You’re all caught up.','Academy news and updates will appear here.');}
 function bindAnnouncements(){root.querySelectorAll('[data-announcement]').forEach(b=>b.onclick=async()=>{try{const a=await api('announcement',{id:b.dataset.announcement});const card=b.closest('article');card.classList.remove('is-unread');card.classList.add('is-read');card.querySelector('.ap-read-state').textContent='Read';const current=dashboard.announcements?.find(x=>x.id===a.id);if(current)current.read=true;dialog(a.title,announcementView.body(a));}catch(e){notice(academyErrorMessage(e),true);}});}
 
@@ -139,10 +121,11 @@ async function showGallery(postId){
  registerCleanup(()=>galleryController?.dispose());
 }
 async function showClass(id){
- const c=await api('class',{id});
+ const c=await api('class',{id});c.id=id;
  const recipeLinks=recipes=>recipes.map(r=>`<a class="ap-recipe-link" href="#recipe/${id}/${r.id}"><span>${esc(r.title)}</span><span>Open recipe →</span></a>`).join('');
  shell(`<p class="ap-breadcrumb"><a href="#classes">← My classes</a></p><header class="ap-class-header"><p class="ap-category">Your Academy class</p><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><p>Instructor: <strong>${esc(c.instructor||'To be assigned')}</strong></p></header><section class="ap-section ap-learning-materials">${heading('Your class modules','Your recipes and notes, ready when you are.')}<p class="ap-copy">${esc(c.notes)}</p>${c.modules.map((m,i)=>`<article class="ap-module"><p class="ap-category">Module ${i+1}</p><h2>${esc(m.name)}</h2><p>${esc(m.description)}</p><div class="ap-recipes">${recipeLinks(c.recipes.filter(r=>r.module_id===m.id))}</div><p class="ap-small">${esc(m.products.join(' · '))}</p><div class="ap-copy">${esc(m.notes)}</div>${m.tips?`<div class="ap-banner ap-copy">${esc(m.tips)}</div>`:''}<div class="ap-grid">${m.photo_ids.map(photoId=>photo(photoId,m.name)).join('')}</div></article>`).join('')||(!c.recipes.length?empty('Your class materials are being prepared.'):'')}<div class="ap-recipes">${recipeLinks(c.recipes.filter(r=>!r.module_id))}</div></section><section class="ap-class-support" aria-label="Class support"><div><h2>Make it together</h2><p>Get help from ${esc(c.instructor||'your instructor')} or share your latest bake.</p></div><div class="ap-actions">${link(`Ask ${c.instructor||'instructor'}`,`#ask/${id}`,true)}${c.sharing_enabled?link('Share what you made',`#share/${id}`):''}<details><summary>More class support</summary><p>${link(`Contact Instructor — ${c.instructor||'Your instructor'}`,`#contact/${id}`,true)}</p></details></div></section><section class="ap-section">${heading('Your shared creations')}<div class="ap-thread-list">${c.submissions.filter(s=>s.submitted).map(s=>`<div class="ap-thread-row"><button class="ap-button secondary small" data-submission="${s.id}">${esc(s.title)}</button><span class="ap-small">${s.visibility==='instructor'?'Private to instructor':esc(s.moderation==='pending'?'Pending approval':s.moderation)}</span></div>`).join('')||'<p class="ap-muted">Your submitted work and its review status will appear here.</p>'}</div></section>`,'classes');
- root.querySelectorAll('[data-submission]').forEach(b=>b.onclick=async()=>{try{const s=await api('submission',{id:b.dataset.submission});dialog(s.title,'<p>'+esc(s.visibility==='instructor'?'Private to instructor':s.moderation)+'</p><p class="ap-copy">'+esc(s.caption)+'</p><div class="ap-grid two">'+s.media.map(m=>photo(m.id,s.title)).join('')+'</div>');}catch(e){notice(academyErrorMessage(e),true);}});
+ enhanceClassDiscovery(root,c,{esc,link});
+ root.querySelectorAll('[data-submission]').forEach(b=>b.onclick=async()=>{try{const s=await api('submission',{id:b.dataset.submission});const preview=dialog(s.title,'<p>'+esc(s.visibility==='instructor'?'Private to instructor':s.moderation)+'</p><p class="ap-copy">'+esc(s.caption)+'</p><div class="ap-grid two">'+s.media.map(m=>photo(m.id,s.title)).join('')+'</div>');inspectPhotos(preview);}catch(e){notice(academyErrorMessage(e),true);}});
 }
 async function showRecipe(classId,id){
  const [recipe,classInfo]=await Promise.all([api('recipe',{class_id:classId,id}),api('class',{id:classId})]);
@@ -152,9 +135,9 @@ async function showRecipe(classId,id){
 
 
 const uploadReservations=new WeakMap(),preparedPhotos=new WeakMap();
-async function preparePhoto(source){
+async function preparePhoto(source,allowOriginal=true){
  let prepared=preparedPhotos.get(source);
- if(!prepared){const file=await prepareProductImage(source),bitmap=await createImageBitmap(file);prepared={file,width:bitmap.width,height:bitmap.height};bitmap.close();preparedPhotos.set(source,prepared);}
+ if(!prepared||(!allowOriginal&&prepared.original)){prepared=await prepareAcademyPhoto(source,{allowOriginal});preparedPhotos.set(source,prepared);}
  return prepared;
 }
 async function uploadPhotos(files,context,container){
@@ -165,8 +148,8 @@ async function uploadPhotos(files,context,container){
   const status=item.querySelector('span'),progress=item.querySelector('progress');
   try{
    let saved=uploadReservations.get(source);if(saved?.context!==JSON.stringify(context))saved=null;
-   if(!saved){const {file,width,height}=await preparePhoto(source);const reservation=await api('reserve_media',{...context,size_bytes:file.size,width,height});saved={file,reservation,context:JSON.stringify(context)};uploadReservations.set(source,saved);}
-   if(!saved.completed)await academyPortalUpload(saved.reservation.id,saved.file,n=>{progress.value=n;status.textContent='Uploading '+n+'%';});progress.value=100;status.textContent='Photo ready';records.push(saved.reservation);saved.completed=true;
+   if(!saved){const {file,width,height,original}=await preparePhoto(source,['submission','message'].includes(context.purpose));const reservation=await api('reserve_media',{...context,size_bytes:file.size,width,height,mime_type:file.type});saved={file,reservation,original,context:JSON.stringify(context)};uploadReservations.set(source,saved);}
+   if(!saved.completed)await academyPortalUpload(saved.reservation.id,saved.file,n=>{progress.value=n;status.textContent='Uploading '+n+'%';});progress.value=100;status.textContent=saved.original?'Original photo ready':'Photo ready';records.push(saved.reservation);saved.completed=true;
   }catch(e){const message=academyErrorMessage(e);status.textContent=message;const submit=container.closest('form')?.querySelector('button[type=submit]');if(submit)submit.textContent='Retry upload & send';throw Error('A photo could not be uploaded. Retry to continue. '+message);}
  }
  return records;
@@ -181,21 +164,23 @@ async function showCompose(classId,kind,recipeId){
  const visibility=()=>{form.querySelector('#ap-visibility').textContent=sharing?(form.elements.visibility.value==='gallery'?`Visible to all signed-in TLB accounts ${c.require_approval?'after instructor/admin approval':'when submitted'}.`:`Visible only to you, ${c.instructor}, and authorized Academy Admin.`):`Visible only to you, ${c.instructor}, and authorized Academy Admin.`;};form.addEventListener('change',visibility);visibility();
  form.elements.recipe_id.onchange=()=>{const recipe=c.recipes.find(r=>r.id===form.elements.recipe_id.value);if(recipe)form.elements.module_id.value=recipe.module_id||'';};
  const requestKey=crypto.randomUUID();form.elements.title.maxLength=160;form.elements.body.maxLength=sharing?5000:10000;form.elements.body.required=!sharing;
- let draft=null,finishedFiles=0,savedFiles=null;
+ let draft=null,finishedFiles=0,savedFiles=null,submittedVisibility=null;
  formSubmit(form,async data=>{
   const body=String(data.get('body')||'').trim();if(!draft&&!sharing&&!body)throw Object.assign(new Error('Write your message.'),{field:'body'});
   const files=savedFiles||await tray.files();
-  if(!draft){draft=await api(sharing?'draft_submission':'start_thread',{idempotency_key:requestKey,class_id:classId,title:data.get('title'),subject:data.get('title'),body,caption:body,category:data.get('category')||'Other',visibility:data.get('visibility'),show_name:data.has('show_name'),module_id:data.get('module_id'),recipe_id:data.get('recipe_id'),type:kind==='ask'?'question':'message'});savedFiles=files;[...form.elements].filter(e=>e.tagName!=='BUTTON').forEach(e=>e.disabled=true);tray.lock();}
+  if(!draft){submittedVisibility=data.get('visibility');draft=await api(sharing?'draft_submission':'start_thread',{idempotency_key:requestKey,class_id:classId,title:data.get('title'),subject:data.get('title'),body,caption:body,category:data.get('category')||'Other',visibility:data.get('visibility'),show_name:data.has('show_name'),module_id:data.get('module_id'),recipe_id:data.get('recipe_id'),type:kind==='ask'?'question':'message'});savedFiles=files;[...form.elements].filter(e=>e.tagName!=='BUTTON').forEach(e=>e.disabled=true);tray.lock();}
   for(let i=finishedFiles;i<files.length;i++){await uploadPhotos([files[i]],{purpose:sharing?'submission':'message',class_id:classId,[sharing?'submission_id':'message_id']:draft.id},form.querySelector('.ap-upload-list'));finishedFiles=i+1;}
-  await api(sharing?'submit_work':'send_message',{id:draft.id});location.hash=sharing?'class/'+classId:'thread/'+draft.thread_id;
+  await api(sharing?'submit_work':'send_message',{id:draft.id});
+  const hash=sharing?'#class/'+classId:'#thread/'+draft.thread_id;
+  pendingNotice={actor:user.id,hash,next:sharing?{submission:draft.id}:{reply:true},text:sharing?(submittedVisibility==='instructor'?'Your creation was sent privately to '+c.instructor+'.':c.require_approval?'Your photos were submitted for review. They will appear in the Academy Gallery after approval.':'Your creation is now shared in the Academy Gallery.'):'Your '+(kind==='ask'?'question':'message')+' was sent to '+c.instructor+'. Your conversation and photos stay private.'};location.hash=hash;
  });
 }
-async function showThreads(){const rows=await api('threads');shell(`${heading('Your conversations','Questions, baking tips, and replies from your instructors.')}<div class="ap-thread-list">${rows.map(t=>`<a class="ap-thread-row" href="#thread/${t.id}"><div><strong>${esc(t.subject)}</strong><p class="ap-small ap-muted">${esc(t.class_name)} · ${esc(t.instructor)}${t.recipe_title?' · '+esc(t.recipe_title):''}</p></div><span>${t.unread?`<strong>${t.unread} new</strong>`:date(t.last_activity)}${t.resolved?' · Resolved':''}</span></a>`).join('')||empty('No conversations yet.','Open one of your classes to ask your instructor a question.')}</div>`,'messages');}
+async function showThreads(){return mountConversationList({api,root,draw:body=>shell(body,'messages'),heading,select,empty,esc,registerCleanup},{classes:dashboard.classes});}
 async function showThread(id,adminNavigation){
  let thread=await api('thread',{id,mark_read:false});
- const messageMarkup=messages=>messages.map(m=>`<article class="ap-message ${m.mine?'mine':''}" data-message-id="${m.id}" tabindex="-1"><p class="ap-small"><strong>${esc(m.sender)}</strong> · ${date(m.created_at)}</p><p class="ap-copy">${esc(m.body)}</p><div class="ap-grid">${m.media.map(p=>photo(p.id,'Private question attachment')).join('')}</div></article>`).join('');
- shell(`<p class="ap-breadcrumb"><a href="#${isAdmin?'inbox':'messages'}">← Conversations</a></p>${heading(thread.subject,`${thread.class_name} · ${thread.instructor}`)}<div class="ap-thread-tools"><p class="ap-small ap-muted" data-thread-state>Private conversation · ${thread.resolved?'Resolved':'Open'}</p>${isAdmin?button(thread.resolved?'Reopen conversation':'Mark resolved','resolve',true):''}${button('Jump to latest','latest',true)}${button('Write a reply','composer',true)}</div><div class="ap-new-reply" hidden role="status"><span>A new reply is ready.</span>${button('Show new reply','new-reply')}</div><div id="ap-thread-messages">${messageMarkup(thread.messages)}</div><section class="ap-reply-composer" aria-labelledby="ap-reply-title"><h2 id="ap-reply-title">Continue the conversation</h2><form class="ap-form" id="ap-thread-form"><label>Your reply<textarea name="body" required maxlength="10000"></textarea></label>${photoTrayMarkup({label:'Optional photos',accept:productImageAccept},esc)}<div class="ap-upload-list"></div><button type="submit" class="ap-button">Send reply</button></form></section>`,isAdmin?'inbox':'messages',{navigation:adminNavigation});
- const form=root.querySelector('#ap-thread-form'),messages=root.querySelector('#ap-thread-messages'),banner=root.querySelector('.ap-new-reply'),tray=mountPhotoTray(form,{preparePhoto,esc});registerCleanup(()=>tray.dispose());
+ const messageMarkup=messages=>messages.map(m=>`<article class="ap-message ${m.mine?'mine':''}" data-message-id="${m.id}" tabindex="-1"><p class="ap-small"><strong>${esc(m.sender)}</strong> · ${conversationTime(m.created_at,esc)}</p><p class="ap-copy">${esc(m.body)}</p><div class="ap-grid">${m.media.map(p=>photo(p.id,'Private question attachment')).join('')}</div></article>`).join('');
+ shell(`<p class="ap-breadcrumb"><a href="#${isAdmin?'inbox':'messages'}">← Conversations</a></p>${heading(thread.subject,`${thread.class_name} · ${thread.instructor}`)}<dl class="ap-context-strip ap-thread-context"><div><dt>Student</dt><dd>${esc(thread.account_name)}</dd></div><div><dt>Class</dt><dd>${esc(thread.class_name)}</dd></div>${thread.module_name?'<div><dt>Module</dt><dd>'+esc(thread.module_name)+'</dd></div>':''}${thread.recipe_title?'<div><dt>Recipe</dt><dd><a href="/academy/dashboard#recipe/'+esc(thread.class_id)+'/'+esc(thread.recipe_id)+'">'+esc(thread.recipe_title)+'</a></dd></div>':''}</dl><div class="ap-thread-tools"><p class="ap-small ap-muted" data-thread-state>Private conversation · ${thread.resolved?'Resolved':'Open'}</p>${isAdmin?button(thread.resolved?'Reopen conversation':'Mark resolved','resolve',true):''}${button('Jump to latest','latest',true)}${button('Write a reply','composer',true)}</div><div class="ap-new-reply" hidden role="status"><span>A new reply is ready.</span>${button('Show new reply','new-reply')}</div><div id="ap-thread-messages">${messageMarkup(thread.messages)}</div><section class="ap-reply-composer" aria-labelledby="ap-reply-title"><h2 id="ap-reply-title">Continue the conversation</h2><form class="ap-form" id="ap-thread-form"><label>Your reply<textarea name="body" required maxlength="10000"></textarea></label>${photoTrayMarkup({label:'Optional photos',accept:productImageAccept},esc)}<div class="ap-upload-list"></div><button type="submit" class="ap-button">Send reply</button></form></section>`,isAdmin?'inbox':'messages',{navigation:adminNavigation});
+ const form=root.querySelector('#ap-thread-form'),messages=root.querySelector('#ap-thread-messages'),banner=root.querySelector('.ap-new-reply'),tray=mountPhotoTray(form,{preparePhoto,esc});registerCleanup(()=>tray.dispose());inspectPhotos(messages);
  const latest=()=>{const last=messages.lastElementChild;last?.scrollIntoView({block:'center'});last?.focus({preventScroll:true});};
  const state={id,last:thread.messages.at(-1)?.id,onStatus(status){if(status.last_message_id&&status.last_message_id!==this.last)banner.hidden=false;}};activeThread=state;
  root.querySelector('[data-action=latest]').onclick=latest;
@@ -203,7 +188,7 @@ async function showThread(id,adminNavigation){
  const markRead=async()=>{const last=thread.messages.at(-1);if(last)await api('read_thread',{id,message_id:last.id});};
  async function refreshMessages(scroll){
   const fresh=await api('thread',{id,mark_read:false});thread=fresh;const rendered=new Set([...messages.children].map(n=>n.dataset.messageId));messages.insertAdjacentHTML('beforeend',messageMarkup(fresh.messages.filter(m=>!rendered.has(m.id))));
-  state.last=fresh.messages.at(-1)?.id;banner.hidden=true;hydrate(messages);await markRead();if(scroll)latest();
+  state.last=fresh.messages.at(-1)?.id;banner.hidden=true;hydrate(messages);inspectPhotos(messages);await markRead();if(scroll)latest();
  }
  root.querySelector('[data-action=new-reply]').onclick=async event=>{const b=event.currentTarget;b.disabled=true;try{await refreshMessages(true);}catch(e){notice(academyErrorMessage(e),true);}finally{b.disabled=false;}};
  root.querySelector('[data-action=resolve]')?.addEventListener('click',async event=>{try{await api('resolve_thread',{id,resolved:!thread.resolved});thread.resolved=!thread.resolved;event.target.textContent=thread.resolved?'Reopen conversation':'Mark resolved';root.querySelector('[data-thread-state]').textContent='Private conversation · '+(thread.resolved?'Resolved':'Open');}catch(e){notice(academyErrorMessage(e),true);}});
@@ -243,14 +228,14 @@ async function route(){
   const actor=data.session?.user;if(user?.id!==actor?.id)galleryMemory=null;user=actor;if(!user)return gate();
   const overviewViews=['dashboard','classes','announcements','upcoming','preferences'];
   dashboard=await api(!isAdmin&&overviewViews.includes(view)?'dashboard':'navigation');if(current!==generation)return;
-  if(isAdmin){const {mountAcademyAdmin}=await import('./academy-portal-admin.js?v=academy-preview-1');if(current!==generation)return;return await mountAcademyAdmin({api,root,user,dashboard,shell,notice,heading,empty,field,area,select,check,options,link,button,esc,date,photo,hydrate,dialog,formSubmit,uploadPhotos,productImageAccept,showThread,announcementView,registerCleanup});}
+  if(isAdmin){const {mountAcademyAdmin}=await import('./academy-portal-admin.js?v=academy-r2-1');if(current!==generation)return;return await mountAcademyAdmin({api,root,user,dashboard,shell,notice,heading,empty,field,area,select,check,options,link,button,esc,date,photo,hydrate,dialog,formSubmit,uploadPhotos,productImageAccept,showThread,announcementView,upcomingView,registerCleanup,inspectPhotos});}
   if(view==='class')return await showClass(id);if(view==='recipe')return await showRecipe(id,recipeId);if(['share','ask','contact'].includes(view))return await showCompose(id,view,recipeId);if(view==='gallery')return await showGallery(id);if(view==='messages')return await showThreads();if(view==='thread')return await showThread(id);if(view==='preferences')return await preferences();
-  if(view==='classes')shell(`${heading('My classes','Your recipes, notes, and a little guidance along the way.')}${classCards(dashboard.classes)}`,'classes');
+  if(view==='classes'){shell(`${heading('My classes','Your recipes, notes, and a little guidance along the way.')}${classSearchMarkup(dashboard.classes)}${classCards(dashboard.classes)}`,'classes');bindClassSearch(root);}
   else if(view==='upcoming')shell(`${heading('Coming up in the Academy')}${upcomingCards(dashboard.upcoming)}`,'upcoming');
   else if(view==='announcements'){shell(`${heading('Academy announcements')}${announcements(dashboard.announcements)}`,'announcements');bindAnnouncements();}
   else{
    if(!dashboard.announcements)dashboard=await api('dashboard');
-   shell(`<header class="ap-welcome"><p class="ap-category">Welcome to your Academy</p><h1>Welcome, ${esc(dashboard.name.split(' ')[0])}.</h1><p>Ready for a little time in the kitchen?</p></header>${replyCards(dashboard.classes)}<section class="ap-section ap-dashboard-classes">${heading('My classes','Keep creating, at your own pace.',link('View all','#classes',true))}${classCards(dashboard.classes)}</section><section class="ap-section">${heading('Latest from the Academy')}${announcements(dashboard.announcements.slice(0,2))}</section><section class="ap-section">${heading('What our students are baking','A shared love of making something from scratch.',link('Explore gallery','#gallery',true))}${galleryCards(dashboard.gallery.slice(0,6))}</section><section class="ap-section">${heading('More good things to learn')}${upcomingCards(dashboard.upcoming.slice(0,2))}</section>`);bindGallery();bindAnnouncements();
+   shell(`<header class="ap-welcome"><p class="ap-category">Welcome to your Academy</p><h1>Welcome, ${esc(dashboard.name.split(' ')[0])}.</h1><p>Ready for a little time in the kitchen?</p></header>${replyCards(dashboard.classes)}<section class="ap-section ap-dashboard-classes">${dashboard.classes.length?heading('My classes','Keep creating, at your own pace.',link('View all','#classes',true))+classCards(dashboard.classes.slice(0,4))+(dashboard.classes.length>4?'<p class="ap-small ap-muted">Showing 4 of '+dashboard.classes.length+' classes</p>':''):'<div class="ap-context-strip"><strong>No classes assigned yet</strong><p>Your class materials will appear here when assigned.</p></div><h2>Make yourself at home</h2><p>Explore what is happening around the Academy.</p><div class="ap-actions">'+link('Find an upcoming class','#upcoming')+link('Explore student creations','#gallery',true)+link('Read Academy updates','#announcements',true)+'</div>'}</section><section class="ap-section">${heading('Latest from the Academy')}${announcements(dashboard.announcements.slice(0,2))}</section><section class="ap-section">${heading('What our students are baking','A shared love of making something from scratch.',link('Explore gallery','#gallery',true))}${galleryCards(dashboard.gallery.slice(0,6))}</section><section class="ap-section">${heading('More good things to learn')}${upcomingCards(dashboard.upcoming.slice(0,2))}</section>`);bindGallery();bindAnnouncements();
   }
  }catch(e){if(current!==generation)return;routeError(e);}
 }

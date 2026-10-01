@@ -9,7 +9,7 @@ export function createAnnouncementView({esc,date,photo,safeHref,link}){
  };
 }
 
-export function bindAnnouncementPreview({form,record,view,dialog,hydrate,esc,registerCleanup}){
+export function bindAnnouncementPreview({form,record,view,dialog,hydrate,esc,registerCleanup,upcoming=false}){
  const trigger=document.createElement('button');trigger.type='button';trigger.className='ap-button secondary';trigger.textContent='Preview';
  form.querySelector('button[type=submit]').before(trigger);
  let disposed=false,active=null,photoUrl=null;
@@ -20,8 +20,9 @@ export function bindAnnouncementPreview({form,record,view,dialog,hydrate,esc,reg
   const a={...record,read:false};
   // Read controls directly: a saved record awaiting a photo retry has disabled
   // text fields, which FormData would otherwise omit.
-  for(const name of ['title','summary','content','publish_at','cta','cta_url'])a[name]=form.elements[name].value;
-  a.title=a.title.trim()||'Untitled announcement';
+  for(const name of (upcoming?['title','description','products','schedule','starts_at','cta','inquiry_url']:['title','summary','content','publish_at','cta','cta_url']))a[name]=form.elements[name].value;
+  if(upcoming){a.products=a.products.split('\n').map(s=>s.trim()).filter(Boolean);a.starts_at=a.starts_at?new Date(a.starts_at).toISOString():null;}
+  a.title=a.title.trim()||(upcoming?'Untitled upcoming class':'Untitled announcement');
   a.publish_at=a.publish_at?new Date(a.publish_at).toISOString():new Date().toISOString();
   const file=form.elements.photo.files[0];
   trigger.disabled=true;trigger.textContent='Preparing preview…';form.querySelector('[data-preview-error]')?.remove();
@@ -30,11 +31,11 @@ export function bindAnnouncementPreview({form,record,view,dialog,hydrate,esc,reg
    if(disposed||!form.isConnected)return;
    if(prepared)photoUrl=URL.createObjectURL(prepared);
    const image=photoUrl?`<img class="ap-photo" src="${esc(photoUrl)}" alt="${esc(a.title)}">`:undefined;
-   active=dialog('Announcement preview','<p class="ap-muted">Only you can see this preview. Changes here have not been saved or published.</p><div class="ap-actions" role="group" aria-label="Preview view"><button type="button" class="ap-button" data-preview-view="card" aria-pressed="true">Student card</button><button type="button" class="ap-button secondary" data-preview-view="full" aria-pressed="false">Full announcement</button></div><div class="ap-preview-content" data-preview-content></div><div class="ap-actions"><button type="button" class="ap-button secondary" data-preview-back>Back to editing</button></div>');
+   active=dialog(upcoming?'Upcoming class preview':'Announcement preview','<p class="ap-muted">Only you can see this preview. Changes here have not been saved or published.</p><div class="ap-actions" role="group" aria-label="Preview view"><button type="button" class="ap-button" data-preview-view="card" aria-pressed="true">Student card</button><button type="button" class="ap-button secondary" data-preview-view="full" aria-pressed="false">Full announcement</button></div><div class="ap-preview-content" data-preview-content></div><div class="ap-actions"><button type="button" class="ap-button secondary" data-preview-back>Back to editing</button></div>');
    const modal=active,host=modal.querySelector('[data-preview-content]');
-   modal.classList.add('ap-announcement-preview');
+   modal.classList.add('ap-announcement-preview');if(upcoming)modal.querySelector('[aria-label="Preview view"]').remove();
    const show=mode=>{
-    host.innerHTML=mode==='card'?view.card(a):`<h3>${esc(a.title)}</h3>${view.body(a,image)}`;
+    host.innerHTML=upcoming?view.card(a,image):mode==='card'?view.card(a):`<h3>${esc(a.title)}</h3>${view.body(a,image)}`;
     modal.querySelectorAll('[data-preview-view]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.previewView===mode));b.classList.toggle('secondary',b.dataset.previewView!==mode);});
     const read=host.querySelector('[data-announcement]');if(read)read.onclick=()=>{show('full');modal.querySelector('[data-preview-view="full"]').focus();};
     // Trying the CTA must preserve the unsaved editor in this tab.
@@ -51,3 +52,8 @@ export function bindAnnouncementPreview({form,record,view,dialog,hydrate,esc,reg
   }finally{trigger.disabled=false;trigger.textContent='Preview';}
  };
 }
+
+export function createUpcomingView({esc,date,photo,safeHref,link}){
+ return {card:(c,image)=>`<article class="ap-card ap-upcoming-card">${image??(c.thumbnail_id?photo(c.thumbnail_id,c.title):'')}<div class="ap-card-content"><p class="ap-schedule"><span>When</span><strong>${esc(c.schedule||date(c.starts_at)||'Schedule to be announced')}</strong></p><h3>${esc(c.title)}</h3><p class="ap-muted">${esc(c.description)}</p>${c.products.length?`<p class="ap-small"><strong>What you will make</strong></p><ul class="ap-product-list">${c.products.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}${safeHref(c.inquiry_url)?link(c.cta||'Inquire about this class',safeHref(c.inquiry_url),true):''}</div></article>`};
+}
+export function bindUpcomingPreview(config){bindAnnouncementPreview({...config,upcoming:true});}
