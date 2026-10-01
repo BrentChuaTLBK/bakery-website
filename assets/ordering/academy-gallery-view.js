@@ -1,6 +1,7 @@
 export async function mountAcademyGallery(ui,{state={},onState,postId}){
  const {api,root,shell,heading,options,button,galleryCards,bindGallery,hydrate,dialog,photo,esc,notice,errorMessage,closeGalleryPost}=ui;
  let classId=state.classId||'',category=state.category||'',page=Math.min(10,Math.max(0,state.page||0)),posts=[],revision=0,popup=null,popupId='',postRevision=0,disposed=false;
+ let loadedClassId=classId,loadedCategory=category;
  const filters=()=>({class_id:classId,category});
  const first=await api('gallery',{...filters(),offset:0});posts=first.posts;
  if(page){const pages=await Promise.all(Array.from({length:page},(_,i)=>api('gallery',{...filters(),offset:(i+1)*24})));posts=[...posts,...pages.flatMap(p=>p.posts)];}
@@ -14,12 +15,19 @@ export async function mountAcademyGallery(ui,{state={},onState,postId}){
  }
  function bind(){bindGallery();more.hidden=posts.length<(page+1)*24;hydrate(feed);chips();}
  async function load(append){
-  const ticket=++revision,nextPage=append?page+1:0;
+  const ticket=++revision,nextPage=append?page+1:0,requested=filters();
   try{more.disabled=true;feed.setAttribute('aria-busy','true');status.textContent='Loading creations…';
-   const result=await api('gallery',{...filters(),offset:nextPage*24});if(disposed||ticket!==revision)return;
+   const result=await api('gallery',{...requested,offset:nextPage*24});if(disposed||ticket!==revision)return;
+   loadedClassId=requested.class_id;loadedCategory=requested.category;
    page=nextPage;posts=append?[...new Map([...posts,...result.posts].map(p=>[p.id,p])).values()]:result.posts;
    feed.innerHTML=galleryCards(posts);bind();more.hidden=result.posts.length<24;status.textContent=`${posts.length} creations shown`;save();
-  }catch(e){if(!disposed&&ticket===revision){status.textContent='The gallery could not load. Please try again.';notice(errorMessage(e),true);}}
+  }catch(e){if(!disposed&&ticket===revision){
+   // Keep the controls and pagination attached to the results still on screen.
+   // Otherwise Load more can mix the failed filter into the previous gallery.
+   classId=loadedClassId;category=loadedCategory;
+   root.querySelector('#ap-gallery-class').value=classId;root.querySelector('#ap-gallery-category').value=category;
+   chips();save();status.textContent='The gallery could not load. Please try again.';notice(errorMessage(e),true);
+  }}
   finally{if(!disposed&&ticket===revision){more.disabled=false;feed.setAttribute('aria-busy','false');}}
  }
  root.querySelector('#ap-gallery-class').onchange=event=>{classId=event.target.value;load(false);};
