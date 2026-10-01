@@ -1,4 +1,4 @@
-import {safeArchivePath,validateRecipeManifest,newDigest,finishDigest} from './recipe-archive.js?v=approved-ux-1';
+import {safeArchivePath,validateRecipeManifest,newDigest,finishDigest} from './recipe-archive.js?v=staff-security-1';
 const decoder=new TextDecoder('utf-8',{fatal:true});
 async function view(blob,offset,length){if(offset<0||offset+length>blob.size)throw Error('Archive is truncated.');return new DataView(await blob.slice(offset,offset+length).arrayBuffer());}
 async function zipDirectory(blob){
@@ -51,6 +51,11 @@ export function validateRecipeRelationships(tables,manifest){
  for(const r of tables.recipe_file_links){ref('recipe_files',r.file_id);ref('recipe_versions',r.version_id,true);ref('recipe_tests',r.test_id,true);}
  for(const r of tables.recipe_user_state)ref('recipes',r.recipe_id);
  for(const r of tables.recipe_drafts)ref('recipes',r.recipe_id,true);
+ for(const name of ['recipe_staff_defaults','recipe_staff_controls','recipe_staff_dates','recipe_staff_overrides','recipe_staff_batches','recipe_staff_events'])for(const row of tables[name]||[]){
+  for(const key of ['user_id','actor','updated_by','created_by','revoked_by'])ref('actors',row[key],true);
+  if(name==='recipe_staff_events')ref('recipes',row.recipe_id,true);
+ }
+ for(const [name,key] of [['recipe_staff_controls',r=>r.user_id],['recipe_staff_dates',r=>`${r.user_id}:${r.access_date}`]]){const seen=new Set();for(const row of tables[name]||[]){const id=key(row);if(seen.has(id))throw Error(`Duplicate staff setting in ${name}.`);seen.add(id);}}
  const files=new Map(manifest.files.map(f=>[f.id,f]));
  for(const r of tables.recipe_files)if(r.uploaded){const file=files.get(r.id);if(!file||file.source_path!==r.path||file.sha256!==r.sha256||file.size_bytes!==r.size_bytes)throw Error('An uploaded file does not match the database metadata.');}
  if(files.size!==tables.recipe_files.filter(f=>f.uploaded).length)throw Error('Unexpected backup file count.');

@@ -16,12 +16,14 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
  const tables={...backup.tables,recipe_access:backup.tables.recipe_access.map(row=>({can_view_rd:false,...row})),recipe_drafts:backup.tables.recipe_drafts.map(row=>({requires_rd:researchRecipes.has(row.recipe_id),...row}))};
  await db.exec('begin; set constraints all deferred; delete from tlb.recipe_categories; delete from tlb.recipe_settings;');
  try{
+  if(tables.recipe_staff_defaults)await db.exec('delete from tlb.recipe_staff_defaults');
   for(const actor of tables.actors)await db.query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) on conflict(id) do nothing',[actor.id,actor.email]);
   const actors=new Set(tables.actors.map(a=>a.id));
-  for(const rows of Object.values(tables))for(const row of rows)for(const key of ['created_by','updated_by','actor','user_id','granted_by','accepted_by'])if(row[key]&&!actors.has(row[key]))throw Error(`Actor ${row[key]} is not present in the recovery map.`);
+  for(const rows of Object.values(tables))for(const row of rows)for(const key of ['created_by','updated_by','actor','user_id','granted_by','accepted_by','revoked_by'])if(row[key]&&!actors.has(row[key]))throw Error(`Actor ${row[key]} is not present in the recovery map.`);
   for(const actor of tables.actors)if(['owner','staff'].includes(actor.role))await db.query('insert into tlb.staff(user_id,role) values($1,$2) on conflict(user_id) do nothing',[actor.id,actor.role]);
   const order=['recipe_settings','recipe_categories','recipe_resources','recipe_supplier_items','recipe_prices','recipes','recipe_versions','recipe_links','recipe_ingredient_links','recipe_tests','recipe_runs','recipe_files','recipe_file_links','recipe_user_state','recipe_drafts','recipe_audit','recipe_access'];
   if(tables.recipe_invitations)order.push('recipe_invitations');
+  for(const name of ['recipe_staff_defaults','recipe_staff_controls','recipe_staff_batches','recipe_staff_dates','recipe_staff_overrides','recipe_staff_events'])if(tables[name])order.push(name);
   const counts={};
   for(const table of order){
    const columns=(await db.query("select column_name from information_schema.columns where table_schema='tlb' and table_name=$1 and is_generated='NEVER' order by ordinal_position",[table])).rows.map(r=>r.column_name);
@@ -37,6 +39,7 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
   // Restored identity values do not advance their sequence automatically.
   // The next legitimate edit must be able to append an audit event.
   await db.exec("select setval(pg_get_serial_sequence('tlb.recipe_audit','id'),coalesce((select max(id) from tlb.recipe_audit),1),exists(select 1 from tlb.recipe_audit))");
+  for(const [table,column] of [['recipe_staff_events','id'],['recipe_staff_batches','position']])await db.exec(`select setval(pg_get_serial_sequence('tlb.${table}','${column}'),coalesce((select max(${column}) from tlb.${table}),1),exists(select 1 from tlb.${table}))`);
   // Compare the complete restored JSON, not just counts. Generated search fields
   // are derived from the document and therefore excluded from the comparison.
   for(const table of order){const exclude=table==='recipe_versions'?"-'search_text'-'kitchen_search'":'';

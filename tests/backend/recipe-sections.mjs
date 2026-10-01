@@ -1,9 +1,10 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {makeHarness} from './helpers.mjs';
 import {blankRecipe,addComponent,method,freshVariant} from '../../assets/ordering/recipe-model.js';
 export default async function({db,check,state}){
  const h=state.recipeHarness||await makeHarness(db),{owner,staff,customer}=h.ids;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  const d=blankRecipe();d.name='QA paired component cake';d.private_notes='PRIVATE_RECIPE_NOTE';const v=d.variants[0];v.groups[0].name='Sponge';addComponent(v,'Mousse');
  for(const [i,g] of v.groups.entries()){g.ingredients[0].name=i?'Cream':'Flour';g.ingredients[0].quantity=i?'200':'100';v.methods[i].steps[0].instruction=i?'Whip the cream.':'Bake the sponge.';}
  v.methods[0].steps[0].timer_minutes='15';v.methods[0].steps[0].warning='Preserve this previously saved warning.';
@@ -11,7 +12,7 @@ export default async function({db,check,state}){
  await check('recipe component associations survive saving and the kitchen privacy projection',async()=>{
   await api('save_access',{user_id:customer,permission:'kitchen'});await api('save_access',{user_id:staff,permission:'chef'});
   saved=await api('create',{document:d,status:'production'});const kitchen=await api('get',{id:saved.id},customer);
-  assert.deepEqual(kitchen.document.variants[0].methods.map(m=>m.group_id),v.methods.map(m=>m.group_id));assert.equal(kitchen.document.private_notes,undefined);assert.equal(kitchen.cost_snapshot,null);
+  assert.deepEqual(kitchen.document.variants[0].methods.map(m=>m.group_id),v.methods.map(m=>m.group_id));assert.equal(kitchen.document.private_notes,undefined);assert.equal(kitchen.cost_snapshot,undefined);
   assert.equal(kitchen.document.variants[0].methods[0].steps[0].timer_minutes,'15');assert.match(kitchen.document.variants[0].methods[0].steps[0].warning,/Preserve/);
  })();
  await check('component reordering in a draft leaves the approved formula and associations unchanged',async()=>{

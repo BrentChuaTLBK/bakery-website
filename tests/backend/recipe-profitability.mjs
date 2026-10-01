@@ -1,9 +1,10 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {blankRecipe,clone} from '../../assets/ordering/recipe-model.js';
 export default async function({db,check,state}){
  const h=state.recipeHarness,{owner,staff,customer,stranger,unverified}=h.ids;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  const oracle=JSON.parse(await readFile(new URL('../fixtures/recipe-cost-oracle.json',import.meta.url),'utf8'));
  const actuals=[],records=new Map();
  function document(name='Cost audit'){const d=blankRecipe();d.name=name;d.variants[0].methods[0].steps[0].instruction='Mix the measured ingredients.';return d;}
@@ -69,7 +70,7 @@ export default async function({db,check,state}){
  })();
  await check('costing APIs and private helper functions deny students, kitchen, unverified and anonymous callers',async()=>{
   for(const user of [null,customer,stranger,unverified])for(const action of ['costing','cost_preview','costing_overview'])await assert.rejects(()=>api(action,{id:records.get('O').id,document:records.get('O').document},user),/permission|Authorized/);
-  const kitchen=await api('get',{id:records.get('O').id},customer);assert.equal(kitchen.cost_snapshot,null);assert.equal(kitchen.document.variants[0].costing,undefined);
+  const kitchen=await api('get',{id:records.get('O').id},customer);assert.equal(kitchen.cost_snapshot,undefined);assert.equal(kitchen.document.variants[0].costing,undefined);
   for(const user of [customer,staff])await assert.rejects(()=>h.as(user,()=>db.query("select tlb.recipe_profit_metrics('{}',1,1,1,true,1)")),/permission/);
   assert.ok((await api('costing_overview',{},staff)).total>0);
  })();

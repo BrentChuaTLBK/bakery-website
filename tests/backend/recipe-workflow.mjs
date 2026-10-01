@@ -1,8 +1,9 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {blankRecipe} from '../../assets/ordering/recipe-model.js';
 export default async function({db,check,state}){
  const h=state.recipeHarness,{owner,staff,customer}=h.ids;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  let record,initial,ingredient;
  const document=()=>{const d=blankRecipe();d.name='QA simplified workflow';d.variants[0].groups[0].ingredients=[{id:'flour',ingredient_id:ingredient.id,name:ingredient.name,quantity:'100',unit:'g'}];d.variants[0].methods[0].steps[0].instruction='Mix.';return d;};
  await check('Final is a direct transition from Draft, preserves prices and publishes the saved formula',async()=>{
@@ -34,7 +35,7 @@ export default async function({db,check,state}){
   const finalId=record.version_id;record=await api('set_status',{id:record.id,revision:record.revision,status:'hidden'});
   assert.equal(record.status,'hidden');assert.equal(record.production_version_id,null);
   assert.equal((await api('list',{query:'QA simplified workflow',kitchen:true})).total,0);
-  await assert.rejects(()=>api('get',{id:record.id},customer),/not found/);
+  await assert.rejects(()=>api('get',{id:record.id},customer),/not found|not available/);
   await assert.rejects(()=>api('get',{id:record.id,version_id:finalId},customer),/not available|R&D access/);
   assert.equal((await api('list',{query:'QA simplified workflow',status:'hidden'})).total,1);
   assert.equal((await api('get',{id:record.id,version_id:initial.version_id})).status,'draft');
@@ -49,7 +50,7 @@ export default async function({db,check,state}){
  await check('explicitly returning to Draft withdraws Final without modifying its saved formula',async()=>{
   const previous=record;record=await api('set_status',{id:record.id,revision:record.revision,status:'draft'});
   assert.equal(record.production_version_id,null);assert.deepEqual(record.document,previous.document);assert.deepEqual(record.cost_snapshot,previous.cost_snapshot);
-  await assert.rejects(()=>api('get',{id:record.id},customer),/not found/);
+  await assert.rejects(()=>api('get',{id:record.id},customer),/not found|not available/);
   assert.equal((await api('get',{id:record.id,version_id:previous.version_id})).status,'production');
  })();
  await check('Final still requires reviewed imports and nonempty ingredients; hidden saves cannot bypass owner permissions',async()=>{

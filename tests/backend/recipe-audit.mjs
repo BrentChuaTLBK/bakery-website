@@ -1,9 +1,10 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {blankRecipe} from '../../assets/ordering/recipe-model.js';
 export default async function({db,check,state}){
  const h=state.recipeHarness;
- const api=(action,payload={})=>h.as(h.ids.owner,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={})=>h.as(h.ids.owner,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  function document(){const d=blankRecipe();d.name='Integrity audit fixture';d.variants[0].groups[0].ingredients[0]={id:'butter',name:'Butter',quantity:'94',unit:'g'};d.variants[0].methods[0].steps[0].instruction='Mix.';return d;}
  await check('duplicate procedure and step IDs cannot create shared kitchen checkoffs',async()=>{
   const d=document(),v=d.variants[0];v.methods.push(structuredClone(v.methods[0]));await assert.rejects(()=>api('create',{document:d}),/Procedure IDs/);

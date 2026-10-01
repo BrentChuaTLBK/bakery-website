@@ -1,3 +1,4 @@
+import {unwrapRecipeResult} from '../backend/recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile,readdir,mkdir,writeFile} from 'node:fs/promises';
@@ -11,16 +12,17 @@ const {PGlite}=dbRequire('@electric-sql/pglite'),{pgcrypto}=dbRequire('@electric
 const root=resolve(import.meta.dirname,'../..'),out=join(root,'tests/artifacts/recipe-workflow'),origin='https://recipes.test';await mkdir(out,{recursive:true});
 const db=new PGlite({extensions:{pgcrypto}});await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));
 for(const file of(await readdir(join(root,'supabase/migrations'))).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(join(root,'supabase/migrations',file),'utf8'));
+await db.exec("create or replace function tlb.recipe_staff_now() returns timestamptz language sql volatile security invoker set search_path='' as $$ select '2026-10-01T06:00:00Z'::timestamptz $$");
 const h=await makeHarness(db);let queue=Promise.resolve();
 let rejectSave=false;
-function api(user,action,payload={}){if(rejectSave&&action==='save'){rejectSave=false;return Promise.reject(Error('QA save interrupted'));}const run=()=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run);return queue;}
+function api(user,action,payload={}){if(rejectSave&&action==='save'){rejectSave=false;return Promise.reject(Error('QA save interrupted'));}const run=()=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run).then(unwrapRecipeResult);return queue;}
 await api(h.ids.owner,'save_access',{user_id:h.ids.staff,permission:'kitchen'});
 const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.woff2':'font/woff2','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.wasm':'application/wasm','.traineddata':'application/octet-stream'};
 const errors=[],results=[],files=new Map();
 const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 async function pageFor(user,width=1440){
  const context=await browser.newContext({viewport:{width,height:1000}});await context.exposeFunction('recipeTestApi',(action,payload)=>api(user,action,payload));
- await context.exposeFunction('recipeTestBackup',(action,payload={})=>{const run=()=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run);return queue;});
+ await context.exposeFunction('recipeTestBackup',(action,payload={})=>{const run=()=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run).then(unwrapRecipeResult);return queue;});
  await context.exposeFunction('recipeTestUpload',async({name,type,bytes})=>{const buffer=Buffer.from(bytes),file=await api(user,'reserve_file',{filename:name,mime_type:type,size_bytes:buffer.length,sha256:createHash('sha256').update(buffer).digest('hex')});await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[file.path,JSON.stringify({size:buffer.length,mimetype:type})]);files.set(file.path,{bytes:buffer,type});await api(user,'confirm_file',{id:file.id});return file;});
  await context.route('**/*',async route=>{
   const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
@@ -73,6 +75,7 @@ try{
  results.push('Hidden removes kitchen access, Archive leaves the active library, and Final restores access from the Archive filter');
  await page.goto(origin+'/recipes.html?view=kitchen');await page.getByRole('button',{name:'Open recipe',exact:true}).click();
  assert.equal(await page.getByRole('link',{name:'Back to recipe admin',exact:true}).getAttribute('href'),'recipes.html');assert.equal(await page.getByRole('link',{name:'Admin dashboard',exact:true}).getAttribute('href'),'manage.html');
+  await page.evaluate(()=>{window.print=()=>window.printReady=true;});await page.getByRole('button',{name:'Print / PDF',exact:true}).click();await page.getByRole('button',{name:'Prepare printable recipe',exact:true}).click();await page.waitForFunction(()=>window.printReady===true);assert.equal(await page.locator('.recipe-print-root [data-print-component]').count(),6);assert.match(await page.locator('.recipe-print-root').innerText(),/Assembly/);await page.emulateMedia({media:'print'});await page.pdf({path:join(out,'full-kitchen-recipe.pdf'),preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'});await page.evaluate(()=>document.querySelector('.recipe-print-root')?.remove());
  await page.getByRole('link',{name:'Back to recipe admin',exact:true}).click();await page.getByRole('button',{name:'Edit',exact:true}).waitFor();await context.close();
  results.push('Owner kitchen view has working recipe-admin and dashboard navigation');
  for(const width of [1440,820,390,320]){
@@ -92,7 +95,7 @@ try{
   if(width===390){await page.getByRole('button',{name:'Method',exact:true}).click();await page.screenshot({path:join(out,'kitchen-method-390.png'),fullPage:true});}
   if(width>700)await page.locator('[data-kitchen-jump="3"]').click();else await page.locator('[data-kitchen-section]').selectOption('method:assembly');assert.equal(await page.getByText('Layer sponge and mousse, chill, then glaze.',{exact:false}).isVisible(),true);
   if(width>700)await page.locator('[data-kitchen-jump="4"]').click();else await page.locator('[data-kitchen-section]').selectOption('baking');assert.match(await page.locator('[data-kitchen-panel]:visible').innerText(),/180/);if(width>700)await page.locator('[data-kitchen-jump="5"]').click();else await page.locator('[data-kitchen-section]').selectOption('packaging');assert.match(await page.locator('[data-kitchen-panel]:visible').innerText(),/7 inch cake box/);
-  if(width===820){await page.evaluate(()=>{window.print=()=>window.printReady=true;});await page.getByRole('button',{name:'Print / PDF',exact:true}).click();await page.getByRole('button',{name:'Prepare printable recipe',exact:true}).click();await page.waitForFunction(()=>window.printReady===true);assert.equal(await page.locator('.recipe-print-root [data-print-component]').count(),6);assert.match(await page.locator('.recipe-print-root').innerText(),/Assembly/);await page.emulateMedia({media:'print'});await page.pdf({path:join(out,'full-kitchen-recipe.pdf'),preferCSSPageSize:true,printBackground:true});}
+  assert.equal(await page.getByRole('button',{name:'Print / PDF',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Ingredient CSV',exact:true}).count(),0);
   await context.close();results.push(`Kitchen ${width}px: one section, scaled quantities, retained checkoffs, reachable method/assembly/packaging, no overflow or admin access`);
  }
  const childDoc=blankRecipe();childDoc.name='QA linked filling';childDoc.variants[0].yield={quantity:'1000',unit:'g'};childDoc.variants[0].groups[0].ingredients=[{id:'filling-sugar',name:'Filling sugar',quantity:'200',unit:'g'}];childDoc.variants[0].methods[0].steps[0].instruction='Whisk the filling.';

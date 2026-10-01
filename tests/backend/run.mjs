@@ -39,11 +39,12 @@ try {
   if (!process.argv.includes('--migrations-only')) {
     // Historical upgrade fixtures deliberately restore older functions. Run
     // voucher contracts in a fresh database with the installed schema intact.
-    const suites = process.argv.includes('--maintenance') ? ['maintenance.mjs'] : process.argv.includes('--recipe-rd') ? ['recipe-rd.mjs'] : process.argv.includes('--recipe-catalog') ? ['recipe-catalog.mjs'] : process.argv.includes('--recipe-access') ? ['recipe-access.mjs'] : process.argv.includes('--recipe-backups') ? ['recipes-backup.mjs'] : process.argv.includes('--recipes') ? ['recipes.mjs','recipe-sections.mjs','recipe-packaging.mjs','recipe-workflow.mjs','recipe-audit.mjs','recipe-profitability.mjs','recipe-rd.mjs'] : process.argv.includes('--vouchers')
+    const suites = process.argv.includes('--maintenance') ? ['maintenance.mjs'] : process.argv.includes('--recipe-staff') ? ['recipe-staff.mjs'] : process.argv.includes('--recipe-rd') ? ['recipe-rd.mjs'] : process.argv.includes('--recipe-catalog') ? ['recipe-catalog.mjs'] : process.argv.includes('--recipe-access') ? ['recipe-access.mjs'] : process.argv.includes('--recipe-backups') ? ['recipes-backup.mjs'] : process.argv.includes('--recipes') ? ['recipes.mjs','recipe-sections.mjs','recipe-packaging.mjs','recipe-workflow.mjs','recipe-audit.mjs','recipe-profitability.mjs','recipe-rd.mjs'] : process.argv.includes('--vouchers')
       ? ['02-order-contract.test.mjs', 'vouchers.mjs']
       : process.argv.includes('--operations') ? ['02-order-contract.test.mjs','operation-alerts.mjs']
       : (await readdir(here)).filter(name => name.endsWith('.test.mjs')).sort();
     if (!suites.length) throw new Error('No backend contract test suites found.');
+    if(suites.some(n=>n.startsWith('recipe')))await db.exec("create or replace function tlb.recipe_staff_now() returns timestamptz language sql volatile security invoker set search_path='' as $$ select '2026-10-01T06:00:00Z'::timestamptz $$");
     for (const name of suites) {
       const suite = await import(pathToFileURL(join(here, name)));
       await suite.default({ db, check, state });

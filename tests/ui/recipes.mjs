@@ -1,3 +1,4 @@
+import {unwrapRecipeResult} from '../backend/recipe-staff-fixture.mjs';
 async function saveAndView(page){
  await page.getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#recipe-editor')?.inert===false&&document.querySelector('[data-save-status]')?.textContent.startsWith('Saved.'));
@@ -17,15 +18,16 @@ const {PGlite}=dbRequire('@electric-sql/pglite'),{pgcrypto}=dbRequire('@electric
 const root=resolve(import.meta.dirname,'../..'),out=join(root,'tests/artifacts/recipes'),origin='https://recipes.test';await mkdir(out,{recursive:true});
 const db=new PGlite({extensions:{pgcrypto}});await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));
 for(const file of(await readdir(join(root,'supabase/migrations'))).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(join(root,'supabase/migrations',file),'utf8'));
+await db.exec("create or replace function tlb.recipe_staff_now() returns timestamptz language sql volatile security invoker set search_path='' as $$ select '2026-10-01T06:00:00Z'::timestamptz $$");
 const h=await makeHarness(db);let queue=Promise.resolve();
-function api(user,action,payload={}){const run=()=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run);return queue;}
+function api(user,action,payload={}){const run=()=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run).then(unwrapRecipeResult);return queue;}
 await api(h.ids.owner,'save_access',{user_id:h.ids.staff,permission:'kitchen'});
 const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.woff2':'font/woff2','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.wasm':'application/wasm','.traineddata':'application/octet-stream'};
 const errors=[],results=[],files=new Map();
 const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 async function pageFor(user,width=1440){
  const context=await browser.newContext({viewport:{width,height:1000}});await context.exposeFunction('recipeTestApi',(action,payload)=>api(user,action,payload));
- await context.exposeFunction('recipeTestBackup',(action,payload={})=>{const run=()=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run);return queue;});
+ await context.exposeFunction('recipeTestBackup',(action,payload={})=>{const run=()=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run).then(unwrapRecipeResult);return queue;});
  await context.exposeFunction('recipeTestUpload',async({name,type,bytes})=>{const buffer=Buffer.from(bytes),file=await api(user,'reserve_file',{filename:name,mime_type:type,size_bytes:buffer.length,sha256:createHash('sha256').update(buffer).digest('hex')});await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[file.path,JSON.stringify({size:buffer.length,mimetype:type})]);files.set(file.path,{bytes:buffer,type});await api(user,'confirm_file',{id:file.id});return file;});
  await context.route('**/*',async route=>{
   const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
@@ -111,7 +113,7 @@ try{
  for(const width of [1440,390,820]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:join(out,`categories-compact-${width}.png`),fullPage:true});}await page.setViewportSize({width:1440,height:1000});
  await catRow.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('#recipe-category-form').getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('button',{name:'Delete record',exact:true}).click();await page.waitForFunction(id=>!document.querySelector(`[data-resource-id="${id}"]`),catId);
  await page.getByRole('button',{name:'Deleted records',exact:true}).click();await catRow.getByRole('button',{name:'Restore',exact:true}).click();await page.waitForFunction(id=>!document.querySelector(`[data-resource-id="${id}"]`),catId);await page.getByRole('button',{name:'Back to records',exact:true}).click();await catRow.waitFor();results.push('Categories: compact search, mobile/tablet fit, delete from editor and restore');
- await page.getByRole('button',{name:'Access',exact:true}).click();await page.locator('#recipe-access-form [name=email]').fill('invited@example.test');assert.equal(await page.locator('#recipe-access-form [name=permission]').inputValue(),'kitchen');await page.getByRole('button',{name:'Add account & send invitation',exact:true}).click();await page.getByText('invited@example.test',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Staff Access',exact:true}).click();await page.locator('[data-staff-tab=staff]').click();await page.getByRole('button',{name:'Accounts & invitations',exact:true}).click();await page.locator('#recipe-access-form [name=email]').fill('invited@example.test');assert.equal(await page.locator('#recipe-access-form [name=permission]').inputValue(),'kitchen');await page.getByRole('button',{name:'Add account & send invitation',exact:true}).click();await page.getByText('invited@example.test',{exact:true}).waitFor();
  assert.match(await page.locator('[data-access-message]').innerText(),/queued/);assert.equal(await db.query("select * from tlb.staff s join auth.users u on u.id=s.user_id where u.email='invited@example.test'").then(r=>r.rows.length),0);
  await page.screenshot({path:join(out,'recipe-access.png'),fullPage:true});results.push('Owner invites recipe-only accounts from Access with Kitchen as default');
  await page.getByRole('button',{name:'Recipes',exact:true}).click();await page.getByRole('button',{name:'Open recipe',exact:true}).last().click();

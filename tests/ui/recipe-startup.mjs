@@ -38,7 +38,7 @@ async function run(mode,width=390){
   assert.equal(await page.getByText('Opening your recipe library…').count(),0);
   assert.equal(await page.getByRole('link',{name:'Open account',exact:true}).getAttribute('href'),'account.html?next=recipes.html');
  }else if(mode==='signed-out')await page.getByRole('link',{name:'Sign in',exact:true}).waitFor();
- else {await page.getByRole('button',{name:'+ New recipe',exact:true}).waitFor();assert.deepEqual(clients,['?v=recipe-system-2']);}
+ else {await page.getByRole('button',{name:'+ New recipe',exact:true}).waitFor();assert.deepEqual(clients,['?v=recipe-system-3']);}
  assert.deepEqual(errors,[]);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.equal(await page.locator('#recipe-main').getAttribute('aria-busy'),null);checks.push(mode==='slow-library'?`${mode}-${width}`:mode);await context.close();
 }

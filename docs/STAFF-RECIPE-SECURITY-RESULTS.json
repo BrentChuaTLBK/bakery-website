@@ -1,0 +1,243 @@
+{
+  "date": "2026-10-01",
+  "backend_status": "deployed and verified",
+  "frontend_status": "release branch prepared; upstream merge required",
+  "migrations_verified": 91,
+  "required_staff_database_groups": 21,
+  "staff_browser_checks": 18,
+  "rd_browser_groups": 5,
+  "media_tests": 5,
+  "existing_unit_tests": 283,
+  "backup_restore_groups": 7,
+  "all_recorded_suites_passed": true,
+  "suites": [
+    {
+      "name": "tests/backend/run.mjs --recipe-catalog",
+      "code": 0,
+      "ms": 3287,
+      "file": "tests_backend_run.mjs_--recipe-catalog.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --recipe-access",
+      "code": 0,
+      "ms": 3260,
+      "file": "tests_backend_run.mjs_--recipe-access.log"
+    },
+    {
+      "name": "--experimental-transform-types tests/backend/run.mjs --recipe-backups",
+      "code": 0,
+      "file": "integrated---experimental-transform-types_tests_backend_run.mjs_--recipe-backups.log"
+    },
+    {
+      "name": "tests/ui/recipe-components.mjs",
+      "code": 0,
+      "ms": 25710,
+      "file": "tests_ui_recipe-components.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-ingredient-picker.mjs",
+      "code": 0,
+      "ms": 12590,
+      "file": "tests_ui_recipe-ingredient-picker.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-security.mjs",
+      "code": 0,
+      "ms": 4877,
+      "file": "tests_ui_recipe-security.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-approved-ux.mjs",
+      "code": 0,
+      "ms": 21455,
+      "file": "tests_ui_recipe-approved-ux.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-performance.mjs",
+      "code": 0,
+      "ms": 21881,
+      "file": "tests_ui_recipe-performance.mjs.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --recipes",
+      "code": 0,
+      "file": "integrated-tests_backend_run.mjs_--recipes.log"
+    },
+    {
+      "name": "scripts/test-unit.mjs",
+      "code": 0,
+      "ms": 7597,
+      "file": "scripts_test-unit.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipes.mjs",
+      "code": 0,
+      "ms": 25058,
+      "file": "tests_ui_recipes.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-workflow.mjs",
+      "code": 0,
+      "ms": 26407,
+      "file": "tests_ui_recipe-workflow.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-import-export.mjs",
+      "code": 0,
+      "ms": 4743,
+      "file": "tests_ui_recipe-import-export.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-startup.mjs",
+      "code": 0,
+      "ms": 3343,
+      "file": "tests_ui_recipe-startup.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-packaging.mjs",
+      "code": 0,
+      "ms": 16748,
+      "file": "tests_ui_recipe-packaging.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-profitability.mjs",
+      "code": 0,
+      "ms": 18452,
+      "file": "tests_ui_recipe-profitability.mjs.log"
+    },
+    {
+      "name": "tests/backend/run.mjs --recipe-staff",
+      "code": 0,
+      "file": "integrated-tests_backend_run.mjs_--recipe-staff.log"
+    },
+    {
+      "name": "--experimental-transform-types --test tests/edge/order-backup.test.mjs tests/edge/recipe-kitchen-media.test.mjs",
+      "code": 0,
+      "ms": 442,
+      "file": "--experimental-transform-types_--test_tests_edge_order-backup.test.mjs_tests_edge_recipe-kitchen-media.test.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-rd-access.mjs",
+      "code": 0,
+      "file": "integrated-tests_ui_recipe-rd-access.mjs.log"
+    },
+    {
+      "name": "tests/ui/recipe-staff-security.mjs",
+      "code": 0,
+      "file": "integrated-tests_ui_recipe-staff-security.mjs.log"
+    },
+    {
+      "name": "scripts/build-static.mjs",
+      "code": 0,
+      "file": "integrated-scripts_build-static.mjs.log"
+    },
+    {
+      "name": "tests/edge/recipe-kitchen-media.test.mjs",
+      "code": 0,
+      "checks": 5
+    },
+    {
+      "name": "tests/backend/run.mjs --recipe-backups",
+      "code": 0,
+      "checks": 7,
+      "file": "backup-compatible.log"
+    }
+  ],
+  "production": {
+    "formula_and_counts_unchanged": true,
+    "protected_tables": 6,
+    "reachable_private_helpers": 0,
+    "direct_private_reads": 0,
+    "owner_export": {
+      "role": "owner",
+      "allowed": true
+    },
+    "media_version": 1,
+    "backup_worker_version": 3,
+    "anonymous_media_http_status": 401,
+    "anonymous_media_cache_control": "no-store",
+    "advisors": {
+      "before": [
+        {
+          "name": "rls_enabled_no_policy",
+          "level": "INFO",
+          "count": 105,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+        },
+        {
+          "name": "anon_security_definer_function_executable",
+          "level": "WARN",
+          "count": 10,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable"
+        },
+        {
+          "name": "authenticated_security_definer_function_executable",
+          "level": "WARN",
+          "count": 20,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+        },
+        {
+          "name": "auth_leaked_password_protection",
+          "level": "WARN",
+          "count": 1,
+          "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+        }
+      ],
+      "after": [
+        {
+          "name": "rls_enabled_no_policy",
+          "level": "INFO",
+          "count": 111,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+        },
+        {
+          "name": "anon_security_definer_function_executable",
+          "level": "WARN",
+          "count": 10,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable"
+        },
+        {
+          "name": "authenticated_security_definer_function_executable",
+          "level": "WARN",
+          "count": 20,
+          "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+        },
+        {
+          "name": "auth_leaked_password_protection",
+          "level": "WARN",
+          "count": 1,
+          "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+        }
+      ]
+    },
+    "advisory_note": "Six new INFO entries are intentional RLS-enabled private tables without direct policies or grants. Existing warning counts are unchanged."
+  },
+  "performance": {
+    "environment": "isolated PGlite and Chromium; not production load",
+    "recipes": 500,
+    "kitchen_list_p95_ms": 28.71,
+    "kitchen_get_p95_ms": 4.75,
+    "bulk_staff": 20,
+    "bulk_dates": 10,
+    "bulk_pairs": 200,
+    "bulk_ms": 11
+  },
+  "limitations": [
+    "Browser identities/provider transport are test fixtures; production owner export and public negative HTTP checks were verified separately.",
+    "Physical devices, Safari and multi-user production load were not tested.",
+    "Screen capture/photography cannot be prevented; copy and print controls are deterrents.",
+    "Previously issued image URLs retain their old expiry, up to 15 minutes."
+  ],
+  "optional_proposals": [
+    {
+      "id": "SA-UX-01",
+      "title": "Compact Staff Access header",
+      "status": "WAITING FOR APPROVAL"
+    },
+    {
+      "id": "SA-SEC-02",
+      "title": "Shared-device inactivity lock",
+      "status": "WAITING FOR APPROVAL"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
@@ -11,7 +12,7 @@ import {rehearseRecipeRestore} from '../../scripts/restore-recipe-backup.mjs';
 export default async function({db,check}){
  await db.exec("set timezone='UTC'");
  const h=await makeHarness(db),owner=h.ids.owner;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  const backup=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
  const service=(action,payload={})=>h.as(null,async()=>(await db.query('select public.recipe_backup_service($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result,'service_role');
  const blobBytes=new TextEncoder().encode('private recipe attachment fixture'),sha=digestBytes(blobBytes);
@@ -28,6 +29,10 @@ export default async function({db,check}){
  await api('record_run',{version_id:recipe.version_id,variant_id:'base',multiplier:'2',actual_yield:'2',produced_on:'2026-09-30',notes:'Backup fixture production run'});
  await api('invite_access',{email:'customer@example.test',permission:'kitchen',send_email:false});
  await api('save_rd_access',{user_id:h.ids.customer,can_view_rd:true});
+ await api('staff_save',{user_id:h.ids.customer,revision:0,display_name:'Backup Staff',mode:'scheduled',scope_mode:'recipes',scope_ids:[recipe.id],hours:null,can_view_rd:true,show_brands:false});
+ await api('staff_calendar',{users:[h.ids.customer],dates:['2026-10-05'],action:'block',request_id:randomUUID()});
+ const future=new Date(Date.now()+86400000).toISOString().slice(0,10);
+ await api('staff_override',{users:[h.ids.customer],kind:'allow',starts_local:`${future}T19:00`,ends_local:`${future}T22:00`,note:'Recovery fixture'});
  await api('autosave',{draft_id:randomUUID(),id:recipe.id,revision:recipe.revision,status:'testing',document:doc});
  await api('invite_access',{email:'pending-restore@example.test',permission:'chef',send_email:false});
  const image=await api('reserve_file',{filename:'packaging.png',mime_type:'image/png',size_bytes:blobBytes.length,sha256:sha});
@@ -50,6 +55,7 @@ export default async function({db,check}){
   const page=await service('page',{job_id:start.job_id,lease_token:start.lease_token,table:'recipes'});assert.equal(page.rows[0].data.name,'QA Backed-up cake');
   const parts=[];for await(const part of buildRecipeArchive(start,service,async f=>{assert.ok([file.id,image.id].includes(f.id));return blobBytes;}))parts.push(part);archive=new Blob(parts);
   const recovered=await readRecipeArchive(archive);assert.equal(recovered.files.length,2);assert.equal(await recovered.files[0].blob.text(),new TextDecoder().decode(blobBytes));
+  assert.equal(recovered.manifest.schema_version,2);assert.deepEqual(recovered.manifest.features,['staff_access']);assert.equal(recovered.tables.recipe_staff_controls[0].display_name,'Backup Staff');assert.equal(recovered.tables.recipe_staff_dates[0].access_date,'2026-10-05');
   assert.equal(recovered.tables.recipes[0].name,'QA Backed-up cake');assert.equal(recovered.tables.recipe_prices.length,2);
   assert.equal(recovered.tables.recipe_versions[0].document.variants[0].groups[0].ingredients[0].cost_snapshot.amount,'100');
   assert.deepEqual(recovered.tables.recipe_versions[0].document.variants[0].costing,doc.variants[0].costing);
@@ -64,6 +70,10 @@ export default async function({db,check}){
    assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_invitations')).rows[0].n,2);
    assert.equal((await isolated.query('select can_view_rd from tlb.recipe_access where user_id=$1',[h.ids.customer])).rows[0].can_view_rd,true);
    assert.equal((await isolated.query('select requires_rd from tlb.recipe_drafts')).rows[0].requires_rd,true);
+   const control=(await isolated.query('select * from tlb.recipe_staff_controls')).rows[0];assert.equal(control.show_brands,false);assert.deepEqual(control.scope_ids,[recipe.id]);
+   assert.equal((await isolated.query('select blocked from tlb.recipe_staff_dates')).rows[0].blocked,true);
+   assert.equal((await isolated.query('select note from tlb.recipe_staff_overrides')).rows[0].note,'Recovery fixture');
+   for(const [table,column,insert] of [['recipe_staff_events','id',"insert into tlb.recipe_staff_events(action) values('restore_test') returning id"],['recipe_staff_batches','position',"insert into tlb.recipe_staff_batches(id,request,before_state) values(gen_random_uuid(),'{}','[]') returning position"]]){const max=Number((await isolated.query(`select max(${column}) n from tlb.${table}`)).rows[0].n);assert.ok(Number((await isolated.query(insert)).rows[0][column])>max);}
    assert.equal((await isolated.query('select data from tlb.recipe_resources where id=$1',[packaging.id])).rows[0].data.photos[0].caption,'Box for the cake');
    const deletedResource=(await isolated.query('select * from tlb.recipe_resources where id=$1',[removed.id])).rows[0];assert.ok(deletedResource.deleted_at);assert.equal(deletedResource.data.notes,'Restore this note');
    assert.ok((await isolated.query('select deleted_at from tlb.recipe_categories where id=$1',[removedCategory.id])).rows[0].deleted_at);
@@ -79,7 +89,8 @@ export default async function({db,check}){
   const require=createRequire(process.env.PGLITE_PACKAGE_ROOT?join(resolve(process.env.PGLITE_PACKAGE_ROOT),'package.json'):import.meta.url);
   const {PGlite}=require('@electric-sql/pglite'),{pgcrypto}=require('@electric-sql/pglite/contrib/pgcrypto'),isolated=new PGlite({extensions:{pgcrypto}});
   const legacy=await readRecipeArchive(archive);for(const row of legacy.tables.recipe_access)delete row.can_view_rd;for(const row of legacy.tables.recipe_drafts)delete row.requires_rd;
-  try{const restored=await rehearseRecipeRestore(legacy,{db:isolated});assert.equal(restored.relationships,true);assert.equal((await isolated.query('select can_view_rd from tlb.recipe_access')).rows[0].can_view_rd,false);assert.equal((await isolated.query('select requires_rd from tlb.recipe_drafts')).rows[0].requires_rd,false);}finally{await isolated.close();}
+  for(const name of Object.keys(legacy.tables))if(name.startsWith('recipe_staff_'))delete legacy.tables[name];
+  try{const restored=await rehearseRecipeRestore(legacy,{db:isolated});assert.equal(restored.relationships,true);assert.equal((await isolated.query('select can_view_rd from tlb.recipe_access')).rows[0].can_view_rd,false);assert.equal((await isolated.query('select requires_rd from tlb.recipe_drafts')).rows[0].requires_rd,false);const hours=(await isolated.query('select hours from tlb.recipe_staff_defaults')).rows[0].hours;assert.equal(hours.length,7);assert.ok(hours.every(h=>h.enabled&&h.start==='10:00'&&h.end==='19:00'));assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_staff_controls')).rows[0].n,0);}finally{await isolated.close();}
  })();
  await check('modified file bytes are rejected by recovery checksum validation',async()=>{
   const data=new Uint8Array(await archive.arrayBuffer()),needle=blobBytes;let index=-1;

@@ -1,3 +1,4 @@
+import {unwrapRecipeResult} from '../backend/recipe-staff-fixture.mjs';
 async function saveAndView(page){
  await page.getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#recipe-editor')?.inert===false&&document.querySelector('[data-save-status]')?.textContent.startsWith('Saved.'));
@@ -17,8 +18,9 @@ const {PGlite}=dbRequire('@electric-sql/pglite'),{pgcrypto}=dbRequire('@electric
 const root=resolve(import.meta.dirname,'../..'),out=join(root,'tests/artifacts/recipe-packaging'),origin='https://recipes.test';await mkdir(out,{recursive:true});
 const db=new PGlite({extensions:{pgcrypto}});await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));
 for(const file of(await readdir(join(root,'supabase/migrations'))).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(join(root,'supabase/migrations',file),'utf8'));
+await db.exec("create or replace function tlb.recipe_staff_now() returns timestamptz language sql volatile security invoker set search_path='' as $$ select '2026-10-01T06:00:00Z'::timestamptz $$");
 const h=await makeHarness(db);let queue=Promise.resolve();
-function api(user,action,payload={}){const run=()=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run);return queue;}
+function api(user,action,payload={}){const run=()=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run).then(unwrapRecipeResult);return queue;}
 await api(h.ids.owner,'save_access',{user_id:h.ids.staff,permission:'kitchen'});
 const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.woff2':'font/woff2','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.wasm':'application/wasm','.traineddata':'application/octet-stream'};
 const errors=[],results=[],files=new Map();
@@ -30,12 +32,12 @@ const boxBytes=await photoFixture('CATALOG BOX','#d3b98f'),boardBytes=await phot
 const boxPhoto=await upload(h.ids.owner,{name:'catalog-box.png',type:'image/png',bytes:[...boxBytes]}),boardPhoto=await upload(h.ids.owner,{name:'catalog-board.png',type:'image/png',bytes:[...boardBytes]});
 async function pageFor(user,width=1440){
  const context=await browser.newContext({viewport:{width,height:1000}});await context.exposeFunction('recipeTestApi',(action,payload)=>api(user,action,payload));
- await context.exposeFunction('recipeTestBackup',(action,payload={})=>{const run=()=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run);return queue;});
+ await context.exposeFunction('recipeTestBackup',(action,payload={})=>{const run=()=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);queue=queue.then(run,run).then(unwrapRecipeResult);return queue;});
  await context.exposeFunction('recipeTestUpload',data=>upload(user,data));
- await context.exposeFunction('recipeTestFileUrl',path=>{const run=()=>h.as(user,async()=>{const result=(await db.query('select public.recipe_file_access($1,false) allowed',[path])).rows[0];assert.equal(result.allowed,true,'Photo must pass real recipe storage access');return '/__files/'+path;});queue=queue.then(run,run);return queue;});
+ await context.exposeFunction('recipeTestFileUrl',async(path,context)=>{if(context){const media=await api(user,'media_authorize',{...context,file_id:path});return '/__files/'+media.path;}const run=()=>h.as(user,async()=>{const result=(await db.query('select public.recipe_file_access($1,false) allowed',[path])).rows[0];assert.equal(result.allowed,true,'Photo must pass real recipe storage access');return '/__files/'+path;});queue=queue.then(run,run).then(unwrapRecipeResult);return queue;});
  await context.route('**/*',async route=>{
   const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
-  if(u.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:`export const ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{user:{id:${JSON.stringify(user)}}}}})};export const recipeApi=(action,payload={})=>window.recipeTestApi(action,payload);export const recipeFileUrl=path=>window.recipeTestFileUrl(path);export const uploadRecipeFile=async file=>window.recipeTestUpload({name:file.name,type:file.type,bytes:[...new Uint8Array(await file.arrayBuffer())]});export const recipeBackupApi=(action,payload={})=>window.recipeTestBackup(action,payload);export const recipeBackupConnection=async()=>({});export const recipeBackupDownload=async()=>new Blob();`});
+  if(u.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:`export const ready=Promise.resolve(),auth={getSession:async()=>({data:{session:{user:{id:${JSON.stringify(user)}}}}})};export const recipeApi=(action,payload={})=>window.recipeTestApi(action,payload);export const recipeFileUrl=(path,context)=>window.recipeTestFileUrl(path,context);export const uploadRecipeFile=async file=>window.recipeTestUpload({name:file.name,type:file.type,bytes:[...new Uint8Array(await file.arrayBuffer())]});export const recipeBackupApi=(action,payload={})=>window.recipeTestBackup(action,payload);export const recipeBackupConnection=async()=>({});export const recipeBackupDownload=async()=>new Blob();`});
   if(u.pathname.startsWith('/__files/')){const file=files.get(u.pathname.slice(9));return file?route.fulfill({body:file.bytes,contentType:file.type}):route.fulfill({status:404});}
   const file=resolve(root,'.'+decodeURIComponent(u.pathname));if(!file.startsWith(root+sep))return route.abort();
   try{return route.fulfill({body:await readFile(file),contentType:mime[extname(file)]||'application/octet-stream'});}catch{return route.fulfill({status:404,body:''});}

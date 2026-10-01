@@ -1,9 +1,10 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {makeHarness} from './helpers.mjs';
 export default async function({db,check}){
  const h=await makeHarness(db),{owner,customer,unverified,staff,stranger}=h.ids;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  let invitation;
  await check('only an owner can invite accounts and owner privileges cannot be overwritten',async()=>{
   for(const user of [null,customer,staff])await assert.rejects(()=>api('invite_access',{email:'new@example.test',permission:'kitchen'},user),/permission denied|owner|Authorized recipe/i);

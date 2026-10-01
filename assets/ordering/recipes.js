@@ -1,7 +1,8 @@
 import {costingEditor,costSummaryMarkup,openCosting,costingOverviewMarkup,costingOverviewRows} from './recipe-costing.js?v=approved-ux-1';
 import {recipeStatuses,recipeStatus,recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
 import {mountKitchenReader} from './recipe-kitchen.js?v=approved-ux-1';
-import {ready,auth,recipeApi as callRecipeApi,uploadRecipeFile,recipeFileUrl} from './client.js?v=recipe-system-2';
+import {createKitchenGuard,kitchenLockMarkup} from './recipe-kitchen-guard.js?v=staff-security-1';
+import {ready,auth,recipeApi as callRecipeApi,uploadRecipeFile,recipeFileUrl} from './client.js?v=recipe-system-3';
 import {mountSupplierQuotes} from './recipe-suppliers.js?v=approved-ux-1';
 import {resourceTableMarkup} from './recipe-resource-table.js?v=approved-ux-1';
 import {recipeLoadingMarkup} from './recipe-loading.js?v=approved-ux-1';
@@ -23,43 +24,49 @@ const state={role:null,categories:[],settings:{},tab:'library',rd:new URLSearchP
  filters:{},offset:0,limit:24,selection:new Set(),record:null,doc:null,variant:0,editing:false,dirty:false,draftId:null,
  scale:{mode:'multiplier',target:'1',rounding:'exact',step:'1'},wholeComponents:false,fileUrls:new Map(),resources:[],request:0};
 let noticeTimer,autosaveTimer,draggedRow,pendingAutosave=Promise.resolve();
-const readActions=new Set(['bootstrap','list','get','resources','prices','versions','tests','drafts','access','runs','costing','cost_preview','costing_overview','component_plan','export','export_data']);
+const readActions=new Set(['bootstrap','list','get','resources','prices','versions','tests','drafts','access','runs','costing','cost_preview','costing_overview','component_plan','export','export_data','access_check','staff_overview','staff_activity','scale','export_authorize','client_security_event']);
 function invalidateLibrary(){state.libraryView=null;state.libraryStamp=null;}
+function clearFileUrls(){for(const file of state.fileUrls.values())if(file.url?.startsWith('blob:'))URL.revokeObjectURL(file.url);state.fileUrls.clear();}
 function clearPrivateView(){
  state.authEpoch=(state.authEpoch||0)+1;state.request++;state.resourceRequest++;invalidateLibrary();
- state.doc=null;state.record=null;state.testWorkspace=null;state.testDraftPhotos=[];state.tests=[];state.versions=[];state.resources=[];state.costOverviewData=null;state.fileUrls.clear();state.selection.clear();state.filters={};state.costFilters={};state.categories=[];
+ state.doc=null;state.record=null;state.testWorkspace=null;state.testDraftPhotos=[];state.tests=[];state.versions=[];state.resources=[];state.costOverviewData=null;clearFileUrls();state.selection.clear();state.filters={};state.costFilters={};state.categories=[];
+ state.staffAccessController?.dispose();state.staffAccessController=null;state.staffAccessState=null;
  state.drafts=[];state.resourcePhotos=[];state.accessPeople=[];state.packagingChoices=[];state.resourceEditing=null;state.testEditing=null;state.categoryEditing=null;state.componentChoice=null;state.draftId=null;
  ingredientPicker.clear();state.editing=false;state.dirty=false;clearTimeout(autosaveTimer);clearTimeout(state.searchTimer);clearTimeout(state.costSearchTimer);closeDialog();dialogBody.replaceChildren();root.replaceChildren();document.querySelector('.recipe-print-root')?.remove();document.querySelector('#recipe-print-page-style')?.remove();
 }
-let checkingAccess=false;
-async function recheckAccess(){
- if(checkingAccess||!state.role||document.hidden)return;checkingAccess=true;
- try{
-  const {data:{session}}=await auth.getSession(),setup=await api('bootstrap');
-  if(session?.user?.id!==state.userId||setup.role!==state.role||Boolean(setup.can_view_rd)!==Boolean(state.can_view_rd)){
-   clearPrivateView();state.userId=session?.user?.id;Object.assign(state,setup);if(!canRD())state.rd=false;
-   state.kitchen=setup.role==='kitchen'||new URLSearchParams(location.search).get('view')==='kitchen';await library();notify('Recipe permissions updated.');
-  }
- }catch(error){
-  // A failed network check cannot grant fresh access. Authorization failures
-  // discard private views; transient connection failures keep unsaved work.
-  if(/Authorized recipe|permission denied|R&D access|sign in/i.test(error.message)){clearPrivateView();state.role=null;state.can_view_rd=false;state.rd=false;await startRecipeLibrary();}
- }finally{checkingAccess=false;}
-}
-window.addEventListener('focus',()=>{recheckAccess().catch(showError);});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)recheckAccess().catch(showError);});
 async function api(action,payload={}){
- const epoch=state.authEpoch||0;if(!readActions.has(action))invalidateLibrary();
- let result;try{result=await callRecipeApi(action,payload);}catch(error){if(/R&D access/.test(error.message)&&!checkingAccess)queueMicrotask(()=>recheckAccess().catch(showError));throw error;}if(epoch!==(state.authEpoch||0))throw Error('Your recipe session changed. Sign in again.');return result;
+ const epoch=state.authEpoch||0,started=performance.now();if(!readActions.has(action))invalidateLibrary();
+ let result;try{result=await callRecipeApi(action,payload);if(result?.error){const error=Error(result.message);Object.assign(error,result);throw error;}}
+ catch(error){if(epoch===(state.authEpoch||0)){kitchenGuard.failure(error);if(/R&D access/.test(error.message))queueMicrotask(()=>kitchenGuard.check());}throw error;}
+ if(epoch!==(state.authEpoch||0))throw Error('Your recipe session changed. Sign in again.');
+ if(action!=='bootstrap'&&result?.access&&!kitchenGuard.accept(result,started))throw Error('Kitchen Recipe access must be verified again.');
+ if(!readActions.has(action)&&(/^(staff_|save_access|save_rd_access)/.test(action)))kitchenGuard.changed();
+ return result;
 }
 function librarySignature(){return JSON.stringify([state.userId,state.role,state.can_view_rd,state.kitchen,state.rd,state.filters,state.offset]);}
 function rememberLibrary(){
+ if(state.role==='kitchen')return;
  if(!root.querySelector('.recipe-library')||!state.libraryStamp)return;
  clearTimeout(state.searchTimer);const query=root.querySelector('[data-filter="query"]')?.value||'';
  if(query!==(state.filters.query||'')){state.filters.query=query;state.offset=0;invalidateLibrary();return;}
  state.libraryView={nodes:[...root.childNodes],scroll:window.scrollY,focus:document.activeElement,signature:librarySignature()};
 }
 const ingredientPicker=mountIngredientPicker(root,{api,getRow:input=>getPath(state.doc,input.dataset.path.replace(/\.name$/,'')),onChange:markDirty});
+const kitchenGuard=createKitchenGuard({call:callRecipeApi,getState:()=>state,notify,
+ onLock(reason,policy){
+  if(['recipe_denied','rd_denied'].includes(reason))state.resumeKitchen=null;
+  else if(state.record)state.resumeKitchen={id:state.record.root_id||state.record.id,rd:state.rd};
+  clearPrivateView();state.access=policy;shell(kitchenLockMarkup(reason,policy,esc),{tabs:false});
+ },
+ async onResume(){
+  const resume=state.resumeKitchen;if(state.record)state.resumeKitchen={id:state.record.root_id||state.record.id,rd:state.rd};
+  clearPrivateView();await startRecipeLibrary({resume:state.resumeKitchen||resume});
+ },
+ async onPermissionChange(setup){
+  clearPrivateView();state.role=setup.role;state.can_view_rd=Boolean(setup.can_view_rd);if(!canRD())state.rd=false;state.resumeKitchen=null;
+  state.kitchen=state.role==='kitchen'||new URLSearchParams(location.search).get('view')==='kitchen';await startRecipeLibrary();
+ }
+});
 state.resourceDensity='compact';state.resourceSort='az';state.resourceRequest=0;
 try{if(localStorage.getItem('tlb-recipe-resource-density-v1')==='comfortable')state.resourceDensity='comfortable';}catch{}
 function notify(message,error=false) {
@@ -77,9 +84,10 @@ const statusOptions=(value,owner=true)=>(owner?recipeStatuses:recipeStatuses.fil
 function updateNavigation(){
  const nav=document.querySelector('.recipe-header nav'),brand=document.querySelector('.recipe-header .brand');
  if(!nav)return;
- nav.innerHTML=`${state.role&&state.role!=='kitchen'?(state.kitchen?'<a class="recipe-button primary" href="recipes.html">Back to recipe admin</a>':'<a href="recipes.html?view=kitchen">Kitchen view</a>'):''}${canRD()&&state.role==='kitchen'?`<a href="recipes.html${state.rd?'':'?view=rd'}">${state.rd?'Production recipes':'R&D recipes'}</a>`:''}${state.role==='owner'?'<a href="manage.html">Admin dashboard</a>':''}<a href="account.html">Account</a>`;
+ nav.innerHTML=`${state.role&&state.role!=='kitchen'?(state.kitchen?'<a class="recipe-button primary" href="recipes.html">Back to recipe admin</a>':'<a href="recipes.html?view=kitchen">Kitchen view</a>'):''}${canRD()&&state.role==='kitchen'?`<div class="kitchen-recipe-switch" role="group" aria-label="Recipe collection">${button('Final','kitchen-scope',`data-view="final" aria-pressed="${!state.rd}"`)}${button('R&D','kitchen-scope',`data-view="rd" aria-pressed="${state.rd}"`)}</div>`:''}${state.role==='owner'?'<a href="manage.html">Admin dashboard</a>':''}<a href="account.html">Account</a>`;
  if(brand)brand.href=state.role==='owner'?'manage.html':'recipes.html';
  document.body.classList.toggle('recipe-kitchen-view',Boolean(state.kitchen||state.role==='kitchen'));
+ document.body.classList.toggle('recipe-staff-protected',state.role==='kitchen');
 }
 function shell(content,{tabs=true}={}) {
  ingredientPicker.close();
@@ -87,7 +95,7 @@ function shell(content,{tabs=true}={}) {
  root.classList.toggle('recipe-loading-ready',wasLoading&&!loading);
  if(loading)root.setAttribute('aria-busy','true');else root.removeAttribute('aria-busy');
  root.classList.toggle('recipe-production',state.kitchen||state.role==='kitchen');updateNavigation();
- root.innerHTML=`${tabs?`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.rd?'R&D recipes':state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.rd?'Research formulas for review. These recipes are still in development.':state.kitchen?'Final recipes, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div><nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['costing','Costing Overview'],['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['access','Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
+ root.innerHTML=`${tabs?`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.rd?'R&D recipes':state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.rd?'Research formulas for review. These recipes are still in development.':state.kitchen?'Final recipes, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div><nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['costing','Costing Overview'],['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['staff-access','Staff Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
 }
 function getPath(object,path){return path.split('.').reduce((v,k)=>v?.[k],object);}
 function setPath(object,path,value){const keys=path.split('.');if(keys.some(k=>['__proto__','prototype','constructor'].includes(k)))throw Error('Invalid field.');let node=object;for(const k of keys.slice(0,-1))node=node[k]??(node[k]={});node[keys.at(-1)]=value;}
@@ -119,6 +127,7 @@ async function leaveEditor(){
  clearTimeout(autosaveTimer);if(state.dirty&&!state.testWorkspace)await saveDraft();state.editing=false;state.dirty=false;state.testWorkspace=null;return true;
 }
 async function library({reuse=false}={}){
+ if(state.role==='kitchen'){state.doc=null;state.resumeKitchen=null;clearFileUrls();if(kitchenGuard.locked)return;}
  state.record=null;state.editing=false;state.tab='library';const request=++state.request;
  const retained=state.libraryView;
  if(reuse&&retained?.signature===librarySignature()){
@@ -141,8 +150,8 @@ async function library({reuse=false}={}){
   <label>Category<select data-filter="category_id"><option value="">All categories</option>${state.categories.filter(c=>!c.deleted_at).map(c=>`<option value="${c.id}" ${state.filters.category_id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
   ${!state.kitchen?`<label>Status<select data-filter="status"><option value="">Active recipes</option>${recipeStatuses.filter(([key])=>key!=='testing'||canRD()).map(([key,label])=>`<option value="${key}" ${state.filters.status===key?'selected':''}>${label}</option>`).join('')}</select></label>`:''}
   <label>Collection<select data-filter="collection"><option value="">All recipes · A–Z</option><option value="favorites" ${state.filters.favorites?'selected':''}>Favorites</option><option value="pinned" ${state.filters.pinned?'selected':''}>Pinned recipes</option><option value="recent" ${state.filters.recent?'selected':''}>Recently used</option>${isOwner()?`<option value="deleted" ${state.filters.deleted?'selected':''}>Recently deleted</option>`:''}</select></label></div>
-  <div class="recipe-toolbar"><span class="recipe-muted">${data.total} recipes${state.selection.size?` · ${state.selection.size} selected`:''}</span><div class="recipe-actions">${button('Refresh results','refresh-library')}${button('More filters','filters')}${button('Print / export','export-library')}${canEdit()?button('Recover working draft','drafts'):''}</div></div>
-  <div class="recipe-library">${data.rows.length?data.rows.map(r=>`<article class="recipe-card"><header><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span><label class="recipe-inline-check"><input type="checkbox" data-select="${r.id}" aria-label="Select ${esc(r.name)}" ${state.selection.has(r.id)?'checked':''}></label></header><h2>${esc(r.name)}</h2><div class="recipe-muted">${esc(r.code)} · Version ${r.version}<br>Updated ${date(r.updated_at)}</div><div class="recipe-actions">${button(r.deleted_at?'View deleted recipe':'Open recipe','open',`data-id="${r.id}"`,'primary')}${canEdit()&&!r.deleted_at&&!r.rd_restricted?button('Edit','edit-open',`data-id="${r.id}"`):''}${button(r.favorite?'★':'☆','favorite',`data-id="${r.id}" data-favorite="${!r.favorite}" data-pinned="${Boolean(r.pinned)}" aria-label="${r.favorite?'Remove favorite':'Favorite recipe'}"`)}${button(r.pinned?'Unpin':'Pin','pin',`data-id="${r.id}" data-favorite="${Boolean(r.favorite)}" data-pinned="${!r.pinned}"`)}</div></article>`).join(''):'<div class="recipe-empty"><h2>No recipes here yet</h2><p>Create a recipe or adjust your filters.</p></div>'}</div>
+  <div class="recipe-toolbar"><span class="recipe-muted">${data.total} recipes${state.selection.size?` · ${state.selection.size} selected`:''}</span><div class="recipe-actions">${button('Refresh results','refresh-library')}${button('More filters','filters')}${state.role!=='kitchen'?button('Print / export','export-library'):''}${canEdit()?button('Recover working draft','drafts'):''}</div></div>
+  <div class="recipe-library">${data.rows.length?data.rows.map(r=>`<article class="recipe-card"><header><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span>${state.role!=='kitchen'?`<label class="recipe-inline-check"><input type="checkbox" data-select="${r.id}" aria-label="Select ${esc(r.name)}" ${state.selection.has(r.id)?'checked':''}></label>`:''}</header><h2>${esc(r.name)}</h2><div class="recipe-muted">${esc(r.code)} · Version ${r.version}<br>Updated ${date(r.updated_at)}</div><div class="recipe-actions">${button(r.deleted_at?'View deleted recipe':'Open recipe','open',`data-id="${r.id}"`,'primary')}${canEdit()&&!r.deleted_at&&!r.rd_restricted?button('Edit','edit-open',`data-id="${r.id}"`):''}${button(r.favorite?'★':'☆','favorite',`data-id="${r.id}" data-favorite="${!r.favorite}" data-pinned="${Boolean(r.pinned)}" aria-label="${r.favorite?'Remove favorite':'Favorite recipe'}"`)}${button(r.pinned?'Unpin':'Pin','pin',`data-id="${r.id}" data-favorite="${Boolean(r.favorite)}" data-pinned="${!r.pinned}"`)}</div></article>`).join(''):`<div class="recipe-empty"><h2>No recipes here yet</h2><p>${state.role==='kitchen'?'No authorized recipes match these filters. Contact an Administrator if a recipe is missing.':'Create a recipe or adjust your filters.'}</p></div>`}</div>
   <div class="recipe-pagination">${button('Previous','page',`data-offset="${Math.max(0,state.offset-state.limit)}" ${state.offset===0?'disabled':''}`)}<span class="recipe-muted">${data.total?`${state.offset+1}–${Math.min(state.offset+state.limit,data.total)} of ${data.total}`:'0 recipes'}</span>${button('Next','page',`data-offset="${state.offset+state.limit}" ${state.offset+state.limit>=data.total?'disabled':''}`)}</div>`);
  state.libraryStamp=librarySignature();
 }
@@ -205,13 +214,15 @@ function ingredientEditor(p,gi,ri){
 }
 function photoMarkup(photos=[],{editable=state.editing}={}){return `<div class="recipe-photos">${photos.map(p=>`<figure><img data-file-id="${esc(p.file_id)}" ${p.path?`data-file-path="${esc(p.path)}"`:''} alt="${esc(p.caption||p.purpose||'Recipe photo')}"><figcaption>${editable?`<label>Caption<input data-photo-caption="${esc(p.id)}" value="${esc(p.caption||'')}"></label>`:esc(p.caption||'')}${editable?button('Remove','remove-photo',`data-file-id="${esc(p.file_id)}"`):''}</figcaption></figure>`).join('')}</div>`;}
 async function hydratePhotos(){
+ const epoch=state.authEpoch||0,staff=state.role==='kitchen',record=state.record;
  for(const link of root.querySelectorAll('[data-attachment]')){const file=state.record?.files.find(f=>f.id===link.dataset.attachment);if(file)try{link.href=await recipeFileUrl(file.path);}catch(error){link.textContent+=' · could not load';}}
  for(const img of root.querySelectorAll('img[data-file-id]')) {
-  const file=[...(state.record?.files||[]),...(state.doc?.files||[])].find(f=>f.id===img.dataset.fileId)||(img.dataset.filePath?{id:img.dataset.fileId,path:img.dataset.filePath}:null);if(!file?.path)continue;
-  try{let item=state.fileUrls.get(file.id);if(!item||Date.now()>item.expires){item={url:await recipeFileUrl(file.path),expires:Date.now()+12*60*1000};state.fileUrls.set(file.id,item);}if(img.isConnected)img.src=item.url;}catch{img.alt='Photo could not be loaded. Reopen the recipe to retry.';}
+  const file=[...(record?.files||[]),...(state.doc?.files||[])].find(f=>f.id===img.dataset.fileId)||(img.dataset.filePath?{id:img.dataset.fileId,path:img.dataset.filePath}:null);if(!file||(staff?!file.id:!file.path))continue;
+  try{let item=state.fileUrls.get(file.id);if(!item||performance.now()>item.expires){const url=await recipeFileUrl(staff?file.id:file.path,staff?{recipe_id:record.id,version_id:record.version_id,root_id:record.root_id,root_version:record.root_version,rd:state.rd}:null);if(epoch!==(state.authEpoch||0)||!img.isConnected){if(url.startsWith('blob:'))URL.revokeObjectURL(url);continue;}item={url,expires:performance.now()+12*60*1000};state.fileUrls.set(file.id,item);}if(img.isConnected&&epoch===(state.authEpoch||0))img.src=item.url;}catch{if(img.isConnected)img.alt='Photo could not be loaded. Reopen the recipe to retry.';}
  }
 }
 async function openRecipe(id){
+ if(state.role==='kitchen'){clearFileUrls();state.resumeKitchen=null;}
  rememberLibrary();
  const request=++state.request;shell('<p role="status">Opening recipe…</p>',{tabs:false});
  const record=await api('get',{id,kitchen:state.kitchen,rd:state.rd});if(request!==state.request)return;state.record=record;state.doc=model.normalizeRecipe(record.document);state.variant=0;state.editing=false;state.scale={mode:'multiplier',target:'1',rounding:'exact',step:'1'};state.kitchenSection=null;state.kitchenPane='ingredients';renderRecipe();
@@ -234,7 +245,7 @@ function renderRecipe(){
  const r=state.record,d=state.doc,v=d.variants[state.variant];let f=quantity('1'),scalingError='';
  try{f=scaleFactor(v.yield,state.scale.mode,state.scale.target);displayQuantity('1',{mode:state.scale.rounding,step:state.scale.step});}catch(error){scalingError=error.message;}
  const groups=scaleIngredients(v.groups,f);
- shell(`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">${esc(r.code)} · Version ${r.version} · ${date(r.updated_at)}</div><h1>${esc(d.name)}</h1><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span></div><div class="recipe-actions">${button(state.libraryView?'Back to results':'Library','library')}${canEditRecord()?button('Edit recipe','edit'):''}${canEditRecord()&&canRD()?button('New test','add-test'):''}${button('Print / PDF','export',scalingError?'disabled':'')}${button('Ingredient CSV','csv',scalingError?'disabled':'')}${isOwner()&&!r.deleted_at?`<div class="recipe-status-control"><label>Status<select data-recipe-status>${statusOptions(r.status)}</select></label>${button('Set status','set-status')}</div>`:''}</div></div>
+ shell(`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">${esc(r.code)} · Version ${r.version} · ${date(r.updated_at)}</div><h1>${esc(d.name)}</h1><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span></div><div class="recipe-actions">${button(state.libraryView?'Back to results':'Library','library')}${canEditRecord()?button('Edit recipe','edit'):''}${canEditRecord()&&canRD()?button('New test','add-test'):''}${state.role!=='kitchen'?button('Print / PDF','export',scalingError?'disabled':'')+button('Ingredient CSV','csv',scalingError?'disabled':''):''}${isOwner()&&!r.deleted_at?`<div class="recipe-status-control"><label>Status<select data-recipe-status>${statusOptions(r.status)}</select></label>${button('Set status','set-status')}</div>`:''}</div></div>
   ${r.status==='testing'?`<p class="recipe-notice">R&D recipe · ${r.production_version_id?'Production continues using the last Final recipe.':'Available for production after the owner marks it Final.'} Testing logs are kept separately.</p>`:''}
   ${r.deleted_at?`<div class="recipe-notice">This recipe is in Recently deleted. Its history remains available. ${button('Restore recipe','undelete')}</div>`:''}
   <div class="recipe-reader-reference"><p>${esc(d.description)}</p>${(d.allergen_override?d.allergens:[...(d.allergens||[]),...(d.detected_allergens||[])]).length?`<p class="recipe-muted recipe-allergens">Allergens: ${[...new Set(d.allergen_override?d.allergens:[...(d.allergens||[]),...(d.detected_allergens||[])])].map(esc).join(', ')}</p>`:''}${d.base?`<p class="recipe-muted">Variation of ${esc(d.base.name)} · saved base version ${button('Compare with base','compare-base')}</p>`:''}${photoMarkup(d.photos)}</div>
@@ -269,7 +280,7 @@ function renderRecipe(){
 }
 
 const resourceLabels={ingredient:'Ingredients',packaging:'Packaging',supplier:'Suppliers',equipment:'Equipment',categories:'Categories & subcategories'};
-function sectionLoadError(error){shell(`<section class="recipe-card recipe-empty" role="alert"><h2>This section could not load</h2><p>${esc(error.message||'Check your connection and try again.')}</p>${button('Try again','reload-section','','primary')}</section>`);}
+function sectionLoadError(error){if(state.role==='kitchen'&&kitchenGuard.locked)return;shell(`<section class="recipe-card recipe-empty" role="alert"><h2>This section could not load</h2><p>${esc(error.message||'Check your connection and try again.')}</p>${button('Try again','reload-section','','primary')}</section>`);}
 function renderResourceResults(){
  const container=root.querySelector('[data-resource-results]');if(!container)return;
  container.innerHTML=resourceTableMarkup(state.resources,{kind:state.tab,sort:state.resourceSort,canDelete:isOwner()});
@@ -316,8 +327,14 @@ async function categories({refresh=false}={}){
 }
 function categoryEditor(c={}){state.categoryEditing=c;setDialog(c.id?'Edit category':'Add category',`<form id="recipe-category-form"><div class="recipe-fields two"><label>Category name<input name="name" value="${esc(c.name)}" required maxlength="100"></label><label>Parent category<select name="parent_id"><option value="">Top-level category</option>${state.categories.filter(p=>p.id!==c.id&&!p.deleted_at).map(p=>`<option value="${p.id}" ${c.parent_id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label></div><label class="recipe-inline-check"><input name="active" type="checkbox" ${c.active!==false?'checked':''}>Available for new recipes</label><div class="recipe-actions"><button class="primary" type="submit">Save category</button>${c.id?button('Delete','delete-category',`data-id="${c.id}"`,'danger'):''}</div></form>`);}
 async function access(){
- state.tab='access';const people=await api('access');state.accessPeople=people;
- shell(`<section class="recipe-card"><h2>Add recipe access</h2><p class="recipe-muted">Invite someone with their email address. This gives recipe access only; shop administration stays separate.</p><form id="recipe-access-form"><div class="recipe-fields two"><label>Email address<input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="name@example.com"></label><label>Permission<select name="permission"><option value="kitchen">Kitchen · view production</option><option value="chef">Chef · edit drafts</option></select></label></div><p class="recipe-muted">Kitchen accounts can view production recipes and use temporary scaling. Chef accounts can edit drafts and costing. Enable Can view R&D separately to show research recipes and allow Chef accounts to use testing logs. Only you can mark recipes Final, Hidden or Archive.</p><button type="submit" class="primary">Add account & send invitation</button><p data-access-message role="status"></p></form></section><section class="recipe-card"><h2>Accounts & permissions</h2><p class="recipe-muted">Can view R&D applies to all research recipes and testing logs. Kitchen accounts can read research formulas; Chef accounts can also edit them and their logs. Only you can change this permission. New accounts start with R&D off.</p>${people.map(p=>`<div class="recipe-resource-row recipe-access-row"><div><strong>${esc(p.email)}</strong><small class="recipe-muted" style="display:block">${p.role==='owner'?'Owner · full access':esc(p.status||'Active')}${p.email_status?` · Email ${esc(({pending:'queued',sending:'sending',sent:'accepted for delivery',failed:'failed',skipped:'cancelled'})[p.email_status]||p.email_status)}`:''}</small></div>${p.role==='owner'?'':`<div class="recipe-actions"><label>Recipe access<select ${p.invitation_id?`data-access-invitation="${p.invitation_id}"`:`data-access-user="${p.user_id}"`}><option value="">Remove access</option><option value="kitchen" ${p.recipe_permission==='kitchen'?'selected':''}>Kitchen · view production</option><option value="chef" ${p.recipe_permission==='chef'?'selected':''}>Chef · edit drafts</option></select></label>${!p.invitation_id&&p.recipe_permission?`<label class="recipe-inline-check"><input type="checkbox" data-access-rd="${p.user_id}" ${p.can_view_rd?'checked':''}>Can view R&D</label>`:''}${p.invitation_id?button('Resend invitation','resend-invitation',`data-id="${p.invitation_id}"`):''}</div>`}</div>`).join('')}</section>`);
+ state.tab='staff-access';const people=await api('access');state.accessPeople=people;
+ shell(`<div class="recipe-actions">${button('Back to Staff Access','staff-access')}</div><section class="recipe-card"><h2>Add recipe access</h2><p class="recipe-muted">Invite someone with their email address. This gives recipe access only; shop administration stays separate.</p><form id="recipe-access-form"><div class="recipe-fields two"><label>Email address<input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="name@example.com"></label><label>Permission<select name="permission"><option value="kitchen">Kitchen · view production</option><option value="chef">Chef · edit drafts</option></select></label></div><p class="recipe-muted">Kitchen accounts follow their Staff Access hours, calendar and recipe scope, and can use temporary scaling. Printing and exports are disabled. Chef accounts can edit drafts and costing. Enable Can view R&D separately to show research recipes and allow Chef accounts to use testing logs. Only you can mark recipes Final, Hidden or Archive.</p><button type="submit" class="primary">Add account & send invitation</button><p data-access-message role="status"></p></form></section><section class="recipe-card"><h2>Accounts & permissions</h2><p class="recipe-muted">Can view R&D enables research formulas. Kitchen accounts remain subject to their Staff Access recipe scope, hours and blocking rules. Chef accounts can also edit research recipes and their logs. Only you can change this permission. New accounts start with R&D off.</p>${people.map(p=>`<div class="recipe-resource-row recipe-access-row"><div><strong>${esc(p.email)}</strong><small class="recipe-muted" style="display:block">${p.role==='owner'?'Owner · full access':esc(p.status||'Active')}${p.email_status?` · Email ${esc(({pending:'queued',sending:'sending',sent:'accepted for delivery',failed:'failed',skipped:'cancelled'})[p.email_status]||p.email_status)}`:''}</small></div>${p.role==='owner'?'':`<div class="recipe-actions"><label>Recipe access<select ${p.invitation_id?`data-access-invitation="${p.invitation_id}"`:`data-access-user="${p.user_id}"`}><option value="">Remove access</option><option value="kitchen" ${p.recipe_permission==='kitchen'?'selected':''}>Kitchen · view production</option><option value="chef" ${p.recipe_permission==='chef'?'selected':''}>Chef · edit drafts</option></select></label>${!p.invitation_id&&p.recipe_permission?`<label class="recipe-inline-check"><input type="checkbox" data-access-rd="${p.user_id}" ${p.can_view_rd?'checked':''}>Can view R&D</label>`:''}${p.invitation_id?button('Resend invitation','resend-invitation',`data-id="${p.invitation_id}"`):''}</div>`}</div>`).join('')}</section>`);
+}
+async function staffAccess(){
+ state.staffAccessController?.dispose();state.staffAccessController=null;state.tab='staff-access';state.record=null;state.doc=null;
+ shell('<p role="status">Loading staff access…</p>');
+ const {openStaffAccess}=await import('./recipe-staff-access.js?v=staff-security-1');
+ state.staffAccessState??={};state.staffAccessController=await openStaffAccess({root,api,shell,dialog:setDialog,closeDialog,confirm:confirmDialog,notify,openAccounts:access,state:state.staffAccessState,isActive:()=>state.tab==='staff-access'});
 }
 async function versions(offset=0){
  state.historyOffset=offset;const rows=await api('versions',{id:state.record.id,limit:100,offset});state.versions=rows;
@@ -388,8 +405,15 @@ async function saveTestWorkspace(){
 }
 function move(array,from,to){if(to<0||to>=array.length)return;const [item]=array.splice(from,1);array.splice(to,0,item);}
 async function action(name,a={}){
+ if(name==='verify-kitchen-access')return kitchenGuard.check();
+ if(name==='staff-access')return staffAccess();
+ if(name==='kitchen-scope'){
+  if(state.role!=='kitchen'||!canRD())return;state.rd=a.view==='rd';state.filters={};state.offset=0;state.record=null;state.doc=null;state.resumeKitchen=null;closeDialog();
+  await api('access_check',{rd:state.rd});history.replaceState(null,'',`recipes.html${state.rd?'?view=rd':''}`);return library();
+ }
+ if(state.role==='kitchen'&&kitchenGuard.locked)return;
  const v=state.doc?.variants[state.variant];
- if(name==='quick-scale'){state.scale.mode='multiplier';state.scale.target=a.factor;renderRecipe();root.querySelector(`[data-action="quick-scale"][data-factor="${a.factor}"]`)?.focus({preventScroll:true});return;}
+ if(name==='quick-scale'){if(state.role==='kitchen')await api('scale',kitchenGuard.context());state.scale.mode='multiplier';state.scale.target=a.factor;renderRecipe();root.querySelector(`[data-action="quick-scale"][data-factor="${a.factor}"]`)?.focus({preventScroll:true});return;}
  if(name==='overview-basis'){state.costFilters.basis=a.basis==='unit'?'unit':'batch';root.querySelector('[data-cost-overview-rows]').innerHTML=costingOverviewRows(state.costOverviewData,{button,basis:state.costFilters.basis});root.querySelectorAll('[data-action="overview-basis"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.basis===state.costFilters.basis)));root.querySelector('[data-overview-basis-label]').textContent=state.costFilters.basis==='unit'?'All money columns are per saleable unit; the unit is shown below each product. Products without a saleable unit show —.':'All money columns are for one base batch; batch yield is shown below each product.';return;}
  if(name==='custom-scale'){const controls=root.querySelector('.recipe-kitchen-production');controls.open=true;root.querySelector('[data-action="custom-scale"]').setAttribute('aria-expanded','true');root.querySelector('[data-scale="target"]')?.focus();return;}
  if(name==='exit-test'){const id=state.testWorkspace.source.id;if(await leaveEditor())return openRecipe(id);return;}
@@ -416,7 +440,7 @@ async function action(name,a={}){
  if(name==='remove-resource-photo'){state.resourcePhotos.splice(Number(a.index),1);await renderResourcePhotos();return;}
  if(name==='record-purchase'){const {openPurchase}=await import('./recipe-purchase.js?v=approved-ux-1');return openPurchase({api,dialog:setDialog,body:dialogBody,close:closeDialog,kind:state.tab==='packaging'?'packaging':'ingredient',onSaved:async kind=>{state.resourceQuery='';await resources(kind);notify('Purchase saved. Ingredient or packaging and supplier records are up to date.');}});}
  if(name==='record-item-price'){const record=state.resources.find(r=>r.id===a.id);if(!record)return;const {openItemPrice}=await import('./recipe-purchase.js?v=approved-ux-1');return openItemPrice({api,dialog:setDialog,body:dialogBody,close:closeDialog,record,onSaved:async()=>{ingredientPicker.clear();await resources(record.kind,{refresh:true});notify('Price recorded. Saved recipe costs are unchanged.');}});}
- if(name==='tab'){if(!await leaveEditor())return;state.resourceQuery='';state.resourceDeleted=false;state.resourceRequest++;if(a.tab==='costing')return costingOverview();if(a.tab==='library')return library();if(a.tab==='categories')return categories();if(a.tab==='access')return access();if(a.tab==='backups'){state.tab='backups';shell('<div id="recipe-backups"></div>');const m=await import('./recipe-backups.js?v=approved-ux-1');return m.mountRecipeBackups(root.querySelector('#recipe-backups'));}return resources(a.tab);}
+ if(name==='tab'){if(!await leaveEditor())return;state.staffAccessController?.dispose();state.staffAccessController=null;state.resourceQuery='';state.resourceDeleted=false;state.resourceRequest++;if(a.tab==='costing')return costingOverview();if(a.tab==='library')return library();if(a.tab==='categories')return categories();if(a.tab==='access')return access();if(a.tab==='staff-access')return staffAccess();if(a.tab==='backups'){state.tab='backups';shell('<div id="recipe-backups"></div>');const m=await import('./recipe-backups.js?v=staff-security-1');return m.mountRecipeBackups(root.querySelector('#recipe-backups'));}return resources(a.tab);}
  if(name==='library'){if(await leaveEditor())return library({reuse:true});return;}
  if(name==='new'){if(await leaveEditor()){beginEdit();}return;}
  if(name==='open')return openRecipe(a.id);
@@ -465,7 +489,7 @@ async function action(name,a={}){
  }else if(name==='update-component'){
   const c=v.components[Number(a.index)],related=state.record?.links.find(l=>l.version_id===c.version_id);if(!related)throw Error('Save this link first to check for an update.');const latest=await api('get',{id:related.recipe_id,kitchen:true});if(latest.version_id===c.version_id){notify('This component already uses the current production version.');return;}if(!latest.document.variants.some(size=>size.id===c.variant_id))throw Error('The original size was removed. Link the new component size explicitly.');if(!await confirmDialog(`Adopt ${latest.document.name} version ${latest.version} in this working draft? Save a new recipe version to publish the change.`,{confirmLabel:'Adopt version'}))return;c.version_id=latest.version_id;
  }else if(name==='open-component'){
-  const link=v.components[Number(a.index)],r=await api('get',{id:a.id,version_id:a.version,kitchen:state.kitchen});
+  const link=v.components[Number(a.index)],r=await api('get',{id:a.id,version_id:a.version,kitchen:state.kitchen,rd:state.rd,...(state.role==='kitchen'?{root_id:state.record.root_id||state.record.id,root_version:state.record.root_version||state.record.version_id}:{})});
   const size=r.document.variants.find(size=>size.id===link?.variant_id)||(!link?.variant_id?r.document.variants[0]:null);
   if(!link||!size)throw Error('This linked component size is unavailable.');
   const needed=multiply(quantity(link.quantity),scaleFactor(v.yield,state.scale.mode,state.scale.target)),plan=componentPlan(size.yield.quantity,needed,{wholeBatches:state.wholeComponents});
@@ -509,10 +533,10 @@ async function action(name,a={}){
   closeDialog();beginEdit(record,draft.document);state.draftId=draft.draft_id;state.dirty=true;return;
  }else if(name==='recover-draft-copy'){const draft=state.drafts.find(d=>d.draft_id===a.id);closeDialog();beginEdit(null,draft.document);return;}
  else if(name==='filters'){setDialog('More recipe filters',`<form id="recipe-filter-form"><div class="recipe-fields two">${canEdit()?`<label>Author<select name="author"><option value="">All authors</option>${(state.authors||[]).map(a=>`<option value="${a.id}" ${state.filters.author===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:''}${[['Tag','tag'],['Flavor','flavor'],['Product line','product_line'],['Version number','version'],['Updated since','updated_after']].map(([label,key])=>`<label>${label}<input name="${key}" type="${key==='updated_after'?'date':'text'}" value="${esc(state.filters[key]||'')}"></label>`).join('')}</div><button type="submit" class="primary">Apply filters</button></form>`);return;}
- else if(name==='csv'){await api('get',{id:state.record.id,version_id:state.record.version_id,kitchen:state.kitchen});const plan=await currentProductionPlan();download(model.csvTotals(plan.totals),`${state.doc.name}-ingredients.csv`,'text/csv;charset=utf-8');return;}
+ else if(name==='csv'){await api('export_authorize',{kind:'csv'});await api('get',{id:state.record.id,version_id:state.record.version_id,kitchen:state.kitchen});const plan=await currentProductionPlan();download(model.csvTotals(plan.totals),`${state.doc.name}-ingredients.csv`,'text/csv;charset=utf-8');return;}
  else if(name==='production-totals')return showProductionTotals();
  else if(name==='compare-base'){const link=state.record.links.find(l=>l.kind==='variation');if(!link)throw Error('Variation base was not found.');const base=await api('get',{id:link.recipe_id,version_id:link.version_id});const changes=model.differences(model.normalizeRecipe(base.document),state.doc).filter(c=>!c.field.startsWith('base.')&&!c.field.startsWith('detected_allergens'));setDialog(`Changes from ${base.document.name} · version ${base.version}`,`<table class="recipe-table recipe-diff"><thead><tr><th>Field</th><th>Base</th><th>Variation</th></tr></thead><tbody>${changes.map(c=>`<tr><td>${esc(c.field)}</td><td>${esc(JSON.stringify(c.before))}</td><td>${esc(JSON.stringify(c.after))}</td></tr>`).join('')}</tbody></table>`);return;}
- else if(name==='export'||name==='export-library'){const m=await import('./recipe-print.js?v=approved-ux-1');return m.openRecipeExport({record:name==='export'?state.record:null,production:name==='export'?{variant_id:v.id,factor:exact(scaleFactor(v.yield,state.scale.mode,state.scale.target)),mode:state.scale.mode,target:state.scale.target,wholeComponents:state.wholeComponents}:null,selection:[...state.selection],filters:state.filters,kitchen:state.kitchen,rd:state.rd,settings:state.settings,api,fileUrl:recipeFileUrl,dialog:setDialog});}
+ else if(name==='export'||name==='export-library'){const m=await import('./recipe-print.js?v=staff-security-1');return m.openRecipeExport({record:name==='export'?state.record:null,production:name==='export'?{variant_id:v.id,factor:exact(scaleFactor(v.yield,state.scale.mode,state.scale.target)),mode:state.scale.mode,target:state.scale.target,wholeComponents:state.wholeComponents}:null,selection:[...state.selection],filters:state.filters,kitchen:state.kitchen,rd:state.rd,settings:state.settings,api,fileUrl:recipeFileUrl,dialog:setDialog});}
  else if(name==='rebuild-import'){if(!await confirmDialog(`Rebuild ingredients and procedures for ${v.name} from the original import? This replaces those sections in your working draft, including any manual edits there. Yield, photos, packaging and other details stay as they are. Your saved recipe will not change until you save a new version.`,{confirmLabel:'Rebuild draft'}))return;const {rebuildImportedSections}=await import('./recipe-import.js?v=approved-ux-1');const rebuilt=rebuildImportedSections(state.doc,state.variant);state.doc=rebuilt.document;notify(`Rebuilt ${rebuilt.recognized} ingredient rows. Review each component before saving.`);}
  else if(name==='import'){const m=await import('./recipe-import.js?v=approved-ux-1');return m.openRecipeImport({dialog:setDialog,close:closeDialog,beginEdit,upload:uploadRecipeFile,notify});}
  else return;
@@ -527,7 +551,7 @@ async function handleClick(event){
  const target=event.target.closest('[data-action]');if(!target||target.disabled||state.saving)return;
  target.disabled=true;try{await action(target.dataset.action,target.dataset);}catch(error){showError(error);}finally{target.disabled=false;}
 }
-root.addEventListener('click',handleClick);dialogBody.addEventListener('click',handleClick);
+root.addEventListener('click',handleClick);dialogBody.addEventListener('click',handleClick);document.querySelector('.recipe-header')?.addEventListener('click',handleClick);
 root.addEventListener('submit',event=>{if(event.target.id==='recipe-editor'){event.preventDefault();saveRecipe().catch(showError);}});
 root.addEventListener('input',event=>{
  const el=event.target;
@@ -548,14 +572,14 @@ root.addEventListener('change',async event=>{const el=event.target;try{
  else if(el.dataset.photoCaption){for(const photo of [...state.doc.photos,...state.doc.variants.flatMap(v=>[...v.photos,...v.packaging.photos])])if(photo.id===el.dataset.photoCaption)photo.caption=el.value;markDirty();}
  else if(el.dataset.path){setPath(state.doc,el.dataset.path,el.dataset.array?el.value.split(',').map(s=>s.trim()).filter(Boolean):el.value);markDirty();if(el.dataset.path.endsWith('.costing.mode'))root.querySelector('[data-saleable-settings]').hidden=el.value!=='saleable';
 
- }else if(el.hasAttribute('data-whole-components')){state.wholeComponents=el.checked;}
+ }else if(el.hasAttribute('data-whole-components')){if(state.role==='kitchen')await api('scale',kitchenGuard.context());state.wholeComponents=el.checked;}
  else if(el.hasAttribute('data-allergen-override')){state.doc.allergen_override=el.checked;markDirty();}
  else if(el.hasAttribute('data-import-reviewed')){state.doc.import_review.reviewed=el.checked;markDirty();}
  else if(el.dataset.filter&&el.dataset.filter!=='query'){const key=el.dataset.filter;if(key==='collection'){delete state.filters.favorites;delete state.filters.pinned;delete state.filters.recent;delete state.filters.deleted;if(el.value)state.filters[el.value]=true;}else state.filters[key]=el.value;state.offset=0;await library();}
  else if(el.dataset.select){if(el.checked)state.selection.add(el.dataset.select);else state.selection.delete(el.dataset.select);}
  else if(el.hasAttribute('data-editor-variant')){state.variant=Number(el.value);renderEditor();}
- else if(el.hasAttribute('data-view-variant')){state.variant=Number(el.value);state.scale.target='1';state.scale.mode='multiplier';renderRecipe();}
- else if(el.dataset.scale){state.scale[el.dataset.scale]=el.value;renderRecipe();}
+ else if(el.hasAttribute('data-view-variant')){if(state.role==='kitchen')await api('scale',kitchenGuard.context());state.variant=Number(el.value);state.scale.target='1';state.scale.mode='multiplier';renderRecipe();}
+ else if(el.dataset.scale){if(state.role==='kitchen')await api('scale',kitchenGuard.context());state.scale[el.dataset.scale]=el.value;renderRecipe();}
  else if(el.dataset.check){sessionStorage.setItem(checkKey(el.dataset.check),el.checked?'1':'0');}
  else if(el.dataset.accessRd){
   el.disabled=true;try{await api('save_rd_access',{user_id:el.dataset.accessRd,can_view_rd:el.checked});await access();notify('R&D access updated.');}catch(error){await access();throw error;}
@@ -601,26 +625,30 @@ dialogBody.addEventListener('submit',async event=>{
 document.querySelector('[data-dialog-close]').addEventListener('click',closeDialog);
 window.addEventListener('beforeunload',event=>{if(state.editing&&state.dirty){event.preventDefault();event.returnValue='';}});
 
-export async function startRecipeLibrary(){
+export async function startRecipeLibrary({resume=null}={}){
  await ready;
  if(!auth){shell('<div class="recipe-empty"><h1>Recipe library unavailable</h1><p>Check your connection and reload.</p></div>',{tabs:false});return;}
  const {data:{session}}=await auth.getSession();
- if(!session){shell('<div class="recipe-empty"><h1>Your private recipe library</h1><p>Sign in with an authorized account to continue.</p><a class="recipe-button" href="account.html?next=recipes.html">Sign in</a></div>',{tabs:false});return;}
+ if(!session){kitchenGuard.stop();state.role=null;state.can_view_rd=false;state.rd=false;shell('<div class="recipe-empty"><h1>Your private recipe library</h1><p>Sign in with an authorized account to continue.</p><a class="recipe-button" href="account.html?next=recipes.html">Sign in</a></div>',{tabs:false});return;}
  state.userId=session.user.id;
- try{const setup=await api('bootstrap');Object.assign(state,setup);if(!canRD())state.rd=false;if(state.role==='kitchen')state.kitchen=true;await library();}
- catch(error){shell(`<div class="recipe-empty"><h1>Recipe access required</h1><p>${esc(error.message)}</p><a class="recipe-button" href="account.html">My account</a></div>`,{tabs:false});}
+ try{const started=performance.now(),setup=await api('bootstrap');Object.assign(state,setup);if(!canRD())state.rd=false;state.kitchen=state.role==='kitchen'||new URLSearchParams(location.search).get('view')==='kitchen';
+  if(!kitchenGuard.start(setup,started))return;
+  if(resume&&state.role==='kitchen'){state.rd=Boolean(resume.rd&&canRD());await openRecipe(resume.id);}else await library();
+ }catch(error){if(state.role==='kitchen'&&kitchenGuard.locked)return;shell(`<div class="recipe-empty"><h1>Recipe access required</h1><p>${esc(error.message)}</p><a class="recipe-button" href="account.html">My account</a></div>`,{tabs:false});}
 }
 ready.then(()=>auth?.onAuthStateChange?.((event,session)=>{
  if(['SIGNED_OUT','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED'].includes(event))invalidateLibrary();
  if(event==='SIGNED_OUT'||(event==='SIGNED_IN'&&state.userId&&session?.user?.id&&session.user.id!==state.userId)){
+  kitchenGuard.stop();state.resumeKitchen=null;
   clearPrivateView();state.role=null;state.userId=null;state.can_view_rd=false;state.rd=false;setTimeout(()=>startRecipeLibrary().catch(showError),0);
  }
 }));
 
 async function currentProductionPlan(){
+ if(state.role==='kitchen')await api('scale',kitchenGuard.context());
  const v=state.doc.variants[state.variant];
  return model.productionPlan(state.record,v.id,scaleFactor(v.yield,state.scale.mode,state.scale.target),{wholeComponents:state.wholeComponents,loadRecipe:async(link,parent)=>{
-  const related=parent.links.find(l=>l.version_id===link.version_id);if(!related)throw Error('A saved component link is missing.');return api('get',{id:related.recipe_id,version_id:link.version_id,kitchen:state.kitchen});
+  const related=parent.links.find(l=>l.version_id===link.version_id);if(!related)throw Error('A saved component link is missing.');return api('get',{id:related.recipe_id,version_id:link.version_id,kitchen:state.kitchen,rd:state.rd,...(state.role==='kitchen'?{root_id:state.record.root_id||state.record.id,root_version:state.record.root_version||state.record.version_id}:{})});
  }});
 }
 async function showProductionTotals(){

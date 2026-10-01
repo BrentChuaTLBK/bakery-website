@@ -61,3 +61,7 @@ verify_jwt = false
 [functions.order-backup]
 # A scoped cron token or a verified owner is required in the handler.
 verify_jwt = false
+
+[functions.recipe-kitchen-media]
+# Auth validates the JWT; recipe_api enforces the current Kitchen Staff policy.
+verify_jwt = false
