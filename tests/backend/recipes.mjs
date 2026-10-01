@@ -17,6 +17,8 @@ export default async function({db,check,state}) {
   await api('save_access',{user_id:staff,permission:'chef'});
   await api('save_access',{user_id:customer,permission:'kitchen'});
   assert.equal((await api('bootstrap',{},staff)).role,'chef');assert.equal((await api('bootstrap',{},customer)).role,'kitchen');
+  assert.equal((await api('bootstrap',{},staff)).can_view_rd,false);
+  await api('save_rd_access',{user_id:staff,can_view_rd:true});
   await assert.rejects(()=>api('save_access',{user_id:stranger,permission:'chef'},staff),/owner/);
  })();
  await check('create and explicitly publish a recipe, keeping private information out of kitchen payloads',async()=>{

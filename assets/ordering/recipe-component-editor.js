@@ -1,4 +1,4 @@
-import {recipeSections,methodGroupId} from './recipe-model.js?v=production-audit-1';
+import {recipeSections,methodGroupId} from './recipe-model.js?v=approved-ux-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function procedureEditor(v,p,index,{field,button,photoMarkup}){
  const m=v.methods[index],groupId=methodGroupId(v,m);
@@ -10,7 +10,7 @@ export function componentEditor(v,p,render){
  const {field,button,ingredientEditor}=render,{components,standalone}=recipeSections(v);
  return `<section class="recipe-card recipe-component-intro"><div class="recipe-section-head"><div><h2>Recipe components</h2><p class="recipe-muted">Ingredients and procedure stay together for each part of your recipe.</p></div>${button('+ Component','add-group','','primary')}</div></section>
  ${components.map(({group:g,index:gi,methods})=>`<section class="recipe-card recipe-component-editor" data-component-editor="${esc(g.id)}" data-group="${gi}"><h2 class="recipe-resource-sr" data-component-heading>${esc(g.name)}</h2><div class="recipe-section-head"><div class="recipe-component-title"><span class="recipe-eyebrow">Component ${gi+1}</span>${field('Component name',`${p}.groups.${gi}.name`,{placeholder:'e.g. Coconut Chiffon'})}</div><div class="recipe-actions">${button('↑','move-group',`data-group="${gi}" data-direction="-1" aria-label="Move component up" ${gi===0?'disabled':''}`)}${button('↓','move-group',`data-group="${gi}" data-direction="1" aria-label="Move component down" ${gi===components.length-1?'disabled':''}`)}${button('Remove','remove-group',`data-group="${gi}" aria-label="Remove component ${esc(g.name)}"`,'danger')}</div></div>
- <h3>Ingredients</h3><div class="recipe-group">${g.ingredients.map((r,ri)=>ingredientEditor(p,gi,ri)).join('')}${button('+ Ingredient','add-ingredient',`data-group="${gi}"`)}</div>
+ <h3>Ingredients</h3><div class="recipe-ingredient-head" aria-hidden="true"><span></span><span>Ingredient / brand</span><span>Quantity</span><span>Unit</span><span>Actions</span><span>Details</span></div><div class="recipe-group">${g.ingredients.map((r,ri)=>ingredientEditor(p,gi,ri)).join('')}${button('+ Ingredient','add-ingredient',`data-group="${gi}"`)}</div>
  ${methods.map(({index})=>procedureEditor(v,p,index,render)).join('')}${!methods.length?`<div class="recipe-add-step">${button('+ Procedure','add-method',`data-group="${gi}"`)}</div>`:''}</section>`).join('')}
  <div class="recipe-actions recipe-add-component">${button('+ Component','add-group')}</div>
  <section class="recipe-card recipe-assembly-editor"><div class="recipe-section-head"><h2>Assembly & finishing</h2>${button(standalone.length?'+ Procedure':'+ Add assembly','add-method')}</div>${standalone.map(({index})=>procedureEditor(v,p,index,render)).join('')}${!standalone.length?'<p class="recipe-muted">Add final assembly steps here if your recipe needs them.</p>':''}</section>`;

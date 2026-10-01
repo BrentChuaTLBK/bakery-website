@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {join,resolve} from 'node:path';
 import {makeHarness} from './helpers.mjs';
@@ -26,6 +27,8 @@ export default async function({db,check}){
  await api('save_test',{recipe_id:recipe.id,version_id:recipe.version_id,data:{observations:'Soft center',rating:4},proposed_document:doc});
  await api('record_run',{version_id:recipe.version_id,variant_id:'base',multiplier:'2',actual_yield:'2',produced_on:'2026-09-30',notes:'Backup fixture production run'});
  await api('invite_access',{email:'customer@example.test',permission:'kitchen',send_email:false});
+ await api('save_rd_access',{user_id:h.ids.customer,can_view_rd:true});
+ await api('autosave',{draft_id:randomUUID(),id:recipe.id,revision:recipe.revision,status:'testing',document:doc});
  await api('invite_access',{email:'pending-restore@example.test',permission:'chef',send_email:false});
  const image=await api('reserve_file',{filename:'packaging.png',mime_type:'image/png',size_bytes:blobBytes.length,sha256:sha});
  await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[image.path,JSON.stringify({size:blobBytes.length,mimetype:image.mime_type})]);await api('confirm_file',{id:image.id});
@@ -59,6 +62,8 @@ export default async function({db,check}){
   try{await isolated.exec("set timezone='Asia/Manila'");const restored=await rehearseRecipeRestore(archive,{db:isolated});assert.equal(restored.relationships,true);assert.equal(restored.files,2);assert.equal(restored.production_modified,false);
    assert.equal((await isolated.query('select count(*)::int n from tlb.staff where user_id=$1',[h.ids.customer])).rows[0].n,0);
    assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_invitations')).rows[0].n,2);
+   assert.equal((await isolated.query('select can_view_rd from tlb.recipe_access where user_id=$1',[h.ids.customer])).rows[0].can_view_rd,true);
+   assert.equal((await isolated.query('select requires_rd from tlb.recipe_drafts')).rows[0].requires_rd,true);
    assert.equal((await isolated.query('select data from tlb.recipe_resources where id=$1',[packaging.id])).rows[0].data.photos[0].caption,'Box for the cake');
    const deletedResource=(await isolated.query('select * from tlb.recipe_resources where id=$1',[removed.id])).rows[0];assert.ok(deletedResource.deleted_at);assert.equal(deletedResource.data.notes,'Restore this note');
    assert.ok((await isolated.query('select deleted_at from tlb.recipe_categories where id=$1',[removedCategory.id])).rows[0].deleted_at);
@@ -69,6 +74,12 @@ export default async function({db,check}){
    const maximum=Number((await isolated.query('select max(id) id from tlb.recipe_audit')).rows[0].id||0);
    const event=(await isolated.query("insert into tlb.recipe_audit(action,details) values('restore_rehearsal_next_edit','{}') returning id")).rows[0];assert.ok(Number(event.id)>maximum);
   }finally{await isolated.close();}
+ })();
+ await check('pre-permission backups restore with R&D access off and without null default failures',async()=>{
+  const require=createRequire(process.env.PGLITE_PACKAGE_ROOT?join(resolve(process.env.PGLITE_PACKAGE_ROOT),'package.json'):import.meta.url);
+  const {PGlite}=require('@electric-sql/pglite'),{pgcrypto}=require('@electric-sql/pglite/contrib/pgcrypto'),isolated=new PGlite({extensions:{pgcrypto}});
+  const legacy=await readRecipeArchive(archive);for(const row of legacy.tables.recipe_access)delete row.can_view_rd;for(const row of legacy.tables.recipe_drafts)delete row.requires_rd;
+  try{const restored=await rehearseRecipeRestore(legacy,{db:isolated});assert.equal(restored.relationships,true);assert.equal((await isolated.query('select can_view_rd from tlb.recipe_access')).rows[0].can_view_rd,false);assert.equal((await isolated.query('select requires_rd from tlb.recipe_drafts')).rows[0].requires_rd,false);}finally{await isolated.close();}
  })();
  await check('modified file bytes are rejected by recovery checksum validation',async()=>{
   const data=new Uint8Array(await archive.arrayBuffer()),needle=blobBytes;let index=-1;

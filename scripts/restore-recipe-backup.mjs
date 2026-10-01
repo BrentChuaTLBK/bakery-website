@@ -11,7 +11,9 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
  if(applySchema){await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));for(const name of(await readdir(join(root,'supabase/migrations'))).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile(join(root,'supabase/migrations',name),'utf8'));}
  const count=(await db.query('select (select count(*) from tlb.recipes)+(select count(*) from tlb.recipe_resources)+(select count(*) from tlb.recipe_versions) n')).rows[0].n;
  if(Number(count)!==0)throw Error('Restore rehearsal requires an empty recipe database.');
- const {tables}=backup;
+ // Old backups predate account-wide R&D access. Preserve least privilege.
+ const researchRecipes=new Set(backup.tables.recipe_versions.filter(row=>row.status==='testing').map(row=>row.recipe_id));
+ const tables={...backup.tables,recipe_access:backup.tables.recipe_access.map(row=>({can_view_rd:false,...row})),recipe_drafts:backup.tables.recipe_drafts.map(row=>({requires_rd:researchRecipes.has(row.recipe_id),...row}))};
  await db.exec('begin; set constraints all deferred; delete from tlb.recipe_categories; delete from tlb.recipe_settings;');
  try{
   for(const actor of tables.actors)await db.query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) on conflict(id) do nothing',[actor.id,actor.email]);

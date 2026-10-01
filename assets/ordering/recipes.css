@@ -100,3 +100,55 @@
 .recipe-cost-product{border-top:1px solid #dfcfb9;padding:22px 0}.recipe-cost-product h3{margin:0;overflow-wrap:anywhere}.recipe-cost-product .recipe-muted{font-size:.8rem}
 .recipe-cost-lines summary{cursor:pointer;padding:12px 0}.recipe-cost-overview .recipe-filters{margin-top:20px}
 @media(max-width:600px){.recipe-cost-highlights,.recipe-cost-breakdown{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.recipe-cost-highlights>div{padding:10px}.recipe-cost-highlights dd{font-size:1.02rem}.recipe-cost-product .recipe-section-head{align-items:start;flex-wrap:wrap}.recipe-cost-product .recipe-section-head>div{min-width:0}.recipe-cost-product button{min-height:44px}}
+
+/* Approved recipe UX: production shortcuts, visible brands and focused costing. */
+.recipe-test-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:22px;align-items:start}.recipe-test-workspace>*{min-width:0}
+.recipe-test-notes{position:sticky;top:12px;max-height:calc(100dvh - 115px);overflow:auto;padding:20px}.recipe-test-notes>label{margin:16px 0}.recipe-test-notes textarea{min-height:80px}
+.recipe-test-tabs{display:none!important}.recipe-test-workspace .recipe-ingredient-head,.recipe-test-workspace .recipe-ingredient-compact{grid-template-columns:26px minmax(135px,1fr) 70px 60px 84px 58px;gap:6px}.recipe-test-workspace .recipe-ingredient-identity input{min-width:100px}
+@media(max-width:1100px) and (min-width:701px){.recipe-test-workspace{grid-template-columns:minmax(0,1fr) 280px;gap:14px}.recipe-test-workspace .recipe-ingredient-head{display:none}.recipe-test-workspace .recipe-ingredient-compact{grid-template-columns:26px minmax(0,1fr) 60px 84px}.recipe-test-workspace .recipe-ingredient-compact>.recipe-ingredient-picker{grid-column:2/-1;grid-row:1}.recipe-test-workspace .recipe-ingredient-compact>label:nth-of-type(1){grid-column:2;grid-row:2}.recipe-test-workspace .recipe-ingredient-compact>label:nth-of-type(2){grid-column:3;grid-row:2}.recipe-test-workspace .recipe-ingredient-compact>.recipe-row-buttons{grid-column:4;grid-row:2}.recipe-test-workspace .recipe-ingredient-details{grid-column:2/-1;grid-row:3}}
+@media(max-width:700px){.recipe-test-workspace{display:block}.recipe-test-tabs{display:flex!important;margin-bottom:16px}.recipe-test-tabs button{flex:1}.recipe-test-notes{position:static;max-height:none}.recipe-test-workspace[data-test-pane=formula]>.recipe-test-notes,.recipe-test-workspace[data-test-pane=notes]>#recipe-editor{display:none}.recipe-test-workspace .recipe-ingredient-compact{grid-template-columns:26px minmax(0,1fr) 60px 84px;gap:6px}}
+.recipe-quick-quantity,.recipe-kitchen-sections,.recipe-segmented{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.recipe-quick-quantity{margin-bottom:10px}.recipe-quick-quantity>span:first-child{font-size:.8rem;font-weight:600;margin-right:5px}
+.recipe-quick-quantity button,.recipe-kitchen-sections button,.recipe-segmented button{min-height:48px}
+.recipe-quick-quantity button[aria-pressed=true],.recipe-kitchen-sections button[aria-pressed=true],.recipe-segmented button[aria-pressed=true]{background:#784d29;color:white;border-color:#784d29}
+.recipe-kitchen-sections{margin-bottom:7px}.recipe-kitchen-sections button{font-size:.78rem;padding:9px 12px}
+.recipe-ingredient-head,.recipe-ingredient-compact{display:grid;grid-template-columns:30px minmax(180px,1fr) 100px 76px 84px 72px;gap:10px;align-items:start}
+.recipe-ingredient-head{font-size:.7rem;color:#7b6e60;padding-bottom:8px}
+.recipe-ingredient-compact{margin:0;padding:10px 0;position:relative}.recipe-ingredient-compact>.recipe-drag,.recipe-ingredient-compact .recipe-row-buttons{margin:0;padding-top:0}
+.recipe-ingredient-compact>.recipe-drag{padding:8px}.recipe-ingredient-compact>.recipe-row-buttons{grid-column:5;grid-row:1}
+.recipe-ingredient-compact>.recipe-ingredient-picker{grid-column:2;grid-row:1}.recipe-ingredient-compact>label:nth-of-type(1){grid-column:3;grid-row:1}.recipe-ingredient-compact>label:nth-of-type(2){grid-column:4;grid-row:1}
+.recipe-ingredient-compact>label{font-size:0;gap:0}.recipe-ingredient-compact>label input{font-size:.9rem}
+.recipe-ingredient-compact .recipe-ingredient-picker>label{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}
+.recipe-ingredient-identity{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.recipe-ingredient-identity input{flex:1;min-width:130px}
+.recipe-ingredient-brand{font-size:.72rem;padding:5px 7px;background:#f0e5d5;border-radius:5px;max-width:100%;overflow-wrap:anywhere}
+.recipe-ingredient-compact .recipe-ingredient-options{top:46px}.recipe-ingredient-compact .recipe-ingredient-link{margin-top:4px;line-height:1.35}
+.recipe-ingredient-details{grid-column:6;grid-row:1}.recipe-ingredient-details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:.75rem;color:#79502d}
+.recipe-ingredient-details[open]{grid-column:2/-1;grid-row:2}.recipe-ingredient-details[open] summary{min-height:34px}.recipe-ingredient-details .recipe-fields{padding:10px 0}
+.recipe-cost-controls{display:grid;grid-template-columns:1.3fr 1fr 160px;gap:15px;align-items:end}.recipe-control-label{display:block;font-size:.78rem;font-weight:600;margin-bottom:7px}
+.recipe-cost-support>summary{cursor:pointer;padding:15px 0;color:#79502d;font-size:.85rem}.recipe-cost-summary>p{line-height:1.55}
+.recipe-cost-comparison{width:100%;border-collapse:collapse;font-size:.8rem}.recipe-cost-comparison caption{text-align:left}
+.recipe-cost-comparison th,.recipe-cost-comparison td{border-bottom:1px solid #e5d8c7;padding:14px 9px;vertical-align:top;text-align:left}
+.recipe-cost-comparison thead th{background:#f3ebde;font-size:.72rem}.recipe-cost-comparison tbody th{font-weight:400;min-width:160px;max-width:270px;overflow-wrap:anywhere}
+.recipe-cost-comparison tbody th>span{display:block;color:#7b6e60;font-size:.7rem;margin-top:6px}.recipe-cost-comparison .numeric{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.recipe-cost-comparison .recipe-cost-flag{color:#79502d;font-weight:600}.recipe-cost-comparison .recipe-cost-flag.negative{color:#953327}
+.recipe-cost-row-details summary{cursor:pointer;color:#79502d;min-height:44px;display:flex;align-items:center}.recipe-cost-row-details>div{min-width:130px;max-width:260px;font-size:.75rem;line-height:1.6}.recipe-cost-row-details button{font-size:.75rem;padding:8px}
+@media(min-width:701px){.recipe-kitchen-selector{display:none}}
+@media(max-width:1050px){.recipe-ingredient-head,.recipe-ingredient-compact{grid-template-columns:30px minmax(140px,1fr) 80px 66px 84px 66px;gap:7px}.recipe-ingredient-brand{padding:3px 6px}.recipe-cost-controls{grid-template-columns:1fr 1fr}.recipe-cost-controls>label{grid-column:1/-1;max-width:220px}}
+@media(max-width:700px){
+ .recipe-kitchen-sections{display:none}.recipe-quick-quantity{gap:5px}.recipe-quick-quantity>span:first-child{display:none}.recipe-quick-quantity>span:last-child{flex-basis:100%}
+ .recipe-production .recipe-check,.recipe-production .recipe-table .recipe-check{min-height:48px;padding:0}.recipe-production .recipe-table td{padding:3px 6px}
+ .recipe-ingredient-head{display:none}.recipe-ingredient-compact{grid-template-columns:26px minmax(0,1fr) 72px 84px;gap:8px;padding:13px 0}
+ .recipe-ingredient-compact>.recipe-ingredient-picker{grid-column:2/-1;grid-row:1}.recipe-ingredient-compact>.recipe-drag{grid-column:1;grid-row:1/3}
+ .recipe-ingredient-compact>label:nth-of-type(1){grid-column:2;grid-row:2}.recipe-ingredient-compact>label:nth-of-type(2){grid-column:3;grid-row:2}.recipe-ingredient-compact>label{font-size:.75rem;gap:5px}
+ .recipe-ingredient-compact>.recipe-row-buttons{grid-column:4;grid-row:2;align-self:end}.recipe-ingredient-details,.recipe-ingredient-details[open]{grid-column:2/-1;grid-row:3}
+ .recipe-resource-action{flex-direction:column}.recipe-resource-action button{width:100%}
+ .recipe-cost-comparison thead{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.recipe-cost-comparison tbody{display:block}
+ .recipe-cost-comparison tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px;padding:16px 0;border-bottom:1px solid #e5d8c7}
+ .recipe-cost-comparison th,.recipe-cost-comparison td{border:0;padding:3px 0;max-width:none;min-width:0}.recipe-cost-comparison th,.recipe-cost-comparison td:last-child{grid-column:1/-1}
+ .recipe-cost-comparison td.numeric{text-align:left;white-space:normal;overflow-wrap:anywhere;font-weight:600}.recipe-cost-comparison td.numeric:before{content:attr(data-label);display:block;font-size:.7rem;font-weight:400;color:#7b6e60;margin-bottom:4px}
+ .recipe-cost-row-details>div{max-width:none}
+ .recipe-app dialog.recipe-cost-sheet{width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;border-radius:0;border:0;padding:0 18px 20px}
+ .recipe-cost-sheet>header{position:sticky;top:0;background:#fcf9f1;z-index:2;padding:14px 0;margin-bottom:10px;border-bottom:1px solid #e5d8c7}.recipe-app .recipe-cost-sheet>header button{min-width:48px;min-height:48px}
+ .recipe-cost-controls{gap:12px}.recipe-cost-controls>div{grid-column:1/-1}.recipe-cost-controls .recipe-segmented{flex-wrap:nowrap}.recipe-cost-controls button{flex:1}
+ .recipe-cost-sheet .recipe-cost-highlights{grid-template-columns:repeat(2,minmax(0,1fr))}.recipe-cost-sheet .recipe-cost-highlights>div:last-child:nth-child(odd){grid-column:1/-1}
+}

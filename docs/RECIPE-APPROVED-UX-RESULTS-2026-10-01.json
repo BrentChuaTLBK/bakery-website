@@ -1,0 +1,376 @@
+{
+  "date": "2026-10-01T03:56:18.564Z",
+  "status": "26 suites passed; database migrations deployed; frontend awaiting upstream merge",
+  "upstream_base": "7d8a0dd33348e39d38cc23863dec4c886fe13642",
+  "suites": [
+    {
+      "name": "unit",
+      "exit_code": 0,
+      "elapsed_ms": 7601,
+      "passed_checks": 283
+    },
+    {
+      "name": "recipes-db",
+      "exit_code": 0,
+      "elapsed_ms": 6063,
+      "passed_checks": 83
+    },
+    {
+      "name": "access-db",
+      "exit_code": 0,
+      "elapsed_ms": 3288,
+      "passed_checks": 8
+    },
+    {
+      "name": "catalog-db",
+      "exit_code": 0,
+      "elapsed_ms": 3552,
+      "passed_checks": 6
+    },
+    {
+      "name": "backup-db",
+      "exit_code": 0,
+      "elapsed_ms": 9727,
+      "passed_checks": 7
+    },
+    {
+      "name": "academy-db",
+      "exit_code": 0,
+      "elapsed_ms": 5008,
+      "passed_checks": 19
+    },
+    {
+      "name": "academy-recovery",
+      "exit_code": 0,
+      "elapsed_ms": 7097,
+      "passed_checks": 1
+    },
+    {
+      "name": "academy-audit",
+      "exit_code": 0,
+      "elapsed_ms": 4965,
+      "passed_checks": 118
+    },
+    {
+      "name": "edge",
+      "exit_code": 0,
+      "elapsed_ms": 2074,
+      "passed_checks": 7
+    },
+    {
+      "name": "ui-recipes",
+      "exit_code": 0,
+      "elapsed_ms": 27508,
+      "passed_checks": 24
+    },
+    {
+      "name": "ui-recipe-components",
+      "exit_code": 0,
+      "elapsed_ms": 25499,
+      "passed_checks": 12
+    },
+    {
+      "name": "ui-recipe-ingredient-picker",
+      "exit_code": 0,
+      "elapsed_ms": 12183,
+      "passed_checks": 6
+    },
+    {
+      "name": "ui-recipe-packaging",
+      "exit_code": 0,
+      "elapsed_ms": 16557,
+      "passed_checks": 10
+    },
+    {
+      "name": "ui-recipe-workflow",
+      "exit_code": 0,
+      "elapsed_ms": 26514,
+      "passed_checks": 13
+    },
+    {
+      "name": "ui-recipe-startup",
+      "exit_code": 0,
+      "elapsed_ms": 3600,
+      "passed_checks": 9
+    },
+    {
+      "name": "ui-recipe-import-export",
+      "exit_code": 0,
+      "elapsed_ms": 4498,
+      "passed_checks": 6
+    },
+    {
+      "name": "ui-recipe-profitability",
+      "exit_code": 0,
+      "elapsed_ms": 18452,
+      "passed_checks": 8
+    },
+    {
+      "name": "ui-recipe-security",
+      "exit_code": 0,
+      "elapsed_ms": 4856,
+      "passed_checks": 3
+    },
+    {
+      "name": "ui-recipe-approved-ux",
+      "exit_code": 0,
+      "elapsed_ms": 21318,
+      "passed_checks": 7
+    },
+    {
+      "name": "ui-recipe-rd-access",
+      "exit_code": 0,
+      "elapsed_ms": 5672,
+      "passed_checks": 5
+    },
+    {
+      "name": "ui-academy-portal",
+      "exit_code": 0,
+      "elapsed_ms": 23249,
+      "passed_checks": 12
+    },
+    {
+      "name": "ui-academy-auth",
+      "exit_code": 0,
+      "elapsed_ms": 2221,
+      "passed_checks": 6
+    },
+    {
+      "name": "ui-academy-audit",
+      "exit_code": 0,
+      "elapsed_ms": 16985,
+      "passed_checks": 18
+    },
+    {
+      "name": "ui-academy-admin-audit",
+      "exit_code": 0,
+      "elapsed_ms": 20133,
+      "passed_checks": 13
+    },
+    {
+      "name": "build",
+      "exit_code": 0,
+      "elapsed_ms": 3220,
+      "passed_checks": 0
+    },
+    {
+      "name": "edge-email",
+      "exit_code": 0,
+      "elapsed_ms": 12631,
+      "passed_checks": 3
+    }
+  ],
+  "performance": {
+    "environment": "Isolated PGlite PostgreSQL + headless Chrome on this Windows workstation; no production network latency or multi-session load included.",
+    "dataset": {
+      "recipes": 500,
+      "ingredient_rows": 6000,
+      "ingredients": 400,
+      "suppliers": 100
+    },
+    "results": [
+      {
+        "name": "Recipe library API",
+        "samples": 10,
+        "p50_ms": 21.71,
+        "p95_ms": 23.25,
+        "max_ms": 23.25,
+        "response_bytes": 9435
+      },
+      {
+        "name": "Recipe opening API",
+        "samples": 10,
+        "p50_ms": 2.73,
+        "p95_ms": 2.93,
+        "max_ms": 2.93,
+        "response_bytes": 6262
+      },
+      {
+        "name": "Ingredient search API",
+        "samples": 10,
+        "p50_ms": 12.17,
+        "p95_ms": 12.83,
+        "max_ms": 12.83,
+        "response_bytes": 4064
+      },
+      {
+        "name": "Supplier search API",
+        "samples": 10,
+        "p50_ms": 10.28,
+        "p95_ms": 10.51,
+        "max_ms": 10.51,
+        "response_bytes": 3658
+      },
+      {
+        "name": "Current costing API",
+        "samples": 10,
+        "p50_ms": 7.84,
+        "p95_ms": 8.02,
+        "max_ms": 8.02,
+        "response_bytes": 6236
+      },
+      {
+        "name": "Production recipe API",
+        "samples": 10,
+        "p50_ms": 4.67,
+        "p95_ms": 5.57,
+        "max_ms": 5.57,
+        "response_bytes": 2107
+      },
+      {
+        "name": "Version history API",
+        "samples": 10,
+        "p50_ms": 2.6,
+        "p95_ms": 4.13,
+        "max_ms": 4.13,
+        "response_bytes": 217
+      },
+      {
+        "name": "Costing overview API",
+        "samples": 10,
+        "p50_ms": 303.91,
+        "p95_ms": 316.05,
+        "max_ms": 316.05,
+        "response_bytes": 31969
+      },
+      {
+        "name": "Tablet library navigation and render",
+        "samples": 5,
+        "p50_ms": 149.69,
+        "p95_ms": 169.83,
+        "max_ms": 169.83,
+        "response_bytes": 4
+      },
+      {
+        "name": "Tablet scaling through rendered cost update",
+        "samples": 10,
+        "p50_ms": 18.49,
+        "p95_ms": 23.36,
+        "max_ms": 23.36,
+        "response_bytes": 4
+      },
+      {
+        "name": "Tablet return to rebuilt library",
+        "samples": 5,
+        "p50_ms": 66.65,
+        "p95_ms": 70.43,
+        "max_ms": 70.43,
+        "response_bytes": null
+      },
+      {
+        "name": "Tablet return to retained library",
+        "samples": 5,
+        "p50_ms": 42.19,
+        "p95_ms": 67.55,
+        "max_ms": 67.55,
+        "response_bytes": null
+      },
+      {
+        "name": "Tablet costing overview and return to library",
+        "samples": 5,
+        "p50_ms": 466.28,
+        "p95_ms": 483,
+        "max_ms": 483,
+        "response_bytes": 2
+      },
+      {
+        "name": "Chef library with R&D hidden",
+        "samples": 10,
+        "p50_ms": 9.57,
+        "p95_ms": 10.46,
+        "max_ms": 10.46,
+        "response_bytes": 9434
+      },
+      {
+        "name": "Kitchen library with R&D hidden",
+        "samples": 10,
+        "p50_ms": 9.5,
+        "p95_ms": 10.16,
+        "max_ms": 10.16,
+        "response_bytes": 9434
+      },
+      {
+        "name": "Kitchen opening last Final while current version is R&D",
+        "samples": 10,
+        "p50_ms": 5.04,
+        "p95_ms": 5.23,
+        "max_ms": 5.23,
+        "response_bytes": 2106
+      },
+      {
+        "name": "Chef R&D library with permission",
+        "samples": 10,
+        "p50_ms": 4.39,
+        "p95_ms": 4.9,
+        "max_ms": 4.9,
+        "response_bytes": 338
+      }
+    ]
+  },
+  "visual_review": {
+    "actualBefore": 7,
+    "actualAfter": 7,
+    "extraPermissionAndBrandScreens": 3,
+    "allImagesLoaded": true,
+    "widths": [
+      1440,
+      390
+    ],
+    "browserErrors": []
+  },
+  "database": {
+    "deployed_migrations": [
+      "recipe_rd_status",
+      "recipe_rd_visibility"
+    ],
+    "before": {
+      "recipes": 1,
+      "versions": 3,
+      "drafts": 3,
+      "accounts": 0,
+      "immutable_content_fingerprint": "00616d5a7de0755b72967c665655e534"
+    },
+    "after": {
+      "drafts": 3,
+      "recipes": 1,
+      "versions": 3,
+      "rd_status": "testing",
+      "api_anon_execute": false,
+      "permission_column": {
+        "default": "false",
+        "nullable": "NO"
+      },
+      "recent_migrations": [
+        {
+          "name": "recipe_rd_visibility"
+        },
+        {
+          "name": "recipe_rd_status"
+        }
+      ],
+      "unauthenticated_rd": false,
+      "api_authenticated_execute": true,
+      "private_helpers_reachable": 0,
+      "immutable_content_fingerprint": "00616d5a7de0755b72967c665655e534"
+    },
+    "advisors_unchanged": true,
+    "advisors": [
+      {
+        "name": "rls_enabled_no_policy",
+        "count": 105
+      },
+      {
+        "name": "anon_security_definer_function_executable",
+        "count": 10
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "count": 20
+      },
+      {
+        "name": "auth_leaked_password_protection",
+        "count": 1
+      }
+    ]
+  }
+}
