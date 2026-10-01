@@ -12,6 +12,40 @@ try{
  const only=randomUUID();await db.query("insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,'new-instructor@example.test',now(),'{\"full_name\":\"Audit Independent Teacher\"}')",[only]);
  await check('Owner can add an instructor from a regular TLB account without staff privileges',async()=>{await p.page.goto(origin+'/academy/admin#instructors');await p.page.getByRole('button',{name:'Add instructor',exact:true}).click();await p.page.getByLabel('Search TLB account by name or email').fill('Audit Independent Teacher');await p.page.getByRole('button',{name:'Find TLB account',exact:true}).click();await p.page.getByRole('button',{name:/Audit Independent Teacher ·/}).click();await p.page.getByLabel('Display name',{exact:true}).fill('Independent Teacher');await p.page.getByRole('button',{name:'Save changes',exact:true}).click();await p.page.getByRole('cell',{name:'Independent Teacher',exact:true}).waitFor();assert.equal(Number((await db.query('select count(*) n from tlb.staff where user_id=$1',[only])).rows[0].n),0);assert.equal((await api(only,'admin_bootstrap')).owner,false);});
  for(const width of [320,820,1440])await check('Owner admin routes fit viewport '+width,async()=>{await p.page.setViewportSize({width,height:1000});for(const route of ['','classes','classes/'+cookie.id,'accounts','accounts/'+h.ids.customer,'instructors','recipes','recipes/new','announcements','announcements/new','upcoming','upcoming/new','moderation','submissions','gallery','inbox','analytics','email','newsletter']){await p.page.goto(origin+'/academy/admin?auditRoute='+encodeURIComponent(route)+'#'+route);await p.page.locator('.ap-main').waitFor();assert.ok(await p.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),route+' overflow');assert.equal(await p.page.getByRole('heading',{name:'Academy is unavailable right now.'}).count(),0,route+' inaccessible');}});
+ await check('Email sends class updates to students without requiring newsletter consent',async()=>{
+  await api(h.ids.customer,'newsletter',{academy:true});await api(h.ids.stranger,'newsletter',{academy:false});
+  await p.page.goto(origin+'/academy/admin#email');await p.page.getByRole('heading',{name:'Academy class email',exact:true}).waitFor();
+  assert.equal(await p.page.getByLabel('Email type').count(),0);assert.equal(await p.page.getByLabel('Recipients',{exact:true}).inputValue(),'students');
+  assert.equal(await p.page.locator('select[name=audience] option[value=subscribers]').count(),0);
+  await p.page.getByLabel('Subject',{exact:true}).fill('Operational test notice');await p.page.getByLabel('Message',{exact:true}).fill('The class starts at 10.');
+  await p.page.getByRole('button',{name:'Review recipients',exact:true}).click();await p.page.getByRole('dialog').getByText('2 eligible accounts.',{exact:true}).waitFor();
+  p.failNext('broadcast_send','after');await p.page.getByRole('button',{name:'Queue class email',exact:true}).click();await p.page.getByRole('alert').waitFor();
+  await p.page.getByRole('button',{name:'Queue class email',exact:true}).click();await p.page.getByRole('cell',{name:'Operational test notice',exact:true}).waitFor();
+  const rows=(await db.query("select kind,recipients from tlb.academy_broadcasts where subject='Operational test notice'")).rows;assert.equal(rows.length,1);assert.equal(rows[0].kind,'operational');assert.equal(rows[0].recipients,2);
+  const sent=p.calls.filter(c=>c.action==='broadcast_send');assert.equal(sent.at(-1).p.idempotency_key,sent.at(-2).p.idempotency_key);
+ });
+ await check('Newsletter enforces opt-in and keeps news history separate from class email',async()=>{
+  await db.query("update tlb.settings set data=jsonb_set(data,'{pickup_address}','\"Synthetic test kitchen address\"') where id");
+  await p.page.goto(origin+'/academy/admin#newsletter');await p.page.getByRole('heading',{name:'Academy newsletter',exact:true}).waitFor();
+  assert.equal(await p.page.getByLabel('Recipients',{exact:true}).inputValue(),'subscribers');assert.equal(await p.page.getByRole('cell',{name:'Operational test notice',exact:true}).count(),0);
+  await p.page.getByLabel('Subject',{exact:true}).fill('Newsletter test news');await p.page.getByLabel('Message',{exact:true}).fill('New baking workshop.');
+  await p.page.getByLabel('Recipients',{exact:true}).selectOption('students');await p.page.getByRole('button',{name:'Review recipients',exact:true}).click();
+  await p.page.getByRole('dialog').getByText('1 opted-in subscribers.',{exact:true}).waitFor();await p.page.getByRole('button',{name:'Queue newsletter',exact:true}).click();
+  await p.page.getByRole('cell',{name:'Newsletter test news',exact:true}).waitFor();assert.equal(p.calls.filter(c=>c.action==='broadcast_send').at(-1).p.kind,'marketing');
+  const destinations=(await db.query("select to_email from tlb.outbox where subject='Newsletter test news'")).rows;assert.deepEqual(destinations.map(r=>r.to_email),['customer@example.test']);
+  await p.page.goto(origin+'/academy/admin#email');await p.page.getByRole('heading',{name:'Class email history',exact:true}).waitFor();assert.equal(await p.page.getByRole('cell',{name:'Newsletter test news',exact:true}).count(),0);await p.page.getByRole('cell',{name:'Operational test notice',exact:true}).waitFor();
+ });
+ await check('Both composers show and require only the chosen recipient details',async()=>{
+  for(const view of ['email','newsletter']){
+   await p.page.goto(origin+'/academy/admin#'+view);await p.page.getByRole('button',{name:'Review recipients',exact:true}).waitFor();
+   for(const value of ['class','instructor','selected','students']){
+    await p.page.getByLabel('Recipients',{exact:true}).selectOption(value);
+    for(const [key,name] of [['class','class_id'],['instructor','instructor_id'],['selected','emails']]){
+     const control=p.page.locator('[name="'+name+'"]');assert.equal(await control.isVisible(),value===key);assert.equal(await control.isEnabled(),value===key);assert.equal(await control.evaluate(e=>e.required),value===key);
+    }
+   }
+  }
+ });
  await p.context.close();
  for(const who of [h.ids.customer,h.ids.unverified])await check('Direct admin URL rejects '+(who===h.ids.customer?'student':'zero-class account'),async()=>{const q=await s.pageFor(who);await q.page.goto(origin+'/academy/admin#accounts');await q.page.getByRole('heading',{name:'Academy is unavailable right now.'}).waitFor();assert.equal(await q.page.getByLabel('Search accounts').count(),0);await q.context.close();});
  await check('Corrupt, unsupported and excessive photo selections leave no draft and remain recoverable',async()=>{const q=await s.pageFor(h.ids.customer,390);await q.page.goto(origin+'/academy/dashboard#share/'+cookie.id);await q.page.getByLabel('Product / title').fill('Invalid photo checks');const before=await count();for(const files of [[{name:'broken.jpg',mimeType:'image/jpeg',buffer:Buffer.from('bad JPEG')}],[{name:'document.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF')}],Array.from({length:9},(_,i)=>({name:i+'.png',mimeType:'image/png',buffer:png}))]){await q.page.locator('input[name=photos]').setInputFiles(files);await q.page.getByRole('button',{name:'Submit your creation'}).click();await q.page.getByRole('alert').waitFor();assert.equal(await count(),before);assert.ok(await q.page.getByLabel('Product / title').isEnabled());}await q.context.close();});
