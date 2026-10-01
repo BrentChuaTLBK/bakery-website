@@ -89,13 +89,14 @@ function updateNavigation(){
  document.body.classList.toggle('recipe-kitchen-view',Boolean(state.kitchen||state.role==='kitchen'));
  document.body.classList.toggle('recipe-staff-protected',state.role==='kitchen');
 }
-function shell(content,{tabs=true}={}) {
+function shell(content,{tabs=true,heading=''}={}) {
  ingredientPicker.close();
  const loading=content.includes('data-recipe-loading'),wasLoading=root.getAttribute('aria-busy')==='true';
  root.classList.toggle('recipe-loading-ready',wasLoading&&!loading);
  if(loading)root.setAttribute('aria-busy','true');else root.removeAttribute('aria-busy');
  root.classList.toggle('recipe-production',state.kitchen||state.role==='kitchen');updateNavigation();
- root.innerHTML=`${tabs?`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.rd?'R&D recipes':state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.rd?'Research formulas for review. These recipes are still in development.':state.kitchen?'Final recipes, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div><nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['costing','Costing Overview'],['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['staff-access','Staff Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
+ document.body.classList.toggle('recipe-staff-access-view',Boolean(tabs&&heading));
+ root.innerHTML=`${tabs?`${heading||`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.rd?'R&D recipes':state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.rd?'Research formulas for review. These recipes are still in development.':state.kitchen?'Final recipes, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div>`}<nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['costing','Costing Overview'],['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['staff-access','Staff Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
 }
 function getPath(object,path){return path.split('.').reduce((v,k)=>v?.[k],object);}
 function setPath(object,path,value){const keys=path.split('.');if(keys.some(k=>['__proto__','prototype','constructor'].includes(k)))throw Error('Invalid field.');let node=object;for(const k of keys.slice(0,-1))node=node[k]??(node[k]={});node[keys.at(-1)]=value;}
@@ -333,7 +334,7 @@ async function access(){
 async function staffAccess(){
  state.staffAccessController?.dispose();state.staffAccessController=null;state.tab='staff-access';state.record=null;state.doc=null;
  shell('<p role="status">Loading staff access…</p>');
- const {openStaffAccess}=await import('./recipe-staff-access.js?v=staff-security-1');
+ const {openStaffAccess}=await import('./recipe-staff-access.js?v=staff-header-1');
  state.staffAccessState??={};state.staffAccessController=await openStaffAccess({root,api,shell,dialog:setDialog,closeDialog,confirm:confirmDialog,notify,openAccounts:access,state:state.staffAccessState,isActive:()=>state.tab==='staff-access'});
 }
 async function versions(offset=0){
