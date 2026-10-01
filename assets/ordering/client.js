@@ -117,10 +117,15 @@ export async function orderBackupApi(action,payload={}) {
 }
 
 export async function recipeApi(action,payload={}) {
-  const client=await connection();
-  const {data,error}=await client.rpc('recipe_api',{p_action:action,p_payload:payload});
-  if(error)throw new Error(error.message || 'The recipe request could not be completed.');
-  return data;
+  const client=await connection(),{data:session,error:sessionError}=await client.auth.getSession();
+  if(sessionError||!session.session?.access_token)throw Error('Sign in to access recipes.');
+  const response=await fetch(`${config.supabaseUrl.replace(/\/$/,'')}/rest/v1/rpc/recipe_api`,{
+    method:'POST',cache:'no-store',headers:{apikey:config.supabasePublishableKey,Authorization:`Bearer ${session.session.access_token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({p_action:action,p_payload:payload}),signal:AbortSignal.timeout(15000),
+  });
+  const data=await response.json().catch(()=>null);
+  if(!response.ok||data?.error){const error=Error(data?.message||'The recipe request could not be completed.');error.code=data?.code;error.reason=data?.reason;error.access=data?.access;error.status=response.status;throw error;}
+  if(data===null)throw Error('The recipe response could not be verified.');return data;
 }
 export async function uploadRecipeFile(file) {
   if(!file?.size || file.size>25*1024*1024)throw Error('Choose a file up to 25 MB.');
@@ -132,8 +137,18 @@ export async function uploadRecipeFile(file) {
   if(error)throw new Error(error.message || 'The recipe file could not be uploaded.');
   await recipeApi('confirm_file',{id:record.id});return record;
 }
-export async function recipeFileUrl(path) {
+export async function recipeFileUrl(path,kitchenContext=null) {
   const client=await connection();
+  if(kitchenContext){
+    const {data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw Error('Sign in to view kitchen photos.');
+    const response=await fetch(`${config.supabaseUrl.replace(/\/$/,'')}/functions/v1/recipe-kitchen-media`,{
+      method:'POST',cache:'no-store',headers:{apikey:config.supabasePublishableKey,Authorization:`Bearer ${data.session.access_token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({...kitchenContext,file_id:path}),signal:AbortSignal.timeout(15000),
+    });
+    if(!response.ok)throw Error('Kitchen photo access could not be verified.');
+    const blob=await response.blob();if(!['image/jpeg','image/png','image/webp'].includes(blob.type))throw Error('This kitchen photo is unavailable.');
+    return URL.createObjectURL(blob);
+  }
   const {data,error}=await client.storage.from('recipe-files').createSignedUrl(path,900);
   if(error)throw new Error(error.message || 'The recipe file could not be opened.');
   return data.signedUrl;

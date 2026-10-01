@@ -1,9 +1,10 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {makeHarness} from './helpers.mjs';
 export default async function({db,check}){
  const h=await makeHarness(db),{owner,staff,customer,stranger}=h.ids;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  await api('save_access',{user_id:staff,permission:'chef'});await api('save_access',{user_id:customer,permission:'kitchen'});
  const get=async(id,kind,deleted=false)=>(await api('resources',{kind,deleted,include_inactive:true})).rows.find(r=>r.id===id);
  const supplier=await api('save_resource',{kind:'supplier',name:'Preferred shop',data:{}}),alternative=await api('save_resource',{kind:'supplier',name:'Other shop',data:{}});

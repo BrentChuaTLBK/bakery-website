@@ -46,10 +46,12 @@ export async function* fixedChunks(source,size=4*1024*1024){
  if(used)yield buffer.subarray(0,used);
 }
 export const RECIPE_BACKUP_TABLES=['recipe_settings','recipe_categories','recipe_resources','recipe_supplier_items','recipe_prices','recipes','recipe_versions','recipe_links','recipe_ingredient_links','recipe_tests','recipe_runs','recipe_files','recipe_file_links','recipe_user_state','recipe_drafts','recipe_audit','recipe_access','actors'];
+export const RECIPE_STAFF_BACKUP_TABLES=['recipe_staff_defaults','recipe_staff_controls','recipe_staff_dates','recipe_staff_overrides','recipe_staff_batches','recipe_staff_events'];
 export function validateRecipeManifest(manifest){
- if(manifest?.format!=='tlb-recipe-backup'||manifest.version!==1||![1,2].includes(manifest.schema_version)||!Array.isArray(manifest.entries)||!Array.isArray(manifest.tables))throw Error('Unsupported recipe backup format or schema version.');
+ if(manifest?.format!=='tlb-recipe-backup'||manifest.version!==1||![1,2,3].includes(manifest.schema_version)||!Array.isArray(manifest.entries)||!Array.isArray(manifest.tables))throw Error('Unsupported recipe backup format or schema version.');
  const paths=new Set();for(const entry of manifest.entries){safeArchivePath(entry.path);if(paths.has(entry.path)||!/^[a-f0-9]{64}$/.test(entry.sha256)||!Number.isSafeInteger(entry.size_bytes)||entry.size_bytes<0)throw Error('Invalid archive manifest entry.');paths.add(entry.path);}
- for(const name of [...RECIPE_BACKUP_TABLES,...(manifest.schema_version===2?['recipe_invitations']:[])])if(!manifest.tables.includes(name)||!paths.has(`Database Exports/${name}.json`))throw Error(`Backup is missing ${name}.`);
+ const staff=manifest.schema_version>=3||manifest.features?.includes('staff_access')||manifest.tables.some(name=>RECIPE_STAFF_BACKUP_TABLES.includes(name));
+ for(const name of [...RECIPE_BACKUP_TABLES,...(manifest.schema_version>=2?['recipe_invitations']:[]),...(staff?RECIPE_STAFF_BACKUP_TABLES:[])])if(!manifest.tables.includes(name)||!paths.has(`Database Exports/${name}.json`))throw Error(`Backup is missing ${name}.`);
  if(!Array.isArray(manifest.files))throw Error('Backup file manifest is missing.');
  for(const file of manifest.files)if(!paths.has(file.archive_path)||!file.id||!file.source_path)throw Error('Backup contains an incomplete file reference.');return manifest;
 }

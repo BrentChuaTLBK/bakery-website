@@ -1,9 +1,10 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {blankRecipe} from '../../assets/ordering/recipe-model.js';
 import {addRecipePackaging} from '../../assets/ordering/recipe-packaging.js';
 export default async function({db,check,state}){
  const h=state.recipeHarness,{owner,customer}=h.ids;
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  let packaging,saved;
  await check('linked packaging costs are captured while kitchen references exclude every pricing field',async()=>{
   packaging=await api('save_resource',{kind:'packaging',name:'QA linked cake box',data:{default_unit:'pc',dimensions:'10 × 10 inches'},price:{amount:'300',quantity:'10',unit:'pc'}});
@@ -26,16 +27,16 @@ export default async function({db,check,state}){
   d.variants[0].additional_costs[0].resource_photos=[{file_id:nextPhoto.id,path:'FORGED',caption:'FORGED'}];d.files=[{...catalogPhoto,visibility:'private'}];
   withPhotos=await api('create',{document:d,status:'production'});const item=withPhotos.document.variants[0].additional_costs[0];assert.equal(item.resource_photos[0].file_id,catalogPhoto.id);assert.equal(item.resource_type,'Cake box');assert.equal(item.resource_notes,'Store flat');assert.equal(withPhotos.files.find(f=>f.id===catalogPhoto.id).visibility,'kitchen');
   const kitchen=await api('get',{id:withPhotos.id},customer);assert.equal(kitchen.files[0].id,catalogPhoto.id);assert.deepEqual(Object.keys(kitchen.document.variants[0].packaging.items[0].resource_photos[0]).sort(),['caption','file_id']);assert.doesNotMatch(JSON.stringify(kitchen.document),/FORGED|supplier_id|cost_snapshot|recorded_at/);
-  assert.equal(await access(catalogPhoto),true);assert.equal(await access(nextPhoto),false);assert.equal(await access(catalogPhoto,customer,true),false);await assert.rejects(()=>access(catalogPhoto,null),/permission denied/);
+  assert.equal(await access(catalogPhoto),false);assert.equal((await api('media_authorize',{recipe_id:withPhotos.id,file_id:catalogPhoto.id},customer)).path,catalogPhoto.path);assert.equal(await access(nextPhoto),false);assert.equal(await access(catalogPhoto,customer,true),false);await assert.rejects(()=>access(catalogPhoto,null),/permission denied/);
  })();
  await check('a recipe photo override and catalog changes preserve approved photos, prices, and other packaging records',async()=>{
   const d=structuredClone(withPhotos.document);d.variants[0].packaging.photos=[{file_id:customPhoto.id,caption:'Finished product in box'}];d.files.push({...customPhoto,visibility:'kitchen'});
   photoResource=await api('save_resource',{id:photoResource.id,revision:photoResource.revision,kind:'packaging',name:'QA revised box',data:{...photoResource.data,dimensions:'14 inches',photos:[{file_id:nextPhoto.id,caption:'New catalog box'}]}});
   const draft=await api('save',{id:withPhotos.id,revision:withPhotos.revision,document:d,status:'draft'});assert.equal(draft.document.variants[0].additional_costs[0].resource_photos[0].file_id,nextPhoto.id);assert.equal(draft.document.variants[0].packaging.photos[0].file_id,customPhoto.id);
   const old=await api('get',{id:withPhotos.id,version_id:withPhotos.version_id});assert.equal(old.document.variants[0].additional_costs[0].resource_name,'QA photographed box');assert.equal(old.document.variants[0].additional_costs[0].resource_photos[0].file_id,catalogPhoto.id);assert.deepEqual(old.cost_snapshot,withPhotos.cost_snapshot);assert.equal((await api('get',{id:withPhotos.id},customer)).version_id,withPhotos.version_id);
-  assert.equal(await access(customPhoto),false);assert.equal(await access(nextPhoto),false);assert.equal(await access(catalogPhoto),true);
+  assert.equal(await access(customPhoto),false);assert.equal(await access(nextPhoto),false);for(const f of [customPhoto,nextPhoto])await assert.rejects(()=>api('media_authorize',{recipe_id:withPhotos.id,file_id:f.id},customer),/not available/);assert.equal(await access(catalogPhoto),false);assert.equal((await api('media_authorize',{recipe_id:withPhotos.id,file_id:catalogPhoto.id},customer)).path,catalogPhoto.path);
   const resource=(await api('resources',{kind:'packaging',query:'QA revised box'})).rows[0];assert.equal(resource.data.photos[0].file_id,nextPhoto.id);assert.notEqual(resource.data.photos[0].file_id,customPhoto.id);
-  const published=await api('save',{id:draft.id,revision:draft.revision,document:draft.document,status:'production'});assert.equal((await api('get',{id:published.id},customer)).document.variants[0].packaging.photos[0].file_id,customPhoto.id);assert.equal(await access(customPhoto),true);
+  const published=await api('save',{id:draft.id,revision:draft.revision,document:draft.document,status:'production'});assert.equal((await api('get',{id:published.id},customer)).document.variants[0].packaging.photos[0].file_id,customPhoto.id);assert.equal(await access(customPhoto),false);assert.equal((await api('media_authorize',{recipe_id:published.id,file_id:customPhoto.id},customer)).path,customPhoto.path);
  })();
  await check('older linked recipes inherit packaging photos without rewriting their stored versions or exposing unrelated files',async()=>{
   const legacyPhoto=await upload('legacy-catalog.png'),legacyResource=await api('save_resource',{kind:'packaging',name:'QA legacy photographed box',data:{default_unit:'pc',photos:[{file_id:legacyPhoto.id,caption:'Legacy catalog'}]}});
@@ -43,7 +44,7 @@ export default async function({db,check,state}){
   const legacy=structuredClone(old.document);delete legacy.variants[0].additional_costs[0].resource_photos;legacy.files=[];
   const legacyVersion=(await db.query("insert into tlb.recipe_versions(recipe_id,number,status,document,cost_snapshot,created_by) values($1,2,'production',$2::jsonb,$3::jsonb,$4) returning id",[old.id,JSON.stringify(legacy),JSON.stringify(old.cost_snapshot),owner])).rows[0].id;
   await db.query('update tlb.recipes set current_version_id=$1,production_version_id=$1 where id=$2',[legacyVersion,old.id]);
-  const kitchen=await api('get',{id:old.id},customer);assert.equal(kitchen.document.variants[0].packaging.items[0].resource_photos[0].file_id,legacyPhoto.id);assert.equal(kitchen.files[0].id,legacyPhoto.id);assert.equal(await access(legacyPhoto),true);
+  const kitchen=await api('get',{id:old.id},customer);assert.equal(kitchen.document.variants[0].packaging.items[0].resource_photos[0].file_id,legacyPhoto.id);assert.equal(kitchen.files[0].id,legacyPhoto.id);assert.equal(await access(legacyPhoto),false);assert.equal((await api('media_authorize',{recipe_id:old.id,file_id:legacyPhoto.id},customer)).path,legacyPhoto.path);
   assert.deepEqual((await db.query('select document from tlb.recipe_versions where id=$1',[legacyVersion])).rows[0].document,legacy);
   assert.equal(await h.scalar("select has_function_privilege('authenticated','tlb.recipe_packaging_document(jsonb,boolean)','execute')"),false);
  })();

@@ -1,3 +1,4 @@
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {makeHarness} from './helpers.mjs';
@@ -6,7 +7,7 @@ import {blankRecipe} from '../../assets/ordering/recipe-model.js';
 export default async function({db,check,state}){
  const h=state.recipeHarness||await makeHarness(db),{owner,staff:chef,customer:kitchen,stranger}=h.ids;
  const previousAudits=Number((await db.query("select count(*) n from tlb.recipe_audit where action='rd_access_changed' and actor=$1",[owner])).rows[0].n);
- const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result);
+ const api=(action,payload={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[action,JSON.stringify(payload)])).rows[0].result).then(unwrapRecipeResult);
  const fileAccess=(file,user)=>h.as(user,async()=>(await db.query('select public.recipe_file_access($1,false) allowed',[file.path])).rows[0].allowed);
  const doc=name=>{const d=blankRecipe();d.name=name;d.private_notes='RESEARCH_PRIVATE';d.variants[0].groups[0].ingredients[0]={id:'flour',name:'Flour',quantity:'10',unit:'g',cost_snapshot:{amount:'10',quantity:'1000',unit:'g'}};d.variants[0].methods[0].steps[0].instruction='Mix.';return d;};
  async function photo(name){const f=await api('reserve_file',{filename:name,mime_type:'image/png',size_bytes:16,sha256:'0'.repeat(64)});await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,'{\"size\":16,\"mimetype\":\"image/png\"}')",[f.path]);await api('confirm_file',{id:f.id});return f;}
@@ -30,9 +31,9 @@ export default async function({db,check,state}){
   for(const user of [chef,kitchen]){
    for(const query of ['RESEARCH_NEVER_PUBLIC','RESEARCH_NEW_NAME']){const list=await api('list',{query},user);assert.equal(list.total,0);assert.deepEqual(list.rows,[]);}
    assert.equal((await api('list',{query:'QA public reference'},user)).total,1);
-   const saved=await api('get',{id:published.id},user);assert.equal(saved.version_id,published.version_id);assert.equal(saved.document.name,'QA public reference');assert.equal(saved.rd_restricted,true);
-   await assert.rejects(()=>api('get',{id:research.id},user),/not found|R&D access/);
-   await assert.rejects(()=>api('get',{id:working.id,version_id:working.version_id},user),/R&D access/);
+   const saved=await api('get',{id:published.id},user);assert.equal(saved.version_id,published.version_id);assert.equal(saved.document.name,'QA public reference');assert.equal(saved.rd_restricted,user===kitchen?undefined:true);
+   await assert.rejects(()=>api('get',{id:research.id},user),/not found|R&D access|not available/);
+   await assert.rejects(()=>api('get',{id:working.id,version_id:working.version_id},user),/R&D access|not available/);
   }
   assert.equal((await api('costing_overview',{query:'RESEARCH_NEW_NAME',mode:'all'},chef)).total,0);
   assert.equal((await api('costing_overview',{query:'QA public reference',mode:'all'},chef)).total,1);
@@ -58,7 +59,7 @@ export default async function({db,check,state}){
   await assert.rejects(()=>api('get',{id:parent.id,version_id:parent.version_id},chef),/R&D access/);
  })();
  await check('R&D-only and test-only file links are denied while published files remain usable',async()=>{
-  for(const user of [chef,kitchen]){assert.equal(await fileAccess(rdFile,user),false);assert.equal(await fileAccess(testFile,user),false);assert.equal(await fileAccess(sharedFile,user),true);}
+  for(const user of [chef,kitchen]){assert.equal(await fileAccess(rdFile,user),false);assert.equal(await fileAccess(testFile,user),false);assert.equal(await fileAccess(sharedFile,user),user===chef);}
   assert.equal(await fileAccess(rdFile,owner),true);
   const copied=doc('QA file bypass');copied.files=[{id:rdFile.id,visibility:'kitchen'}];
   await assert.rejects(()=>api('create',{document:copied},chef),/R&D access/);
@@ -78,15 +79,15 @@ export default async function({db,check,state}){
  await check('Kitchen R&D access is read-only and keeps costs, private notes and test attachments private',async()=>{
   await api('save_rd_access',{user_id:kitchen,can_view_rd:true});
   const rd=await api('list',{rd:true},kitchen);assert.ok(rd.rows.some(r=>r.id===research.id));assert.ok(rd.rows.some(r=>r.id===working.id));assert.ok(rd.rows.every(r=>r.status==='testing'));
-  const r=await api('get',{id:research.id,rd:true},kitchen);assert.equal(r.version_id,research.version_id);assert.equal(r.cost_snapshot,null);assert.equal(r.document.private_notes,undefined);
+  const r=await api('get',{id:research.id,rd:true},kitchen);assert.equal(r.version_id,research.version_id);assert.equal(r.cost_snapshot,undefined);assert.equal(r.document.private_notes,undefined);
   assert.equal((await api('get',{id:working.id},kitchen)).version_id,published.version_id);
-  assert.equal(await fileAccess(rdFile,kitchen),true);assert.equal(await fileAccess(testFile,kitchen),false);
+  assert.equal(await fileAccess(rdFile,kitchen),false);assert.equal((await api('media_authorize',{recipe_id:research.id,file_id:rdFile.id,rd:true},kitchen)).path,rdFile.path);assert.equal(await fileAccess(testFile,kitchen),false);
   for(const action of ['costing','tests','save_test','save'])await assert.rejects(()=>api(action,{id:research.id,recipe_id:research.id,document:research.document},kitchen),/editor/);
  })();
  await check('revocation immediately blocks new reads, hidden drafts and file links without rewriting any saved formulas',async()=>{
   const before=(await db.query('select id,document,cost_snapshot from tlb.recipe_versions order by id')).rows;
   for(const user of [chef,kitchen])await api('save_rd_access',{user_id:user,can_view_rd:false});
-  for(const user of [chef,kitchen]){await assert.rejects(()=>api('list',{rd:true},user),/R&D access/);await assert.rejects(()=>api('get',{id:research.id,version_id:research.version_id},user),/R&D access/);assert.equal(await fileAccess(rdFile,user),false);}
+  for(const user of [chef,kitchen]){await assert.rejects(()=>api('list',{rd:true},user),/R&D access/);await assert.rejects(()=>api('get',{id:research.id,version_id:research.version_id},user),/R&D access|not available/);assert.equal(await fileAccess(rdFile,user),false);}
   assert.equal((await api('drafts',{},chef)).some(d=>d.draft_id===draftId),false);
   await assert.rejects(()=>api('autosave',{draft_id:draftId,document:doc('Unrestricted attempt')},chef),/R&D access/);
   assert.deepEqual((await db.query('select id,document,cost_snapshot from tlb.recipe_versions order by id')).rows,before);

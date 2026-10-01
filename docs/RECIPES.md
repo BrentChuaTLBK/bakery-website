@@ -6,7 +6,7 @@ was deployed on 30 September. See [release details](RECIPE-PURCHASE-RELEASE-2026
 
 ## Access and approval
 
-Open **Recipes & costing** from the dashboard. On **Access**, the owner enters an
+Open **Recipes & costing** from the dashboard. On **Staff Access → Staff → Accounts & invitations**, the owner enters an
 email and selects Chef or Kitchen permission. An invitation email is queued.
 Existing verified accounts receive access immediately; new accounts must sign up
 and verify the invited email within 14 days. Recipe access alone does not create
@@ -17,26 +17,25 @@ Ordinary staff and customers receive no recipe access automatically.
 | --- | --- |
 | Owner | All editing, costs, permissions, backups and status changes |
 | Chef | Drafts, master resources, production records and costs; cannot mark Final. R&D formulas and testing logs require Can view R&D. |
-| Kitchen | Published production recipes, packaging, special equipment, temporary scaling, checkoffs and printing |
+| Kitchen | Published production recipes, packaging, special equipment, temporary scaling and checkoffs, subject to scheduled access and recipe scope; no printing or exports |
 
 Each active account with recipe access has one **Can view R&D** checkbox on
-**Access**, controlled by the owner. It applies to all research recipes and test
+**Staff Access**, controlled by the owner. It enables research recipes and test
 logs; new and existing non-owner accounts start with it off. Owners always have
 R&D access. Enable it after a new invitee activates recipe access.
 
 An enabled Chef can view/edit research recipes and their logs using existing
-Chef rights. An enabled Kitchen account gets a separate **R&D recipes** link for
+Chef rights. An enabled Kitchen account gets a **Final / R&D** switch for
 reading research formulas; editing, costs, private notes and testing logs remain
-unavailable. Ordinary production browsing continues to use the last Final.
+unavailable. The same hours, calendar blocks, account modes, temporary overrides and recipe scope apply to both collections. Ordinary production browsing continues to use the last Final.
 Without the flag, R&D recipes, searches, historical R&D versions, test logs and
 their exclusive attachments are inaccessible. If a recipe has a new R&D version,
 normal staff can still read its previously published Final but cannot edit its
 restricted working version. Linked recipes and export requests are checked too.
 
-Revocation blocks subsequent API and Storage authorization requests. The page
-clears private views when returning to results or rechecking access on focus.
-Previously downloaded or printed information cannot be withdrawn; already-issued
-attachment URLs retain their existing expiry of up to 15 minutes.
+Kitchen requests are authorized on the server and return only permitted fields. Visible pages revalidate every 10 seconds with a maximum 15-second lease, clear on expiry/offline/background events, and reauthorize on return. Staff images use an authenticated no-store endpoint; direct Storage reads and signing are denied. Signed attachment URLs issued before this release can retain their old expiry of up to 15 minutes. Previously captured information cannot be withdrawn.
+
+See [STAFF-RECIPE-SECURITY.md](STAFF-RECIPE-SECURITY.md) for the bulk calendar workflow, rules, security tests, recovery, and UI review.
 
 Kitchen responses are filtered on the server. Costs, supplier details, private
 notes, testing logs, ordinary draft formulas and version history are excluded from their responses,
@@ -260,12 +259,14 @@ not automatically extracted from Word/PDF into the photo fields; add those photo
 separately. Complex table layouts and handwriting may need substantial correction.
 Imports never infer that an incomplete formula is ready for production.
 
-**Print / PDF** opens a prepared print layout; choose Save as PDF in the browser.
+For authorized Owner/Admin and existing Chef accounts, **Print / PDF** opens a prepared print layout; choose Save as PDF in the browser.
 Choose kitchen A or branded presentation B, A4/Letter, typography, spacing,
 page-break preferences and optional content. Packaging, special equipment and
 extra notes use a separate reference page when content exists. Export a single
 recipe, selected recipes or a category/book with an alphabetical contents page.
 Pagination is browser-generated; inspect the print preview when changing fonts.
+
+Kitchen Staff have no export controls, and direct export requests are denied. Browser printing and casual copying are deterred in Kitchen View.
 
 Ingredient CSV preserves structured rows and protects spreadsheet text cells from
 formula injection. Combined totals do not merge ingredients with incompatible units.
