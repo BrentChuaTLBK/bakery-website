@@ -7,6 +7,11 @@ Deployment and verification evidence are recorded in `STAFF-RECIPE-SECURITY-RESU
 
 Open **Recipes & costing → Staff Access → Access Calendar**.
 
+Staff Access uses a compact contextual heading, with global navigation retained.
+The header shows the current staff/date selection on Calendar and Temporary
+Overrides; the selector continues to list every selected name. Counts and Refresh
+status share one row so the calendar starts higher in the tablet viewport.
+
 1. Search/select staff, or choose **Select all active**.
 2. Tap one or more dates, or enter a start/end date and select the range.
 3. Choose **Block Selected Dates** or **Restore Scheduled Access**.
@@ -116,8 +121,10 @@ No scrolling or general employee browsing telemetry is collected.
 
 Existing Auth session persistence remains. Sign-out and account changes clear
 protected state; a still-valid login never bypasses the recipe access policy.
-On shared kitchen devices, staff can open Account to sign out. An inactivity lock
-is an optional proposal below, not an enabled restriction.
+On shared kitchen devices, staff can open Account to sign out. There is no
+inactivity timeout: staff may need to read a recipe for an extended period while
+working. Access still closes when scheduled hours, date blocks or permissions
+require it.
 
 Recovery exports include defaults, individual controls, date blocks, temporary
 overrides, bulk action history, activity and their actor references. The archive
@@ -151,14 +158,15 @@ Kitchen workflow regressions also cover 820px and 320px. Selection and Mixed sta
 have text labels as well as color; dates are native buttons with accessible labels
 and pressed state; ranges have labeled inputs. Tablet date targets are at least
 90px high. Phone layouts stay within the viewport; dense data tables scroll within
-their containers. No optional redesign was applied.
+their containers. The compact Staff Access header was subsequently approved and
+implemented; the owner declined an inactivity timeout to allow uninterrupted reading.
 
 Performance evidence is from isolated PGlite and Chromium: a 500-recipe library
 returned Kitchen lists with 28.71 ms p95 and recipe detail with 4.75 ms p95. A single
 200-pair calendar transaction took 11 ms in that run. These are local measurements,
 not production network or concurrency guarantees.
 
-## Optional proposals — not implemented
+## Proposal decisions — 1 October 2026
 
 ### SA-UX-01: compact Staff Access page header
 
@@ -171,7 +179,7 @@ not production network or concurrency guarantees.
 | Difficulty | Low to moderate. |
 | Risk | Changes navigation hierarchy; verify orientation and consistent Back behavior. |
 | Desktop / Tablet / Mobile | More calendar space on desktop/tablet; shorter scrolling on phones. |
-| Approval Status | WAITING FOR APPROVAL |
+| Approval Status | APPROVED AND IMPLEMENTED. Global navigation and live selection summaries remain available. |
 
 ### SA-SEC-02: optional shared-device inactivity lock
 
@@ -184,4 +192,4 @@ not production network or concurrency guarantees.
 | Difficulty | Moderate. |
 | Risk | Hands-free recipe reading may look idle; an aggressive timeout would interrupt production. |
 | Desktop / Tablet / Mobile | Consistent warning/unlock behavior; especially relevant to shared tablets. |
-| Approval Status | WAITING FOR APPROVAL |
+| Approval Status | DECLINED after clarification. Staff need to look at and read recipes while working; no inactivity timeout is enabled. |
