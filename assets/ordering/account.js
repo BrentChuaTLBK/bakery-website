@@ -72,6 +72,11 @@ function accountForm() {
   };
   const buttons = { signin: 'Sign in', signup: 'Create account', recover: 'Request reset link', resend: 'Request verification email' };
   const disabled = !configured || Boolean(initializationError);
+  if(academyReturn){
+    titles.signin='Welcome back to TLB Academy';titles.signup='Create your TLB account';
+    descriptions.signin='Use your existing TLB account to open your Academy dashboard, classes and student creations.';
+    descriptions.signup='After verification, you will return to your Academy dashboard. Classes appear when assigned to your account.';
+  }
   return `<section class="panel account-card" aria-labelledby="auth-title">
     <div class="account-tabs" aria-label="Account options"><button type="button" class="button ${mode === 'signin' ? '' : 'button-quiet'}" data-mode="signin" aria-pressed="${mode === 'signin'}">Sign in</button><button type="button" class="button ${mode === 'signup' ? '' : 'button-quiet'}" data-mode="signup" aria-pressed="${mode === 'signup'}">Create account</button></div>
     <h2 id="auth-title">${titles[mode]}</h2><p class="muted">${descriptions[mode]}</p>
@@ -92,6 +97,7 @@ function renderSignedOut() {
   voucherController?.destroy();voucherController=null;root.classList.remove('account-dashboard');
   renderVersion++;
   root.innerHTML = `<div class="account-layout"><section><p class="eyebrow">Made for sweet moments</p><h1>A little place for<br>your favourite bakes.</h1><p>Keep your orders together, follow their progress, and make your next celebration a little easier.</p><p class="muted">Your cart, selected date, and checkout details stay saved on this browser while you sign in.</p><a class="button button-secondary" href="${esc(guestNext)}">Continue as a guest</a><p class="muted">You can order without an account. Promo codes require a verified account.</p></section>${accountForm()}</div>`;
+  if(academyReturn)root.querySelector('.account-layout > section').innerHTML='<p class="eyebrow">Welcome to TLB Academy</p><h1>One TLB account.<br>Your place to learn.</h1><p>Use your TLB account for Academy classes, student creations and workshop updates.</p><p class="muted">Already ordered with TLB? Use the same email and password.</p><a class="button button-secondary" href="/academy/dashboard">Back to TLB Academy</a><p class="muted">Sign in to explore the Academy. Class recipes appear when a class is assigned to your account.</p>';
   applyNewsletterOffer(root);
   root.setAttribute('aria-busy', 'false');
   root.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {

@@ -208,7 +208,10 @@ export async function academyPortalMedia(path) {
   const client = await connection();
   // Authenticated download, never a public URL or shareable bearer signed URL.
   const { data, error } = await client.storage.from('academy-student-media').download(path);
-  if (error) throw new Error('This Academy photo is not available to your account.');
+  if (error) {
+    const status=Number(error.statusCode||error.status||0),denied=[401,403,404].includes(status);
+    throw Object.assign(new Error(denied?'This Academy photo is not available to your account.':'This Academy photo could not load. Please try again.'),{code:denied?'ACADEMY_MEDIA_DENIED':'ACADEMY_MEDIA_UNAVAILABLE',status});
+  }
   return data;
 }
 export async function academyPortalUpload(id, file, onProgress = () => {}) {
@@ -219,7 +222,7 @@ export async function academyPortalUpload(id, file, onProgress = () => {}) {
     xhr.open('POST', `${config.supabaseUrl.replace(/\/$/, '')}/functions/v1/academy-media?id=${encodeURIComponent(id)}`);
     xhr.setRequestHeader('Authorization', `Bearer ${data.session.access_token}`);
     xhr.setRequestHeader('apikey', config.supabasePublishableKey);
-    xhr.setRequestHeader('Content-Type', 'image/webp');
+    xhr.setRequestHeader('Content-Type', file.type);
     xhr.timeout = 90000;
     xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
     xhr.onerror = xhr.ontimeout = () => reject(new Error('Photo upload interrupted. Please retry.'));

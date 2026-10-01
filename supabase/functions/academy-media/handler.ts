@@ -1,4 +1,5 @@
 import {credentials,endpoint,HttpError,json,readBody,uuid,verifiedUser} from '../_shared/server.ts';
+import {inspectOriginalPhoto,originalPhotoLimit} from '../../../assets/ordering/academy-photo-format.js';
 export function validateWebP(bytes:Uint8Array){
  const fail=()=>{throw new HttpError(400,'Choose a valid, static WebP photo without camera metadata.');};
  const text=(a:number,b:number)=>new TextDecoder().decode(bytes.subarray(a,b));
@@ -16,23 +17,30 @@ export function validateWebP(bytes:Uint8Array){
  }
  if(offset!==bytes.length||frames!==1||width<1||height<1||width>4096||height>4096)fail();return {width,height};
 }
+export function validatePhoto(bytes:Uint8Array,mime='image/webp'){
+ if(mime==='image/webp')return validateWebP(bytes);
+ if(!['image/png','image/jpeg','image/heic'].includes(mime))throw new HttpError(415,'Choose a PNG, JPEG, HEIC or WebP photo.');
+ try{const info=inspectOriginalPhoto(bytes);if(info.mime_type!==mime)throw new Error('The photo contents do not match its upload format.');return {width:info.width,height:info.height};}
+ catch(error){throw new HttpError(415,(error as Error).message);}
+}
 async function rpc(name:string,body:any,authorization?:string){const {url,key}=credentials();const response=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:authorization||`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});const data=await response.json().catch(()=>null);if(!response.ok)throw new HttpError(403,'This upload is not available to your account.');return data;}
 export const handle=endpoint(async(request,headers)=>{
  const user=await verifiedUser(request,true),id=uuid(new URL(request.url).searchParams.get('id'),'Photo ID');
  const record=await rpc('academy_portal_upload_check',{p_id:id},request.headers.get('authorization')!);
- if(request.headers.get('content-type')!=='image/webp')throw new HttpError(400,'Upload a converted WebP photo.');
- const bytes=await readBody(request,5242880),dimensions=validateWebP(bytes);
+ const mime=record.mime_type||'image/webp',limit=mime==='image/webp'?5242880:originalPhotoLimit;
+ if(request.headers.get('content-type')!==mime)throw new HttpError(400,'The photo format does not match the reserved upload.');
+ const bytes=await readBody(request,limit),dimensions=validatePhoto(bytes,mime);
  if(bytes.length!==record.size_bytes||dimensions.width!==record.width||dimensions.height!==record.height)throw new HttpError(400,'Photo dimensions or size do not match the upload.');
  const sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
  if(record.uploaded){if(record.sha256!==sha256)throw new HttpError(409,'This photo is already uploaded.');return json({id,uploaded:true},200,headers);}
  const {url,key}=credentials();
- const response=await fetch(`${url}/storage/v1/object/academy-student-media/${record.path}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'image/webp','Cache-Control':'no-store','x-upsert':'false'},body:bytes,signal:AbortSignal.timeout(30000)});
+ const response=await fetch(`${url}/storage/v1/object/academy-student-media/${record.path}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':mime,'Cache-Control':'no-store','x-upsert':'false'},body:bytes,signal:AbortSignal.timeout(30000)});
  if(!response.ok){
   // A response can be lost after storage accepted the immutable upload. Verify
   // the existing bytes before acknowledging a retry; never overwrite them.
   const existing=await fetch(`${url}/storage/v1/object/authenticated/academy-student-media/${record.path}`,{headers:{apikey:key,Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(15000)});
   if(!existing.ok)throw new HttpError(502,'Photo storage is unavailable. Please retry.');
-  const saved=await readBody(new Request('https://local.test',{method:'POST',body:existing.body,duplex:'half'} as any),5242880);
+  const saved=await readBody(new Request('https://local.test',{method:'POST',body:existing.body,duplex:'half'} as any),limit);
   const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',saved))].map(b=>b.toString(16).padStart(2,'0')).join('');if(hash!==sha256)throw new HttpError(409,'This upload already contains another photo.');
  }
  return json(await rpc('academy_portal_confirm_upload',{p_id:id,p_user:user,p_sha256:sha256}),200,headers);
