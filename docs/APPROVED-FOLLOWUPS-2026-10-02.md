@@ -8,7 +8,7 @@ Comparisons 1–3, 5–6, 8, 10–11, 13–14, 16 and 18 remain declined. Compar
 
 - Printed order summaries retain items, quantities, options and client/recipient details, without prices, totals or payment details.
 - Recipe catalog pages support 100-row pagination, global search/sort, and restored filters, page and scroll position. Packaging, Suppliers, Equipment and Categories have the same navigation; Library and Costing retain their list state.
-- Automatic recipe costing selects the highest eligible supplier unit price. Explicit supplier preferences and saved cost snapshots remain intact.
+- Automatic recipe costing selects the highest eligible supplier unit price, respecting an explicit supplier preference. Recipe cards, cost details and Costing Overview use current linked ingredient, packaging and pinned component prices automatically. Overview sorting and profit filters use those current costs too. Saved snapshots remain available only as historical comparisons; no recipe review or recost approval is needed after a price update.
 - Ingredient and brand renames resolve through linked IDs in recipes. Unit controls offer g, kg, ml and pcs while retaining previously saved units.
 - Each recipe size can define named scaling options, base quantities, units and a default. Production and costing use those values.
 - Owners can duplicate a product into an editable unpublished copy, then publish explicitly. Copies receive new product and option identities; inventory and sales history are not copied.

@@ -16,7 +16,7 @@ export default async function({db,check,state}){
   if(fixture.other_direct!=='0')v.additional_costs.push({id:'direct',name:'Other direct',kind:'direct',amount:fixture.other_direct});
   if(fixture.component){const c=document('Cost audit component'),cv=c.variants[0];cv.groups[0].ingredients=[{id:'sugar',name:'Sugar',quantity:'100',unit:'g',cost_snapshot:{amount:'100',quantity:'1000',unit:'g',currency:'PHP'}}];cv.yield={quantity:'100',unit:'g'};const child=await api('create',{document:c,status:'final'});v.components=[{id:'component',version_id:child.version_id,variant_id:cv.id,quantity:'50',unit:'g'}];}
   const saved=await api('create',{document:d,status:'final'});records.set(fixture.id,saved);
-  const cost=await api('costing',{id:saved.id,version_id:saved.version_id,factor:fixture.factor});const summary=cost.snapshot.variants[0];
+  const cost=await api('costing',{id:saved.id,version_id:saved.version_id,factor:fixture.factor,source:'saved'});const summary=cost.snapshot.variants[0];
   assert.equal(summary.complete,fixture.complete);assert.equal(cost.version_id,saved.version_id);assert.equal(cost.source,'saved');
   for(const [field,expected] of Object.entries(fixture.expected))equal(summary[field],expected,`${fixture.id} ${field}`);
   actuals.push({id:fixture.id,name:fixture.name,expected:fixture.expected,actual:Object.fromEntries(Object.keys(fixture.expected).map(k=>[k,summary[k]])),result:'PASS'});
@@ -63,10 +63,35 @@ export default async function({db,check,state}){
   let current=await api('costing',{id:parent.id,source:'current'});assert.equal(current.prices_changed,false);equal(current.snapshot.variants[0].base_cost,'5','initial');
   ingredient=await api('save_resource',{id:ingredient.id,revision:ingredient.revision,kind:'ingredient',name:ingredient.name,data:ingredient.data,price:{amount:'200',quantity:'1000',unit:'g',supplier_id:supplier.id}});
   const changed=clone(child.document);changed.variants[0].groups[0].ingredients[0].quantity='200';child=await api('save',{id:child.id,revision:child.revision,document:changed,status:'final'});
-  current=await api('costing',{id:parent.id,source:'current'});assert.equal(current.prices_changed,true);equal(current.snapshot.variants[0].base_cost,'10','same pinned 100g formula with new price');equal(current.saved.variants[0].base_cost,'5','saved');equal(current.snapshot.variants[0].profit,'18','current profit');equal(current.saved.variants[0].profit,'24','saved profit');
+  current=await api('costing',{id:parent.id});assert.equal(current.source,'current');assert.equal(current.prices_changed,true);equal(current.snapshot.variants[0].base_cost,'10','same pinned 100g formula with new price');equal(current.saved.variants[0].base_cost,'5','saved');equal(current.snapshot.variants[0].profit,'18','current profit');equal(current.saved.variants[0].profit,'24','saved profit');
   assert.deepEqual((await api('get',{id:parent.id})).cost_snapshot,before);
+  const overview=await api('costing_overview',{query:'Audit live versus saved'});assert.equal(overview.source,'current');equal(overview.rows[0].summary.base_cost,'10','overview current component cost');
+  const historical=await api('costing_overview',{query:'Audit live versus saved',source:'saved'});equal(historical.rows[0].summary.base_cost,'5','explicit historical overview');
+  equal((await api('costing',{id:parent.id,source:'saved'})).snapshot.variants[0].base_cost,'5','explicit historical cost');
   const draft=await api('save',{id:parent.id,revision:parent.revision,document:parent.document,status:'draft'});equal(draft.cost_snapshot.variants[0].base_cost,'5','saved pinned component price rule');
   const restored=await api('restore_version',{version_id:parent.version_id,revision:draft.revision,status:'draft'});assert.deepEqual(restored.cost_snapshot,before);assert.deepEqual(restored.document.variants[0].costing,parent.document.variants[0].costing);
+ })();
+ await check('one ingredient and packaging price change updates every linked recipe and overview filters without saving recipes',async()=>{
+  let butter=await api('save_resource',{kind:'ingredient',name:'Automatic butter',data:{default_unit:'g'},price:{amount:'100',quantity:'100',unit:'g'}});
+  let box=await api('save_resource',{kind:'packaging',name:'Automatic box',data:{default_unit:'pc'},price:{amount:'10',quantity:'1',unit:'pc'}});
+  const linked=[];
+  for(const [name,quantity] of [['A','10'],['B','20']]){
+   const d=document('Automatic cost '+name);d.variants[0].groups[0].ingredients=[{id:'butter',ingredient_id:butter.id,name:butter.name,quantity,unit:'g'}];
+   d.variants[0].additional_costs=[{id:box.id,resource_id:box.id,resource_name:box.name,quantity:'1',unit:'pc',amount:'0'}];
+   d.variants[0].costing={mode:'saleable',saleable_yield:'1',sale_unit:'box',price_basis:'unit',selling_price:'40',labor_percent:'0'};
+   linked.push(await api('create',{document:d,status:'final'}));
+  }
+  butter=await api('save_resource',{id:butter.id,revision:butter.revision,kind:'ingredient',name:butter.name,data:butter.data,price:{amount:'200',quantity:'100',unit:'g'}});
+  box=await api('save_resource',{id:box.id,revision:box.revision,kind:'packaging',name:box.name,data:box.data,price:{amount:'15',quantity:'1',unit:'pc'}});
+  for(const [i,r] of linked.entries()){
+   const current=await api('costing',{id:r.id});assert.equal(current.source,'current');equal(current.snapshot.variants[0].base_cost,i===0?'35':'55','automatic cost');
+   const unchanged=await api('get',{id:r.id});assert.equal(unchanged.version,1);assert.deepEqual(unchanged.document,r.document);assert.deepEqual(unchanged.cost_snapshot,r.cost_snapshot);
+  }
+  const overview=await api('costing_overview',{query:'Automatic cost ',sort:'highest_cost',limit:1});assert.equal(overview.total,2);assert.equal(overview.rows[0].id,linked[1].id);equal(overview.rows[0].summary.base_cost,'55','sort uses current costs');
+  const negative=await api('costing_overview',{query:'Automatic cost ',condition:'negative'});assert.equal(negative.total,1);assert.equal(negative.rows[0].id,linked[1].id);
+  assert.equal((await api('costing_overview',{query:'Automatic cost ',condition:'negative',source:'saved'})).total,0);
+  await api('save_resource',{id:butter.id,revision:butter.revision,kind:'ingredient',name:butter.name,data:{...butter.data,allow_unassigned_price:false}});
+  const missing=await api('costing_overview',{query:'Automatic cost ',condition:'missing'});assert.equal(missing.total,2);assert(missing.rows.every(r=>r.summary.profit===null));
  })();
  await check('costing APIs and private helper functions deny students, kitchen, unverified and anonymous callers',async()=>{
   for(const user of [null,customer,stranger,unverified])for(const action of ['costing','cost_preview','costing_overview'])await assert.rejects(()=>api(action,{id:records.get('O').id,document:records.get('O').document},user),/permission|Authorized/);
