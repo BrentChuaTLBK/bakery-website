@@ -40,8 +40,9 @@ Deno.serve(async (request: Request) => {
             continue;
           }
           const welcome = ["newsletter_welcome", "newsletter_voucher", "newsletter_test"].includes(message.payload.event_type);
+          const academy = ["academy_notification", "academy_broadcast", "academy_invitation"].includes(message.payload.event_type);
           const key = (welcome && env("NEWSLETTER_RESEND_API_KEY")) || env("RESEND_API_KEY");
-          const sender = (welcome && env("NEWSLETTER_FROM")) || env("EMAIL_FROM");
+          const sender = academy ? "TLB Academy <Academy@thelittlebakerkitchen.com>" : (welcome && env("NEWSLETTER_FROM")) || env("EMAIL_FROM");
           if (!key || !sender) throw new HttpError(503, "Email delivery is waiting for RESEND_API_KEY and EMAIL_FROM configuration.");
           if (!message.to_email || !message.event_key) throw new HttpError(503, "The email outbox is missing a recipient or event key.");
           const rendered = renderEmail(message.payload);
@@ -56,7 +57,7 @@ Deno.serve(async (request: Request) => {
           const response = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": message.event_key },
-            body: JSON.stringify({ from: sender, to: [message.to_email], subject: String(message.subject || "TLB Kitchen order update").replace(/[\r\n]/g, " "), ...rendered }),
+            body: JSON.stringify({ from: sender, to: [message.to_email], subject: String(message.subject || (academy ? "TLB Academy update" : "TLB Kitchen order update")).replace(/[\r\n]/g, " "), ...rendered }),
             signal: AbortSignal.timeout(12000),
           });
           const result = await response.json().catch(() => null);
