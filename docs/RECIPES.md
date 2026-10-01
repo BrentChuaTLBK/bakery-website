@@ -16,11 +16,30 @@ Ordinary staff and customers receive no recipe access automatically.
 | Permission | Access |
 | --- | --- |
 | Owner | All editing, costs, permissions, backups and status changes |
-| Chef | Drafts, testing logs, master resources, production records and costs; cannot mark Final |
+| Chef | Drafts, master resources, production records and costs; cannot mark Final. R&D formulas and testing logs require Can view R&D. |
 | Kitchen | Published production recipes, packaging, special equipment, temporary scaling, checkoffs and printing |
 
+Each active account with recipe access has one **Can view R&D** checkbox on
+**Access**, controlled by the owner. It applies to all research recipes and test
+logs; new and existing non-owner accounts start with it off. Owners always have
+R&D access. Enable it after a new invitee activates recipe access.
+
+An enabled Chef can view/edit research recipes and their logs using existing
+Chef rights. An enabled Kitchen account gets a separate **R&D recipes** link for
+reading research formulas; editing, costs, private notes and testing logs remain
+unavailable. Ordinary production browsing continues to use the last Final.
+Without the flag, R&D recipes, searches, historical R&D versions, test logs and
+their exclusive attachments are inaccessible. If a recipe has a new R&D version,
+normal staff can still read its previously published Final but cannot edit its
+restricted working version. Linked recipes and export requests are checked too.
+
+Revocation blocks subsequent API and Storage authorization requests. The page
+clears private views when returning to results or rechecking access on focus.
+Previously downloaded or printed information cannot be withdrawn; already-issued
+attachment URLs retain their existing expiry of up to 15 minutes.
+
 Kitchen responses are filtered on the server. Costs, supplier details, private
-notes, R&D, draft formulas and version history are excluded from their responses,
+notes, testing logs, ordinary draft formulas and version history are excluded from their responses,
 not simply hidden in the interface. Files use the private `recipe-files` bucket
 and expiring authorized links. The page has `noindex`; authorization is enforced
 separately by the database and Storage policies.
@@ -36,6 +55,10 @@ Ingredient rows include original quantity text, unit, ingredient reference,
 brand, supplier, notes, optional formula percentage, price snapshot and practical
 rounding increment. Drag rows to reorder or use their arrow buttons. Alt+Enter
 in an ingredient row adds another row. The editor's section links reduce scrolling.
+The compact row keeps the ingredient name, brand, quantity and unit visible.
+The current supplier appears on a separate line. **Details** expands notes, brand
+editing and rounding options. If an older linked row has no saved brand, the
+catalog brand is displayed as a labeled fallback without changing that saved row.
 
 Use separate groups for sponge, filling, icing, syrup or assembly. Methods support
 steps, timers, temperature, equipment, warnings and process photos. Finished
@@ -46,6 +69,9 @@ top/bottom heat, actual temperature, fan, time and cooling/freezing information.
 The library is alphabetical and paginated. Search/filter by name or ingredient,
 category, tag, status, flavor, product line, version, author and update date.
 Favorites, pins and recently used views are personal to each account.
+**Back to results** restores the previous filters, scroll position and rendered
+results after rechecking the signed-in account and permissions. Writes, explicit
+**Refresh results**, account changes and sign-out invalidate retained results.
 
 ## Ingredients and packaging tables
 
@@ -84,10 +110,10 @@ children moved or deleted first; restore a parent before its deleted children.
 ## Preserve approved formulas
 
 Saving creates an immutable version and keeps the editor open for continued work.
-The statuses are **Draft, Final, Hidden, Archive**. Only the owner can mark Final
-or change status directly from the saved recipe. Historical Testing/Approved
-labels display as Draft; historical Production displays as Final.
-A new draft does not replace the last Final version used by the kitchen.
+The statuses are **Draft, R&D, Final, Hidden, Archive**. Only the owner can mark Final
+or change status directly from the saved recipe. Historical Testing displays as
+R&D, Approved as Draft, and Production as Final; stored versions are not rewritten.
+A new Draft or R&D version does not replace the last Final used by the kitchen.
 Explicitly changing status to Draft, Hidden or Archive withdraws kitchen access;
 use Hidden to withdraw a recipe while keeping it in the admin library.
 Archive is excluded from the default library. A status change creates a new
@@ -107,6 +133,11 @@ formula rather than dynamically inheriting mutable values at production time.
 R&D logs keep their own dated observations, changes, baking settings, rating,
 next test, photos and proposed formula. A successful test can be explicitly
 promoted into a new version. Editing a testing log does not edit the approved recipe.
+**New test** opens formula and observations together, with two panes on phones.
+**Save test** saves both against the original source version. Tests use explicit
+Save rather than ordinary recipe autosave; leaving unsaved changes requires
+confirmation. Promotion is a separate owner action. Promoted tests remain locked,
+and reopening a test uses its original source even after the master recipe changes.
 
 ## Production and scaling
 
@@ -115,8 +146,9 @@ scale by multiplier, yield, pieces, portions, portion weight, batter/dough weigh
 or pan count. Ingredient tables show the quantity needed for the selected run.
 Original formula values remain unchanged. Save a scaled copy only when a new
 saved recipe is intended. Invalid quantities or rounding hide the numeric recipe
-and disable print/export until corrected. Kitchen sections have a selector and
-previous/next buttons; owner/chef accounts can return to recipe admin.
+and disable print/export until corrected. **×1, ×2, ×3** and **Custom** provide
+quick scaling. Wide tablets show named section buttons; phones retain a section
+selector and previous/next buttons. Owner/chef accounts can return to recipe admin.
 
 Scaling uses rational arithmetic, including mixed and additive fractions. Exact
 values are preserved; display rounding is explicit. Whole-gram or row-specific
@@ -147,6 +179,11 @@ One save creates missing supplier/item records and records a price. Existing
 matching names and brands are reused; retrying a save does not duplicate it.
 This records purchase pricing for costing; stock receipts and accounting expense
 posting are separate workflows.
+
+For an existing ingredient or packaging item, use its **Record price** row action.
+It locks the exact item and brand, prefills the selected supplier and saved pack
+quantity/unit, and asks for the new amount. Changing supplier loads that supplier's
+pack details. Saving appends price history and leaves recipe snapshots unchanged.
 
 An item can have several supplier quotes. Automatic selection compares the latest
 quote from each active supplier using compatible units, then selects the lowest
@@ -188,6 +225,12 @@ It supports search, category, product line, status, missing/negative/profitable
 costs, recent updates and cost/profit/margin sorting. Open a product to compare
 current active prices with its saved snapshot. Snapshots over 90 days old get an
 informational reminder. No selling price is automatically changed.
+Desktop uses a compact comparison table; phones use stacked cards. **Batch / Unit**
+changes every money column to the selected basis and labels the yield or sale unit.
+**Details** expands supporting figures. The costing dialog has explicit **Saved /
+Current** price controls, a consistent batch/unit basis, five main figures, and an
+expandable breakdown. On phones it fills the available screen with a sticky Close
+button; Escape also closes it.
 
 Saved recipes capture historical cost snapshots, including pinned component and
 packaging costs. A current cost preview is separate. A master price update does

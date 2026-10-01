@@ -1,27 +1,64 @@
-import {costingEditor,costSummaryMarkup,openCosting,costingOverviewMarkup} from './recipe-costing.js?v=production-audit-1';
-import {recipeStatuses,recipeStatus,recipeStatusLabel} from './recipe-status.js?v=production-audit-1';
-import {mountKitchenReader} from './recipe-kitchen.js?v=production-audit-1';
-import {ready,auth,recipeApi as api,uploadRecipeFile,recipeFileUrl} from './client.js?v=recipe-system-2';
-import {mountSupplierQuotes} from './recipe-suppliers.js?v=production-audit-1';
-import {resourceTableMarkup} from './recipe-resource-table.js?v=production-audit-1';
-import {recipeLoadingMarkup} from './recipe-loading.js?v=production-audit-1';
+import {costingEditor,costSummaryMarkup,openCosting,costingOverviewMarkup,costingOverviewRows} from './recipe-costing.js?v=approved-ux-1';
+import {recipeStatuses,recipeStatus,recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
+import {mountKitchenReader} from './recipe-kitchen.js?v=approved-ux-1';
+import {ready,auth,recipeApi as callRecipeApi,uploadRecipeFile,recipeFileUrl} from './client.js?v=recipe-system-2';
+import {mountSupplierQuotes} from './recipe-suppliers.js?v=approved-ux-1';
+import {resourceTableMarkup} from './recipe-resource-table.js?v=approved-ux-1';
+import {recipeLoadingMarkup} from './recipe-loading.js?v=approved-ux-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {prepareProductImage} from './product-image.js';
-import * as model from './recipe-model.js?v=production-audit-1';
-import {componentEditor} from './recipe-component-editor.js?v=production-audit-1';
-import {ingredientPickerMarkup,mountIngredientPicker} from './recipe-ingredient-picker.js?v=production-audit-1';
-import {addRecipePackaging,packagingEditor,packagingReferenceMarkup,packagingItems,packagingPhotos,packagingLegacyText,replacePackagingPhotos} from './recipe-packaging.js?v=production-audit-1';
-import {quantity,exact,scaleFactor,scaleIngredients,displayQuantity,ingredientTotals,multiply,scaledYield,componentPlan} from './recipe-math.js?v=production-audit-1';
+import * as model from './recipe-model.js?v=approved-ux-1';
+import {componentEditor} from './recipe-component-editor.js?v=approved-ux-1';
+import {mountTestWorkspace} from './recipe-rd-workspace.js?v=approved-ux-1';
+import {ingredientPickerMarkup,mountIngredientPicker} from './recipe-ingredient-picker.js?v=approved-ux-1';
+import {addRecipePackaging,packagingEditor,packagingReferenceMarkup,packagingItems,packagingPhotos,packagingLegacyText,replacePackagingPhotos} from './recipe-packaging.js?v=approved-ux-1';
+import {quantity,exact,scaleFactor,scaleIngredients,displayQuantity,ingredientTotals,multiply,scaledYield,componentPlan} from './recipe-math.js?v=approved-ux-1';
 
 const root=document.querySelector('#recipe-main'),dialog=document.querySelector('#recipe-dialog'),dialogBody=document.querySelector('#recipe-dialog-body');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const button=(label,action,extra='',cls='')=>`<button type="button" data-action="${action}" ${extra} class="${cls}">${label}</button>`;
 const money=value=>new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(typeof value==='object'?Number(value.n)/Number(value.d):Number(value||0));
 const date=value=>value?new Date(value).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}):'—';
-const state={role:null,categories:[],settings:{},tab:'library',kitchen:new URLSearchParams(location.search).get('view')==='kitchen',
+const state={role:null,categories:[],settings:{},tab:'library',rd:new URLSearchParams(location.search).get('view')==='rd',can_view_rd:false,kitchen:new URLSearchParams(location.search).get('view')==='kitchen',
  filters:{},offset:0,limit:24,selection:new Set(),record:null,doc:null,variant:0,editing:false,dirty:false,draftId:null,
  scale:{mode:'multiplier',target:'1',rounding:'exact',step:'1'},wholeComponents:false,fileUrls:new Map(),resources:[],request:0};
 let noticeTimer,autosaveTimer,draggedRow,pendingAutosave=Promise.resolve();
+const readActions=new Set(['bootstrap','list','get','resources','prices','versions','tests','drafts','access','runs','costing','cost_preview','costing_overview','component_plan','export','export_data']);
+function invalidateLibrary(){state.libraryView=null;state.libraryStamp=null;}
+function clearPrivateView(){
+ state.authEpoch=(state.authEpoch||0)+1;state.request++;state.resourceRequest++;invalidateLibrary();
+ state.doc=null;state.record=null;state.testWorkspace=null;state.testDraftPhotos=[];state.tests=[];state.versions=[];state.resources=[];state.costOverviewData=null;state.fileUrls.clear();state.selection.clear();state.filters={};state.costFilters={};state.categories=[];
+ state.drafts=[];state.resourcePhotos=[];state.accessPeople=[];state.packagingChoices=[];state.resourceEditing=null;state.testEditing=null;state.categoryEditing=null;state.componentChoice=null;state.draftId=null;
+ ingredientPicker.clear();state.editing=false;state.dirty=false;clearTimeout(autosaveTimer);clearTimeout(state.searchTimer);clearTimeout(state.costSearchTimer);closeDialog();dialogBody.replaceChildren();root.replaceChildren();document.querySelector('.recipe-print-root')?.remove();document.querySelector('#recipe-print-page-style')?.remove();
+}
+let checkingAccess=false;
+async function recheckAccess(){
+ if(checkingAccess||!state.role||document.hidden)return;checkingAccess=true;
+ try{
+  const {data:{session}}=await auth.getSession(),setup=await api('bootstrap');
+  if(session?.user?.id!==state.userId||setup.role!==state.role||Boolean(setup.can_view_rd)!==Boolean(state.can_view_rd)){
+   clearPrivateView();state.userId=session?.user?.id;Object.assign(state,setup);if(!canRD())state.rd=false;
+   state.kitchen=setup.role==='kitchen'||new URLSearchParams(location.search).get('view')==='kitchen';await library();notify('Recipe permissions updated.');
+  }
+ }catch(error){
+  // A failed network check cannot grant fresh access. Authorization failures
+  // discard private views; transient connection failures keep unsaved work.
+  if(/Authorized recipe|permission denied|R&D access|sign in/i.test(error.message)){clearPrivateView();state.role=null;state.can_view_rd=false;state.rd=false;await startRecipeLibrary();}
+ }finally{checkingAccess=false;}
+}
+window.addEventListener('focus',()=>{recheckAccess().catch(showError);});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)recheckAccess().catch(showError);});
+async function api(action,payload={}){
+ const epoch=state.authEpoch||0;if(!readActions.has(action))invalidateLibrary();
+ let result;try{result=await callRecipeApi(action,payload);}catch(error){if(/R&D access/.test(error.message)&&!checkingAccess)queueMicrotask(()=>recheckAccess().catch(showError));throw error;}if(epoch!==(state.authEpoch||0))throw Error('Your recipe session changed. Sign in again.');return result;
+}
+function librarySignature(){return JSON.stringify([state.userId,state.role,state.can_view_rd,state.kitchen,state.rd,state.filters,state.offset]);}
+function rememberLibrary(){
+ if(!root.querySelector('.recipe-library')||!state.libraryStamp)return;
+ clearTimeout(state.searchTimer);const query=root.querySelector('[data-filter="query"]')?.value||'';
+ if(query!==(state.filters.query||'')){state.filters.query=query;state.offset=0;invalidateLibrary();return;}
+ state.libraryView={nodes:[...root.childNodes],scroll:window.scrollY,focus:document.activeElement,signature:librarySignature()};
+}
 const ingredientPicker=mountIngredientPicker(root,{api,getRow:input=>getPath(state.doc,input.dataset.path.replace(/\.name$/,'')),onChange:markDirty});
 state.resourceDensity='compact';state.resourceSort='az';state.resourceRequest=0;
 try{if(localStorage.getItem('tlb-recipe-resource-density-v1')==='comfortable')state.resourceDensity='comfortable';}catch{}
@@ -30,15 +67,17 @@ function notify(message,error=false) {
  clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{node.textContent='';},error?12000:6000);
 }
 function showError(error){const message=error.message||'The request could not be completed.';if(dialog.open){let alert=dialogBody.querySelector('[data-dialog-error]');if(!alert){alert=document.createElement('p');alert.dataset.dialogError='';alert.className='recipe-error';alert.setAttribute('role','alert');dialogBody.prepend(alert);}alert.textContent=message;}else notify(message,true);}
-function setDialog(title,body){document.querySelector('#recipe-dialog-title').textContent=title;dialogBody.innerHTML=body;if(!dialog.open)dialog.showModal();}
+function setDialog(title,body){dialog.classList.remove('recipe-cost-sheet');document.querySelector('#recipe-dialog-title').textContent=title;dialogBody.innerHTML=body;if(!dialog.open)dialog.showModal();}
 const closeDialog=()=>dialog.close();
 const canEdit=()=>state.role!=='kitchen'&&!state.kitchen;
+const canRD=()=>state.role==='owner'||state.can_view_rd===true;
+const canEditRecord=()=>canEdit()&&!state.record?.rd_restricted;
 const isOwner=()=>state.role==='owner'&&!state.kitchen;
-const statusOptions=(value,owner=true)=>(owner?recipeStatuses:recipeStatuses.slice(0,1)).map(([key,label])=>`<option value="${key}" ${key===recipeStatus(value)?'selected':''}>${label}</option>`).join('');
+const statusOptions=(value,owner=true)=>(owner?recipeStatuses:recipeStatuses.filter(([key])=>key==='draft'||(key==='testing'&&canRD()))).map(([key,label])=>`<option value="${key}" ${key===recipeStatus(value)?'selected':''}>${label}</option>`).join('');
 function updateNavigation(){
  const nav=document.querySelector('.recipe-header nav'),brand=document.querySelector('.recipe-header .brand');
  if(!nav)return;
- nav.innerHTML=`${state.role&&state.role!=='kitchen'?(state.kitchen?'<a class="recipe-button primary" href="recipes.html">Back to recipe admin</a>':'<a href="recipes.html?view=kitchen">Kitchen view</a>'):''}${state.role==='owner'?'<a href="manage.html">Admin dashboard</a>':''}<a href="account.html">Account</a>`;
+ nav.innerHTML=`${state.role&&state.role!=='kitchen'?(state.kitchen?'<a class="recipe-button primary" href="recipes.html">Back to recipe admin</a>':'<a href="recipes.html?view=kitchen">Kitchen view</a>'):''}${canRD()&&state.role==='kitchen'?`<a href="recipes.html${state.rd?'':'?view=rd'}">${state.rd?'Production recipes':'R&D recipes'}</a>`:''}${state.role==='owner'?'<a href="manage.html">Admin dashboard</a>':''}<a href="account.html">Account</a>`;
  if(brand)brand.href=state.role==='owner'?'manage.html':'recipes.html';
  document.body.classList.toggle('recipe-kitchen-view',Boolean(state.kitchen||state.role==='kitchen'));
 }
@@ -48,7 +87,7 @@ function shell(content,{tabs=true}={}) {
  root.classList.toggle('recipe-loading-ready',wasLoading&&!loading);
  if(loading)root.setAttribute('aria-busy','true');else root.removeAttribute('aria-busy');
  root.classList.toggle('recipe-production',state.kitchen||state.role==='kitchen');updateNavigation();
- root.innerHTML=`${tabs?`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.kitchen?'Final recipes, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div><nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['costing','Costing Overview'],['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['access','Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
+ root.innerHTML=`${tabs?`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">Your kitchen reference</div><h1>${state.rd?'R&D recipes':state.kitchen?'Production recipes':'Recipes & costing'}</h1><p class="recipe-muted">${state.rd?'Research formulas for review. These recipes are still in development.':state.kitchen?'Final recipes, ready for the kitchen. Changes here do not edit your recipes.':'Your formulas, testing notes and production knowledge, kept together.'}</p></div>${canEdit()?`<div class="recipe-actions">${button('Import recipe','import')}${button('+ New recipe','new','','primary')}</div>`:''}</div><nav class="recipe-tabs" aria-label="Recipe sections">${[['library','Recipes'],...(canEdit()?[['costing','Costing Overview'],['ingredient','Ingredients'],['supplier','Suppliers'],['packaging','Packaging'],['equipment','Equipment']]:[]),...(isOwner()?[['categories','Categories'],['access','Access'],['backups','Backups']]:[])].map(([key,label])=>button(label,'tab',`data-tab="${key}" ${state.tab===key?'aria-current="page"':''}`)).join('')}</nav>`:''}${content}`;
 }
 function getPath(object,path){return path.split('.').reduce((v,k)=>v?.[k],object);}
 function setPath(object,path,value){const keys=path.split('.');if(keys.some(k=>['__proto__','prototype','constructor'].includes(k)))throw Error('Invalid field.');let node=object;for(const k of keys.slice(0,-1))node=node[k]??(node[k]={});node[keys.at(-1)]=value;}
@@ -60,7 +99,7 @@ function field(label,path,{type='text',wide=false,options=null,placeholder='',ro
  `<input type="${type}" ${common} value="${esc(value)}" placeholder="${esc(placeholder)}" ${list?`list="${list}"`:''}>`;
  return `<label class="${wide?'wide':''}">${esc(label)}${input}</label>`;
 }
-function markDirty(){state.dirty=true;const status=root.querySelector('[data-save-status]');if(status)status.textContent='Unsaved changes';clearTimeout(autosaveTimer);autosaveTimer=setTimeout(saveDraft,1200);}
+function markDirty(){state.dirty=true;const status=root.querySelector('[data-save-status]');if(status)status.textContent=state.testWorkspace?'Unsaved test changes · Save test keeps formula and observations together':'Unsaved changes';clearTimeout(autosaveTimer);if(!state.testWorkspace)autosaveTimer=setTimeout(saveDraft,1200);}
 function syncSectionName(el){
  if(/\.groups\.\d+\.name$/.test(el.dataset.path||'')){
   const section=el.closest('[data-component-editor]');if(!section)return;section.querySelector('[data-component-heading]').textContent=el.value;
@@ -69,35 +108,55 @@ function syncSectionName(el){
  }else if(/\.methods\.\d+\.name$/.test(el.dataset.path||'')){const title=el.closest('[data-method-editor]')?.querySelector('h3');if(title)title.textContent=el.value||'Procedure';}
 }
 async function saveDraft(){
- if(!state.editing||!state.doc)return;const captured=state.draftId;
- try {pendingAutosave=api('autosave',{draft_id:captured,id:state.record?.id,revision:state.record?.revision,document:state.doc});await pendingAutosave;
+ if(!state.editing||!state.doc||state.testWorkspace)return;const captured=state.draftId;
+ try {pendingAutosave=api('autosave',{draft_id:captured,id:state.record?.id,revision:state.record?.revision,status:state.saveStatus,document:state.doc});await pendingAutosave;
   if(state.draftId===captured){const status=root.querySelector('[data-save-status]');if(status)status.textContent='Working copy backed up. Click Save to keep these changes.';}
  }catch(error){const status=root.querySelector('[data-save-status]');if(status)status.textContent=`Draft could not be saved: ${error.message}`;}
 }
 async function leaveEditor(){
  if(!state.editing)return true;
- if(state.dirty&&!await confirmDialog('Your working draft is separate from the saved recipe. Leave this editor?',{confirmLabel:'Leave editor'}))return false;
- clearTimeout(autosaveTimer);if(state.dirty)await saveDraft();state.editing=false;state.dirty=false;return true;
+ if(state.dirty&&!await confirmDialog(state.testWorkspace?'Leave without saving these test changes? Save test keeps the formula and observations together.':'Your working draft is separate from the saved recipe. Leave this editor?',{confirmLabel:'Leave editor'}))return false;
+ clearTimeout(autosaveTimer);if(state.dirty&&!state.testWorkspace)await saveDraft();state.editing=false;state.dirty=false;state.testWorkspace=null;return true;
 }
-async function library(){
+async function library({reuse=false}={}){
  state.record=null;state.editing=false;state.tab='library';const request=++state.request;
+ const retained=state.libraryView;
+ if(reuse&&retained?.signature===librarySignature()){
+  shell('<p role="status">Returning to your results…</p>',{tabs:false});
+  try{
+   const {data:{session}}=await auth.getSession(),setup=await api('bootstrap');
+   if(request!==state.request)return;
+   if(session?.user?.id===state.userId&&setup.role===state.role&&Boolean(setup.can_view_rd)===Boolean(state.can_view_rd)&&retained===state.libraryView){
+    state.categories=setup.categories;state.settings=setup.settings;state.authors=setup.authors;root.replaceChildren(...retained.nodes);updateNavigation();
+    requestAnimationFrame(()=>{if(request!==state.request)return;retained.focus?.focus({preventScroll:true});window.scrollTo(0,retained.scroll);});return;
+   }
+   clearPrivateView();state.userId=session?.user?.id;Object.assign(state,setup);state.kitchen=setup.role==='kitchen'||new URLSearchParams(location.search).get('view')==='kitchen';if(!canRD())state.rd=false;state.offset=0;return library();
+  }catch(error){invalidateLibrary();state.doc=null;state.role=null;state.costOverviewData=null;state.resources=[];closeDialog();shell(`<section class="recipe-empty"><h1>Recipe access required</h1><p>${esc(error.message)}</p><a class="recipe-button" href="account.html">My account</a></section>`,{tabs:false});return;}
+ }
+ invalidateLibrary();
  shell(recipeLoadingMarkup());
- let data;try{data=await api('list',{...state.filters,offset:state.offset,limit:state.limit,kitchen:state.kitchen});}catch(error){if(request===state.request&&state.tab==='library')sectionLoadError(error);return;}
+ let data;try{data=await api('list',{...state.filters,offset:state.offset,limit:state.limit,kitchen:state.kitchen,rd:state.rd});}catch(error){if(request===state.request&&state.tab==='library')sectionLoadError(error);return;}
  if(request!==state.request||state.tab!=='library')return;
  shell(`<div class="recipe-filters"><label>Find a recipe or ingredient<input type="search" data-filter="query" value="${esc(state.filters.query||'')}" placeholder="Search your recipes"></label>
   <label>Category<select data-filter="category_id"><option value="">All categories</option>${state.categories.filter(c=>!c.deleted_at).map(c=>`<option value="${c.id}" ${state.filters.category_id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
-  ${!state.kitchen?`<label>Status<select data-filter="status"><option value="">Active recipes</option>${recipeStatuses.map(([key,label])=>`<option value="${key}" ${state.filters.status===key?'selected':''}>${label}</option>`).join('')}</select></label>`:''}
+  ${!state.kitchen?`<label>Status<select data-filter="status"><option value="">Active recipes</option>${recipeStatuses.filter(([key])=>key!=='testing'||canRD()).map(([key,label])=>`<option value="${key}" ${state.filters.status===key?'selected':''}>${label}</option>`).join('')}</select></label>`:''}
   <label>Collection<select data-filter="collection"><option value="">All recipes · A–Z</option><option value="favorites" ${state.filters.favorites?'selected':''}>Favorites</option><option value="pinned" ${state.filters.pinned?'selected':''}>Pinned recipes</option><option value="recent" ${state.filters.recent?'selected':''}>Recently used</option>${isOwner()?`<option value="deleted" ${state.filters.deleted?'selected':''}>Recently deleted</option>`:''}</select></label></div>
-  <div class="recipe-toolbar"><span class="recipe-muted">${data.total} recipes${state.selection.size?` · ${state.selection.size} selected`:''}</span><div class="recipe-actions">${button('More filters','filters')}${button('Print / export','export-library')}${canEdit()?button('Recover working draft','drafts'):''}</div></div>
-  <div class="recipe-library">${data.rows.length?data.rows.map(r=>`<article class="recipe-card"><header><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span><label class="recipe-inline-check"><input type="checkbox" data-select="${r.id}" aria-label="Select ${esc(r.name)}" ${state.selection.has(r.id)?'checked':''}></label></header><h2>${esc(r.name)}</h2><div class="recipe-muted">${esc(r.code)} · Version ${r.version}<br>Updated ${date(r.updated_at)}</div><div class="recipe-actions">${button(r.deleted_at?'View deleted recipe':'Open recipe','open',`data-id="${r.id}"`,'primary')}${canEdit()&&!r.deleted_at?button('Edit','edit-open',`data-id="${r.id}"`):''}${button(r.favorite?'★':'☆','favorite',`data-id="${r.id}" data-favorite="${!r.favorite}" data-pinned="${Boolean(r.pinned)}" aria-label="${r.favorite?'Remove favorite':'Favorite recipe'}"`)}${button(r.pinned?'Unpin':'Pin','pin',`data-id="${r.id}" data-favorite="${Boolean(r.favorite)}" data-pinned="${!r.pinned}"`)}</div></article>`).join(''):'<div class="recipe-empty"><h2>No recipes here yet</h2><p>Create a recipe or adjust your filters.</p></div>'}</div>
+  <div class="recipe-toolbar"><span class="recipe-muted">${data.total} recipes${state.selection.size?` · ${state.selection.size} selected`:''}</span><div class="recipe-actions">${button('Refresh results','refresh-library')}${button('More filters','filters')}${button('Print / export','export-library')}${canEdit()?button('Recover working draft','drafts'):''}</div></div>
+  <div class="recipe-library">${data.rows.length?data.rows.map(r=>`<article class="recipe-card"><header><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span><label class="recipe-inline-check"><input type="checkbox" data-select="${r.id}" aria-label="Select ${esc(r.name)}" ${state.selection.has(r.id)?'checked':''}></label></header><h2>${esc(r.name)}</h2><div class="recipe-muted">${esc(r.code)} · Version ${r.version}<br>Updated ${date(r.updated_at)}</div><div class="recipe-actions">${button(r.deleted_at?'View deleted recipe':'Open recipe','open',`data-id="${r.id}"`,'primary')}${canEdit()&&!r.deleted_at&&!r.rd_restricted?button('Edit','edit-open',`data-id="${r.id}"`):''}${button(r.favorite?'★':'☆','favorite',`data-id="${r.id}" data-favorite="${!r.favorite}" data-pinned="${Boolean(r.pinned)}" aria-label="${r.favorite?'Remove favorite':'Favorite recipe'}"`)}${button(r.pinned?'Unpin':'Pin','pin',`data-id="${r.id}" data-favorite="${Boolean(r.favorite)}" data-pinned="${!r.pinned}"`)}</div></article>`).join(''):'<div class="recipe-empty"><h2>No recipes here yet</h2><p>Create a recipe or adjust your filters.</p></div>'}</div>
   <div class="recipe-pagination">${button('Previous','page',`data-offset="${Math.max(0,state.offset-state.limit)}" ${state.offset===0?'disabled':''}`)}<span class="recipe-muted">${data.total?`${state.offset+1}–${Math.min(state.offset+state.limit,data.total)} of ${data.total}`:'0 recipes'}</span>${button('Next','page',`data-offset="${state.offset+state.limit}" ${state.offset+state.limit>=data.total?'disabled':''}`)}</div>`);
+ state.libraryStamp=librarySignature();
 }
-function beginEdit(record=null,document=null){
+function beginEdit(record=null,document=null,testWorkspace=null){
+ if(record?.rd_restricted)throw Error('R&D access is required to edit this recipe.');
+ if(testWorkspace&&!canRD())throw Error('R&D access is required to use test logs.');
+ rememberLibrary();
+ ingredientPicker.clear();
+ state.testWorkspace=testWorkspace;
  state.record=record;state.doc=model.normalizeRecipe(document||record?.document||model.blankRecipe());
  // Resolve old, unambiguous associations in this working copy before names
  // change. Opening the editor never rewrites an approved recipe version.
  for(const v of state.doc.variants)for(const m of v.methods)if(!Object.hasOwn(m,'group_id'))m.group_id=model.methodGroupId(v,m);
- state.variant=0;state.editing=true;state.dirty=false;state.saveStatus=isOwner()?recipeStatus(record?.status):'draft';state.draftId=model.id();renderEditor();
+ state.variant=0;state.editing=true;state.dirty=false;state.saveStatus=isOwner()?recipeStatus(record?.status):record?.status==='testing'?'testing':'draft';state.draftId=model.id();renderEditor();
 }
 function yieldReviewMarkup(v){
  const review=model.yieldReview(v);
@@ -106,7 +165,7 @@ function yieldReviewMarkup(v){
 async function costingOverview(){
  state.tab='costing';state.record=null;state.editing=false;const ticket=++state.request;state.costFilters??={};
  shell(recipeLoadingMarkup({rows:true}));
- try{const data=await api('costing_overview',{...state.costFilters,limit:24});if(ticket!==state.request||state.tab!=='costing')return;shell(costingOverviewMarkup(data,state.costFilters,state.categories,{button}));}
+ try{const data=await api('costing_overview',{...state.costFilters,limit:24});if(ticket!==state.request||state.tab!=='costing')return;state.costOverviewData=data;shell(costingOverviewMarkup(data,state.costFilters,state.categories,{button,canViewRD:canRD()}));}
  catch(error){if(ticket===state.request&&state.tab==='costing')sectionLoadError(error);}
 }
 async function loadSavedCostCard(factor,scalingMode){
@@ -116,7 +175,7 @@ async function loadSavedCostCard(factor,scalingMode){
 }
 function renderEditor(){
  const d=state.doc,v=d.variants[state.variant],p=`variants.${state.variant}`;
- shell(`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">${state.record?`Version ${state.record.version} · changes create a new version`:'New recipe'}</div><h1>${esc(d.name||'Untitled recipe')}</h1></div><div class="recipe-actions">${state.record?button('View saved recipe','view-saved'):''}${button('View cost summary','cost-preview')}${button('Back to library','library')}</div></div>
+ shell(`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">${state.record?`Version ${state.record.version} · changes create a new version`:'New recipe'}</div><h1>${esc(d.name||'Untitled recipe')}</h1></div><div class="recipe-actions">${state.record?button('View saved recipe','view-saved'):''}${button('View cost summary','cost-preview')}${button(state.libraryView?'Back to results':'Back to library','library')}</div></div>
   <form id="recipe-editor">${d.import_review?`<section class="recipe-card"><h2>Review imported recipe</h2><p class="recipe-muted">Check quantities, units, yield and methods against the original source before marking this recipe Final.</p><label class="recipe-inline-check"><input type="checkbox" data-import-reviewed ${d.import_review.reviewed?'checked':''}>I have reviewed this imported formula and its yield.</label>${d.import_review.source_text?`<div class="recipe-actions">${button("Rebuild components from original import","rebuild-import")}</div>`:""}<details><summary>Original extracted text</summary><pre class="recipe-source-text">${esc(d.import_review.source_text)}</pre></details></section>`:''}<section class="recipe-card"><h2>Recipe details</h2><div class="recipe-fields">
   ${field('Recipe name','name',{wide:true})}${field('Category','category_id',{options:[['','Uncategorized'],...state.categories.filter(c=>c.active&&!c.deleted_at||c.id===state.doc.category_id).map(c=>[c.id,c.name])]})}${field('Flavor','flavor')}${field('Product line','product_line')}${field('Tags · separated by commas','tags',{wide:true})}${field('Short description','description',{type:'textarea',wide:true})}
   </div><details class="recipe-advanced"><summary>Allergens, critical notes and private notes</summary><div class="recipe-fields">
@@ -130,13 +189,19 @@ function renderEditor(){
   <section class="recipe-card recipe-packaging-editor"><h2>Packaging, special equipment & notes</h2>${packagingEditor(v,p,{field,button,photoMarkup})}
   <div class="recipe-section-head"><h3>Special equipment</h3>${button('+ Equipment','add-equipment')}</div>${v.equipment.map((e,i)=>`<div class="recipe-fields two">${field('Equipment',`${p}.equipment.${i}.name`)}${field('Notes',`${p}.equipment.${i}.notes`)}</div>${button('Remove equipment','remove-equipment',`data-index="${i}"`,'danger')}`).join('')}
   ${field('Production notes',`${p}.production_notes`,{type:'textarea'})}</section>${costingEditor(v,p,{field,button})}
-  <footer class="recipe-sticky-save"><span class="recipe-status-text" data-save-status>${state.dirty?'Unsaved changes':state.record?`Saved. ${state.record.production_version_id&&state.saveStatus==='draft'?'Kitchen still uses the last Final. Choose Hidden to withdraw it.':'Continue editing, or view the recipe.'}`:'Save when ready. You can keep editing afterward.'}</span><div class="recipe-actions"><label>Status<select id="recipe-save-status">${statusOptions(state.saveStatus,isOwner())}</select></label>${button('Save','save','','primary')}</div></footer></form>`,{tabs:false});
+  <footer class="recipe-sticky-save"><span class="recipe-status-text" data-save-status>${state.dirty?'Unsaved changes':state.record?`Saved. ${state.record.production_version_id&&['draft','testing'].includes(state.saveStatus)?'Kitchen still uses the last Final. Choose Hidden to withdraw it.':'Continue editing, or view the recipe.'}`:'Save when ready. You can keep editing afterward.'}</span><div class="recipe-actions"><label>Status<select id="recipe-save-status">${statusOptions(state.saveStatus,isOwner())}</select></label>${button('Save','save','','primary')}</div></footer></form>`,{tabs:false});
  const sections=[...root.querySelectorAll('#recipe-editor>section')];const nav=document.createElement('nav');nav.className='recipe-editor-outline';nav.setAttribute('aria-label','Recipe editor sections');nav.innerHTML=sections.map((section,i)=>{section.id=`recipe-editor-section-${i}`;return `<a href="#${section.id}">${esc(section.querySelector('h2')?.textContent||'Section')}</a>`;}).join('');root.querySelector('#recipe-editor').prepend(nav);nav.addEventListener('click',event=>{const link=event.target.closest('a');const section=link&&root.querySelector(link.getAttribute('href'));const details=section?.querySelector(':scope>details');if(details)details.open=true;});
- hydratePhotos();
+ if(state.testWorkspace){
+  const w=state.testWorkspace;root.querySelector('.recipe-toolbar .recipe-eyebrow').textContent=`R&D · ${w.record?`Test #${w.record.number}`:'New test'} · Source version ${w.source.version}`;
+  const back=root.querySelector('[data-action="view-saved"]');if(back){back.dataset.action='exit-test';back.textContent='Back to recipe';}
+  const footer=root.querySelector('.recipe-sticky-save');footer.innerHTML=`<span class="recipe-status-text" data-save-status>${state.dirty?'Unsaved test changes':w.record?'Saved test. Continue editing formula and observations.':'Separate test draft. Save test when ready.'}</span><div class="recipe-actions">${button('Save test','save','','primary')}</div>`;
+  mountTestWorkspace(root,w,{button});renderTestPhotos().catch(showError);
+ }
+ hydratePhotos();ingredientPicker.hydrate();
 }
 function ingredientEditor(p,gi,ri){
  const prefix=`${p}.groups.${gi}.ingredients.${ri}`,row=state.doc.variants[state.variant].groups[gi].ingredients[ri];
- return `<div class="recipe-ingredient-editor" data-ingredient-row="${ri}" data-group="${gi}"><button type="button" class="recipe-drag" draggable="true" aria-label="Drag ingredient">⠿</button>${ingredientPickerMarkup(row,prefix)}${field('Quantity',`${prefix}.quantity`)}${field('Unit',`${prefix}.unit`)}${field('Notes',`${prefix}.notes`)}<div class="recipe-row-buttons">${button('↑','move-ingredient',`data-group="${gi}" data-row="${ri}" data-direction="-1" aria-label="Move ingredient up" ${ri===0?'disabled':''}`)}${button('×','remove-ingredient',`data-group="${gi}" data-row="${ri}" aria-label="Remove ingredient"`,'danger')}</div></div>`;
+ return `<div class="recipe-ingredient-editor recipe-ingredient-compact" data-ingredient-row="${ri}" data-group="${gi}"><button type="button" class="recipe-drag" draggable="true" aria-label="Drag ingredient">⠿</button>${ingredientPickerMarkup(row,prefix)}${field('Quantity',`${prefix}.quantity`)}${field('Unit',`${prefix}.unit`)}<div class="recipe-row-buttons">${button('↑','move-ingredient',`data-group="${gi}" data-row="${ri}" data-direction="-1" aria-label="Move ingredient up" ${ri===0?'disabled':''}`)}${button('×','remove-ingredient',`data-group="${gi}" data-row="${ri}" aria-label="Remove ingredient"`,'danger')}</div><details class="recipe-ingredient-details"><summary>Details${row.notes?' · notes':''}</summary><div class="recipe-fields two">${field('Brand specified · reselect ingredient to change a linked brand',`${prefix}.brand`,{readonly:Boolean(row.ingredient_id)})}${field('Notes',`${prefix}.notes`)}${field('Rounding increment · optional',`${prefix}.rounding_step`)}</div></details></div>`;
 }
 function photoMarkup(photos=[],{editable=state.editing}={}){return `<div class="recipe-photos">${photos.map(p=>`<figure><img data-file-id="${esc(p.file_id)}" ${p.path?`data-file-path="${esc(p.path)}"`:''} alt="${esc(p.caption||p.purpose||'Recipe photo')}"><figcaption>${editable?`<label>Caption<input data-photo-caption="${esc(p.id)}" value="${esc(p.caption||'')}"></label>`:esc(p.caption||'')}${editable?button('Remove','remove-photo',`data-file-id="${esc(p.file_id)}"`):''}</figcaption></figure>`).join('')}</div>`;}
 async function hydratePhotos(){
@@ -147,8 +212,9 @@ async function hydratePhotos(){
  }
 }
 async function openRecipe(id){
+ rememberLibrary();
  const request=++state.request;shell('<p role="status">Opening recipe…</p>',{tabs:false});
- const record=await api('get',{id,kitchen:state.kitchen});if(request!==state.request)return;state.record=record;state.doc=model.normalizeRecipe(record.document);state.variant=0;state.editing=false;state.scale={mode:'multiplier',target:'1',rounding:'exact',step:'1'};state.kitchenSection=null;state.kitchenPane='ingredients';renderRecipe();
+ const record=await api('get',{id,kitchen:state.kitchen,rd:state.rd});if(request!==state.request)return;state.record=record;state.doc=model.normalizeRecipe(record.document);state.variant=0;state.editing=false;state.scale={mode:'multiplier',target:'1',rounding:'exact',step:'1'};state.kitchenSection=null;state.kitchenPane='ingredients';renderRecipe();
 }
 function checkKey(row){return `tlb-recipe-check:${state.record.version_id}:${state.variant}:${state.scale.mode}:${state.scale.target}:${row}`;}
 function checked(row){try{return sessionStorage.getItem(checkKey(row))==='1';}catch{return false;}}
@@ -168,7 +234,8 @@ function renderRecipe(){
  const r=state.record,d=state.doc,v=d.variants[state.variant];let f=quantity('1'),scalingError='';
  try{f=scaleFactor(v.yield,state.scale.mode,state.scale.target);displayQuantity('1',{mode:state.scale.rounding,step:state.scale.step});}catch(error){scalingError=error.message;}
  const groups=scaleIngredients(v.groups,f);
- shell(`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">${esc(r.code)} · Version ${r.version} · ${date(r.updated_at)}</div><h1>${esc(d.name)}</h1><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span></div><div class="recipe-actions">${button('Library','library')}${canEdit()?button('Edit recipe','edit'):''}${button('Print / PDF','export',scalingError?'disabled':'')}${button('Ingredient CSV','csv',scalingError?'disabled':'')}${isOwner()&&!r.deleted_at?`<div class="recipe-status-control"><label>Status<select data-recipe-status>${statusOptions(r.status)}</select></label>${button('Set status','set-status')}</div>`:''}</div></div>
+ shell(`<div class="recipe-toolbar"><div><div class="recipe-eyebrow">${esc(r.code)} · Version ${r.version} · ${date(r.updated_at)}</div><h1>${esc(d.name)}</h1><span class="recipe-badge ${esc(r.status)}">${recipeStatusLabel(r.status)}</span></div><div class="recipe-actions">${button(state.libraryView?'Back to results':'Library','library')}${canEditRecord()?button('Edit recipe','edit'):''}${canEditRecord()&&canRD()?button('New test','add-test'):''}${button('Print / PDF','export',scalingError?'disabled':'')}${button('Ingredient CSV','csv',scalingError?'disabled':'')}${isOwner()&&!r.deleted_at?`<div class="recipe-status-control"><label>Status<select data-recipe-status>${statusOptions(r.status)}</select></label>${button('Set status','set-status')}</div>`:''}</div></div>
+  ${r.status==='testing'?`<p class="recipe-notice">R&D recipe · ${r.production_version_id?'Production continues using the last Final recipe.':'Available for production after the owner marks it Final.'} Testing logs are kept separately.</p>`:''}
   ${r.deleted_at?`<div class="recipe-notice">This recipe is in Recently deleted. Its history remains available. ${button('Restore recipe','undelete')}</div>`:''}
   <div class="recipe-reader-reference"><p>${esc(d.description)}</p>${(d.allergen_override?d.allergens:[...(d.allergens||[]),...(d.detected_allergens||[])]).length?`<p class="recipe-muted recipe-allergens">Allergens: ${[...new Set(d.allergen_override?d.allergens:[...(d.allergens||[]),...(d.detected_allergens||[])])].map(esc).join(', ')}</p>`:''}${d.base?`<p class="recipe-muted">Variation of ${esc(d.base.name)} · saved base version ${button('Compare with base','compare-base')}</p>`:''}${photoMarkup(d.photos)}</div>
   <section class="recipe-card recipe-scale-card"><div class="recipe-scale"><label>Size<select data-view-variant>${d.variants.map((v,i)=>`<option value="${i}" ${i===state.variant?'selected':''}>${esc(v.name)}</option>`).join('')}</select></label><label>Scale by<select data-scale="mode">${[['multiplier','Multiplier'],['yield','Desired yield'],['pieces','Number of pieces'],['portions','Number of portions'],['portion','Portion weight · g'],['weight','Batch weight · g'],['pans','Number of pans']].map(([key,label])=>`<option value="${key}" ${state.scale.mode===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Production quantity<input data-scale="target" inputmode="decimal" value="${esc(state.scale.target)}"></label><label>Display rounding<select data-scale="rounding">${[['exact','Exact quantities'],['whole','Whole grams'],['practical','Custom increment']].map(([key,label])=>`<option value="${key}" ${state.scale.rounding===key?'selected':''}>${label}</option>`).join('')}</select></label>${state.scale.rounding==='practical'?`<label>Rounding increment<input data-scale="step" value="${esc(state.scale.step)}"></label>`:''}</div>
@@ -179,7 +246,7 @@ function renderRecipe(){
   ${v.components.length?`<section class="recipe-card" data-kitchen-panel="linked" ${scalingError?'hidden':''}><h2>Linked components</h2><label class="recipe-inline-check"><input type="checkbox" data-whole-components ${state.wholeComponents?'checked':''}>Prepare whole batches; show leftovers</label>${v.components.map((c,i)=>{const link=r.links.find(l=>l.version_id===c.version_id);return `<div class="recipe-resource-row"><span>${esc(link?.name||c.name||'Component')}<small class="recipe-muted" style="display:block">Version ${link?.number||'—'} · ${esc(exact(multiply(quantity(c.quantity),f)))} ${esc(c.unit||'yield needed')}${link?.update_available?' · New version available':''}</small></span>${button('View','open-component',`data-id="${link?.recipe_id||''}" data-version="${c.version_id}" data-index="${i}"`)}</div>`;}).join('')}</section>`:''}
   ${v.baking.length?`<section class="recipe-card" data-kitchen-panel="baking"><h2>Baking & temperature settings</h2>${v.baking.map(s=>`<h3>${esc(s.name)}</h3><p>${[['Top',s.top,'°C'],['Bottom setting',s.bottom,'°C'],['Actual bottom',s.actual_bottom,'°C'],['Time',s.minutes,'min'],['Core',s.core,'°C'],['Fan',s.fan,''],['Ingredient',s.ingredient_temperature,'°C'],['Batter',s.batter_temperature,'°C'],['Resting',s.resting_temperature,'°C'],['Cool',s.cooling_minutes,'min'],['Freeze',s.freezing_minutes,'min']].filter(([,value])=>value).map(([label,value,unit])=>`${label}: <strong>${esc(value)} ${unit}</strong>`).join(' · ')}</p>${s.notes?`<p class="recipe-muted">${esc(s.notes)}</p>`:''}`).join('')}</section>`:''}
   <section class="recipe-card" data-kitchen-panel="packaging" ${scalingError?'hidden':''}><h2>Packaging & special equipment</h2>${packagingReferenceMarkup(v,exact(f))}${packagingItems(v).length?'':`<p>${esc(packagingLegacyText(v))}</p>`}<p>${esc(v.packaging.notes)}</p>${photoMarkup(packagingPhotos(v))}${v.equipment.map(e=>`<p><strong>${esc(e.name)}</strong>${e.notes?` · ${esc(e.notes)}`:''}</p>`).join('')}${v.production_notes?`<h3>Production notes</h3><p>${esc(v.production_notes).replaceAll('\n','<br>')}</p>`:''}</section>
-  ${canEdit()?`<section class="recipe-card"><div class="recipe-section-head"><h2>Costing & profitability</h2>${button('Compare current prices','cost-preview')}</div>${scalingError?'<p class="recipe-muted">Enter valid production quantities before calculating costs.</p>':'<div data-saved-cost-card><p role="status">Loading saved costing…</p></div>'}</section><section class="recipe-card"><div class="recipe-actions">${button('Testing / R&D','tests')}${button('Production history','runs')}${button('Version history','versions')}${button('Duplicate','duplicate')}${button('New variation','variation')}${isOwner()?button('Move to recently deleted','delete','','danger'):''}</div>${(r.files||[]).filter(f=>f.visibility==='private'||!f.mime_type.startsWith('image/')).length?`<h3>Private source files</h3><ul>${r.files.filter(f=>f.visibility==='private'||!f.mime_type.startsWith('image/')).map(f=>`<li><a data-attachment="${f.id}" target="_blank" rel="noopener noreferrer">${esc(f.filename)}</a></li>`).join('')}</ul>`:''}${d.private_notes?`<h3>Private notes</h3><p>${esc(d.private_notes).replaceAll('\n','<br>')}</p>`:''}</section>`:''}`,{tabs:false});
+  ${canEdit()?`<section class="recipe-card"><div class="recipe-section-head"><h2>Costing & profitability</h2>${button('Compare current prices','cost-preview')}</div>${scalingError?'<p class="recipe-muted">Enter valid production quantities before calculating costs.</p>':'<div data-saved-cost-card><p role="status">Loading saved costing…</p></div>'}</section><section class="recipe-card"><div class="recipe-actions">${canRD()?button('Testing / R&D','tests'):''}${button('Production history','runs')}${button('Version history','versions')}${button('Duplicate','duplicate')}${button('New variation','variation')}${isOwner()?button('Move to recently deleted','delete','','danger'):''}</div>${(r.files||[]).filter(f=>f.visibility==='private'||!f.mime_type.startsWith('image/')).length?`<h3>Private source files</h3><ul>${r.files.filter(f=>f.visibility==='private'||!f.mime_type.startsWith('image/')).map(f=>`<li><a data-attachment="${f.id}" target="_blank" rel="noopener noreferrer">${esc(f.filename)}</a></li>`).join('')}</ul>`:''}${d.private_notes?`<h3>Private notes</h3><p>${esc(d.private_notes).replaceAll('\n','<br>')}</p>`:''}</section>`:''}`,{tabs:false});
  if(state.kitchen){
   const reference=root.querySelector('.recipe-reader-reference');
   const allergens=reference?.querySelector('.recipe-allergens');if(allergens)reference.before(allergens);
@@ -191,8 +258,9 @@ function renderRecipe(){
   const summary=document.createElement('summary');summary.textContent='Rounding & tools';extra.append(summary);
   for(const el of scale.querySelectorAll('.recipe-scale>label:nth-child(n+4),:scope>.recipe-muted,:scope>.recipe-actions'))extra.append(el);scale.append(extra);
   const controls=document.createElement('details');controls.className='recipe-kitchen-production';controls.open=Boolean(state.kitchenQuantityOpen||scalingError);
-  const quantitySummary=document.createElement('summary');quantitySummary.innerHTML=`<span><strong>${scalingError?'Check production quantity':`Prepare ${esc(scaledYield(v.yield,f,state.scale).quantity)} ${esc(v.yield.unit)}`}</strong><small>${[v.name,v.yield.pan_size].filter(Boolean).map(esc).join(' · ')}</small></span><span class="recipe-kitchen-adjust-label">Adjust quantity</span>`;
+  const quantitySummary=document.createElement('summary');quantitySummary.innerHTML=`<span><strong>${scalingError?'Check production quantity':`Prepare ${esc(scaledYield(v.yield,f,state.scale).quantity)} ${esc(v.yield.unit)}`}</strong><small>${[v.name,v.yield.pan_size,scalingError?'':'×'+exact(f)].filter(Boolean).map(esc).join(' · ')}</small></span><span class="recipe-kitchen-adjust-label">Adjust quantity</span>`;
   const fields=document.createElement('div');fields.className='recipe-kitchen-production-fields';fields.append(...scale.childNodes);controls.append(quantitySummary,fields);scale.append(controls);
+  const quick=document.createElement('div');quick.className='recipe-quick-quantity';quick.setAttribute('role','group');quick.setAttribute('aria-label','Production multiplier');quick.innerHTML=`<span>Quantity</span>${['1','2','3'].map(n=>button('×'+n,'quick-scale',`data-factor="${n}" aria-pressed="${state.scale.mode==='multiplier'&&state.scale.target===n}"`)).join('')}${button('Custom','custom-scale',`aria-expanded="${controls.open}"`)}`;scale.prepend(quick);
   controls.addEventListener('toggle',()=>{if(controls.isConnected)state.kitchenQuantityOpen=controls.open;});
   if(!scalingError)mountKitchenReader(root,state);
  }
@@ -249,7 +317,7 @@ async function categories({refresh=false}={}){
 function categoryEditor(c={}){state.categoryEditing=c;setDialog(c.id?'Edit category':'Add category',`<form id="recipe-category-form"><div class="recipe-fields two"><label>Category name<input name="name" value="${esc(c.name)}" required maxlength="100"></label><label>Parent category<select name="parent_id"><option value="">Top-level category</option>${state.categories.filter(p=>p.id!==c.id&&!p.deleted_at).map(p=>`<option value="${p.id}" ${c.parent_id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label></div><label class="recipe-inline-check"><input name="active" type="checkbox" ${c.active!==false?'checked':''}>Available for new recipes</label><div class="recipe-actions"><button class="primary" type="submit">Save category</button>${c.id?button('Delete','delete-category',`data-id="${c.id}"`,'danger'):''}</div></form>`);}
 async function access(){
  state.tab='access';const people=await api('access');state.accessPeople=people;
- shell(`<section class="recipe-card"><h2>Add recipe access</h2><p class="recipe-muted">Invite someone with their email address. This gives recipe access only; shop administration stays separate.</p><form id="recipe-access-form"><div class="recipe-fields two"><label>Email address<input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="name@example.com"></label><label>Permission<select name="permission"><option value="kitchen">Kitchen · view production</option><option value="chef">Chef · edit drafts</option></select></label></div><p class="recipe-muted">Kitchen accounts can view production recipes and use temporary scaling. Chef accounts can also edit drafts, costing and testing logs. Only you can mark recipes Final, Hidden or Archive.</p><button type="submit" class="primary">Add account & send invitation</button><p data-access-message role="status"></p></form></section><section class="recipe-card"><h2>Accounts & permissions</h2>${people.map(p=>`<div class="recipe-resource-row recipe-access-row"><div><strong>${esc(p.email)}</strong><small class="recipe-muted" style="display:block">${p.role==='owner'?'Owner · full access':esc(p.status||'Active')}${p.email_status?` · Email ${esc(({pending:'queued',sending:'sending',sent:'accepted for delivery',failed:'failed',skipped:'cancelled'})[p.email_status]||p.email_status)}`:''}</small></div>${p.role==='owner'?'':`<div class="recipe-actions"><label>Recipe access<select ${p.invitation_id?`data-access-invitation="${p.invitation_id}"`:`data-access-user="${p.user_id}"`}><option value="">Remove access</option><option value="kitchen" ${p.recipe_permission==='kitchen'?'selected':''}>Kitchen · view production</option><option value="chef" ${p.recipe_permission==='chef'?'selected':''}>Chef · edit drafts</option></select></label>${p.invitation_id?button('Resend invitation','resend-invitation',`data-id="${p.invitation_id}"`):''}</div>`}</div>`).join('')}</section>`);
+ shell(`<section class="recipe-card"><h2>Add recipe access</h2><p class="recipe-muted">Invite someone with their email address. This gives recipe access only; shop administration stays separate.</p><form id="recipe-access-form"><div class="recipe-fields two"><label>Email address<input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="name@example.com"></label><label>Permission<select name="permission"><option value="kitchen">Kitchen · view production</option><option value="chef">Chef · edit drafts</option></select></label></div><p class="recipe-muted">Kitchen accounts can view production recipes and use temporary scaling. Chef accounts can edit drafts and costing. Enable Can view R&D separately to show research recipes and allow Chef accounts to use testing logs. Only you can mark recipes Final, Hidden or Archive.</p><button type="submit" class="primary">Add account & send invitation</button><p data-access-message role="status"></p></form></section><section class="recipe-card"><h2>Accounts & permissions</h2><p class="recipe-muted">Can view R&D applies to all research recipes and testing logs. Kitchen accounts can read research formulas; Chef accounts can also edit them and their logs. Only you can change this permission. New accounts start with R&D off.</p>${people.map(p=>`<div class="recipe-resource-row recipe-access-row"><div><strong>${esc(p.email)}</strong><small class="recipe-muted" style="display:block">${p.role==='owner'?'Owner · full access':esc(p.status||'Active')}${p.email_status?` · Email ${esc(({pending:'queued',sending:'sending',sent:'accepted for delivery',failed:'failed',skipped:'cancelled'})[p.email_status]||p.email_status)}`:''}</small></div>${p.role==='owner'?'':`<div class="recipe-actions"><label>Recipe access<select ${p.invitation_id?`data-access-invitation="${p.invitation_id}"`:`data-access-user="${p.user_id}"`}><option value="">Remove access</option><option value="kitchen" ${p.recipe_permission==='kitchen'?'selected':''}>Kitchen · view production</option><option value="chef" ${p.recipe_permission==='chef'?'selected':''}>Chef · edit drafts</option></select></label>${!p.invitation_id&&p.recipe_permission?`<label class="recipe-inline-check"><input type="checkbox" data-access-rd="${p.user_id}" ${p.can_view_rd?'checked':''}>Can view R&D</label>`:''}${p.invitation_id?button('Resend invitation','resend-invitation',`data-id="${p.invitation_id}"`):''}</div>`}</div>`).join('')}</section>`);
 }
 async function versions(offset=0){
  state.historyOffset=offset;const rows=await api('versions',{id:state.record.id,limit:100,offset});state.versions=rows;
@@ -259,9 +327,14 @@ async function tests(){
  const rows=await api('tests',{id:state.record.id,limit:100});state.tests=rows;
  setDialog('Testing & R&D',`<div class="recipe-actions">${button('+ New test','add-test')}</div>${rows.map(t=>`<div class="recipe-resource-row"><div><strong>Test #${t.number}</strong> · ${esc(t.data.date||date(t.created_at))}<p>${esc(t.data.result||t.data.observations||'No result entered')}</p><small class="recipe-muted">${t.promoted_version_id?'Promoted to a saved recipe version':'Separate from the saved production recipe'}</small></div><div class="recipe-actions">${button('View / edit','edit-test',`data-id="${t.id}"`)}${isOwner()&&!t.promoted_version_id?button('Promote','promote-test',`data-id="${t.id}"`):''}</div></div>`).join('')||'<p class="recipe-empty">Record your first test without changing the approved formula.</p>'}`);
 }
-function testEditor(t=null){
+async function testEditor(t=null){
+ if(!t?.promoted_version_id){
+  const source=t&&t.version_id!==state.record.version_id?await api('get',{id:state.record.id,version_id:t.version_id}):state.record;
+  const data=structuredClone(t?.data||{});data.date||=new Date().toLocaleDateString('en-CA');state.testDraftPhotos=structuredClone(data.photos||[]);
+  closeDialog();beginEdit(source,t?.proposed_document||source.document,{record:t,source,data,pane:'formula'});window.scrollTo(0,0);return;
+ }
  state.testEditing=t;const d=t?.data||{},locked=Boolean(t?.promoted_version_id);state.testDraftPhotos=structuredClone(d.photos||[]);
- setDialog(t?`Test #${t.number}`:'New test',`<form id="recipe-test-form"><div class="recipe-fields two"><label>Test date<input name="date" type="date" value="${esc(d.date||new Date().toLocaleDateString('en-CA'))}" ${locked?'disabled':''}></label><label>Rating · 0 to 5<input name="rating" type="number" min="0" max="5" step="0.5" value="${esc(d.rating??'')}" ${locked?'disabled':''}></label>${[['Changes made','changes'],['Bake settings','bake_settings'],['Ingredient changes','ingredient_changes'],['Observations','observations'],['Result','result'],['Next test','next_test']].map(([label,key])=>`<label class="wide">${label}<textarea name="${key}" ${locked?'disabled':''}>${esc(d[key])}</textarea></label>`).join('')}</div><p class="recipe-muted">This test starts with the recipe version you are viewing. Save the log, then use “Edit tested formula” to record the exact tested quantities before promotion.</p><div class="recipe-photos" data-test-photos></div>${locked?'':button('+ Test photo','test-photo')}${locked?'':`<div class="recipe-actions"><button class="primary" type="submit">Save test log</button>${t?button('Edit tested formula','edit-test-formula',`data-id="${t.id}"`):''}</div>`}</form>`);renderTestPhotos().catch(showError);
+ setDialog(t?`Test #${t.number}`:'New test',`<form id="recipe-test-form"><div class="recipe-fields two"><label>Test date<input name="date" type="date" value="${esc(d.date||new Date().toLocaleDateString('en-CA'))}" ${locked?'disabled':''}></label><label>Rating · 0 to 5<input name="rating" type="number" min="0" max="5" step="0.5" value="${esc(d.rating??'')}" ${locked?'disabled':''}></label>${[['Changes made','changes'],['Bake settings','bake_settings'],['Ingredient changes','ingredient_changes'],['Observations','observations'],['Result','result'],['Next test','next_test']].map(([label,key])=>`<label class="wide">${label}<textarea name="${key}" ${locked?'disabled':''}>${esc(d[key])}</textarea></label>`).join('')}</div><p class="recipe-muted">This promoted test is preserved with its source version and observations. Create a new test for further changes.</p><div class="recipe-photos" data-test-photos></div>${locked?'':button('+ Test photo','test-photo')}${locked?'':`<div class="recipe-actions"><button class="primary" type="submit">Save test log</button>${t?button('Edit tested formula','edit-test-formula',`data-id="${t.id}"`):''}</div>`}</form>`);renderTestPhotos().catch(showError);
 }
 let packagingRequest=0,packagingTimer;
 async function findPackaging(query){
@@ -288,27 +361,39 @@ async function saveRecipe(){
  if(state.saving)return;
  const errors=model.validateRecipe(state.doc);if(errors.length){setDialog('Check these recipe fields',`<ul>${errors.map(e=>`<li>${esc(e)}</li>`).join('')}</ul>`);return;}
  for(const v of state.doc.variants)for(const g of v.groups)for(const row of g.ingredients)if(row.cost_snapshot&&!Object.values(row.cost_snapshot).some(Boolean))delete row.cost_snapshot;
+ if(state.testWorkspace)return saveTestWorkspace();
  state.saving=true;clearTimeout(autosaveTimer);
  const form=root.querySelector('#recipe-editor'),scroll=window.scrollY;form.inert=true;
  const status=root.querySelector('#recipe-save-status').value;state.saveStatus=status;
  try{
   await pendingAutosave.catch(()=>{});
-  if(state.testFormula){
-   const t=state.testFormula;
-   const saved=await api('save_test',{id:t.id,recipe_id:t.recipe_id,version_id:t.version_id,revision:t.revision,data:t.data,proposed_document:state.doc});
-   state.testFormula={...t,...saved};state.dirty=false;notify('Tested formula saved.');
-  }else{
-   const record=await api(state.record?'save':'create',{id:state.record?.id,revision:state.record?.revision,document:state.doc,status,reason:''});
-   await api('remove_draft',{draft_id:state.draftId}).catch(()=>{});
-   state.record=record;state.doc=model.normalizeRecipe(record.document);state.dirty=false;state.draftId=model.id();
-   notify(`Version ${record.version} saved · ${recipeStatusLabel(record.status)}.`);
-  }
+  const record=await api(state.record?'save':'create',{id:state.record?.id,revision:state.record?.revision,document:state.doc,status,reason:''});
+  await api('remove_draft',{draft_id:state.draftId}).catch(()=>{});
+  state.record=record;state.doc=model.normalizeRecipe(record.document);state.dirty=false;state.draftId=model.id();
+  notify(`Version ${record.version} saved · ${recipeStatusLabel(record.status)}.`);
   renderEditor();window.scrollTo(0,scroll);
  }finally{state.saving=false;form.inert=false;}
+}
+async function saveTestWorkspace(){
+ const workspace=state.testWorkspace,form=root.querySelector('#recipe-editor'),notes=root.querySelector('.recipe-test-notes'),submit=root.querySelector('[data-action="save"]');
+ const invalid=[...notes.querySelectorAll('input')].find(input=>!input.checkValidity());if(invalid){root.querySelector('[data-test-pane="notes"]').click();invalid.reportValidity();return;}
+ state.saving=true;form.inert=true;notes.inert=true;submit.disabled=true;
+ try{
+  const t=workspace.record,photos=structuredClone(state.testDraftPhotos),sourceFiles=new Set((workspace.source.files||[]).map(f=>f.id));
+  // Formula uploads in a test receive private R&D links until explicit promotion.
+  for(const file of state.doc.files||[])if(!sourceFiles.has(file.id)&&!photos.some(p=>p.id===file.id))photos.push({...file,test_formula:true});
+  const saved=await api('save_test',{id:t?.id,revision:t?.revision,recipe_id:workspace.source.id,version_id:t?.version_id||workspace.source.version_id,data:{...workspace.data,photos},proposed_document:state.doc});
+  workspace.record=saved;workspace.data=structuredClone(saved.data);state.testDraftPhotos=structuredClone(saved.data.photos||[]);state.dirty=false;renderEditor();notify('Test formula and observations saved. The Final recipe is unchanged.');
+ }finally{state.saving=false;form.inert=false;notes.inert=false;if(submit.isConnected)submit.disabled=false;}
 }
 function move(array,from,to){if(to<0||to>=array.length)return;const [item]=array.splice(from,1);array.splice(to,0,item);}
 async function action(name,a={}){
  const v=state.doc?.variants[state.variant];
+ if(name==='quick-scale'){state.scale.mode='multiplier';state.scale.target=a.factor;renderRecipe();root.querySelector(`[data-action="quick-scale"][data-factor="${a.factor}"]`)?.focus({preventScroll:true});return;}
+ if(name==='overview-basis'){state.costFilters.basis=a.basis==='unit'?'unit':'batch';root.querySelector('[data-cost-overview-rows]').innerHTML=costingOverviewRows(state.costOverviewData,{button,basis:state.costFilters.basis});root.querySelectorAll('[data-action="overview-basis"]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.basis===state.costFilters.basis)));root.querySelector('[data-overview-basis-label]').textContent=state.costFilters.basis==='unit'?'All money columns are per saleable unit; the unit is shown below each product. Products without a saleable unit show —.':'All money columns are for one base batch; batch yield is shown below each product.';return;}
+ if(name==='custom-scale'){const controls=root.querySelector('.recipe-kitchen-production');controls.open=true;root.querySelector('[data-action="custom-scale"]').setAttribute('aria-expanded','true');root.querySelector('[data-scale="target"]')?.focus();return;}
+ if(name==='exit-test'){const id=state.testWorkspace.source.id;if(await leaveEditor())return openRecipe(id);return;}
+ if(name==='refresh-library')return library();
  if(name==='costing-page'){state.costFilters.offset=Number(a.offset);return costingOverview();}
  if(name==='open-costing-product'){await openRecipe(a.id);state.variant=Math.max(0,state.doc.variants.findIndex(v=>v.id===a.variant));renderRecipe();return costPreview();}
  if(name==='add-direct-cost'){v.additional_costs.push({id:model.id(),name:'',amount:'0',kind:'direct',per_batch:true});markDirty();renderEditor();return;}
@@ -329,14 +414,15 @@ async function action(name,a={}){
   try{localStorage.setItem('tlb-recipe-resource-density-v1',state.resourceDensity);}catch{}return;
  }
  if(name==='remove-resource-photo'){state.resourcePhotos.splice(Number(a.index),1);await renderResourcePhotos();return;}
- if(name==='record-purchase'){const {openPurchase}=await import('./recipe-purchase.js?v=production-audit-1');return openPurchase({api,dialog:setDialog,body:dialogBody,close:closeDialog,kind:state.tab==='packaging'?'packaging':'ingredient',onSaved:async kind=>{state.resourceQuery='';await resources(kind);notify('Purchase saved. Ingredient or packaging and supplier records are up to date.');}});}
- if(name==='tab'){if(!await leaveEditor())return;state.resourceQuery='';state.resourceDeleted=false;state.resourceRequest++;if(a.tab==='costing')return costingOverview();if(a.tab==='library')return library();if(a.tab==='categories')return categories();if(a.tab==='access')return access();if(a.tab==='backups'){state.tab='backups';shell('<div id="recipe-backups"></div>');const m=await import('./recipe-backups.js?v=production-audit-1');return m.mountRecipeBackups(root.querySelector('#recipe-backups'));}return resources(a.tab);}
- if(name==='library'){if(await leaveEditor())return library();return;}
- if(name==='new'){if(await leaveEditor()){state.testFormula=null;beginEdit();}return;}
+ if(name==='record-purchase'){const {openPurchase}=await import('./recipe-purchase.js?v=approved-ux-1');return openPurchase({api,dialog:setDialog,body:dialogBody,close:closeDialog,kind:state.tab==='packaging'?'packaging':'ingredient',onSaved:async kind=>{state.resourceQuery='';await resources(kind);notify('Purchase saved. Ingredient or packaging and supplier records are up to date.');}});}
+ if(name==='record-item-price'){const record=state.resources.find(r=>r.id===a.id);if(!record)return;const {openItemPrice}=await import('./recipe-purchase.js?v=approved-ux-1');return openItemPrice({api,dialog:setDialog,body:dialogBody,close:closeDialog,record,onSaved:async()=>{ingredientPicker.clear();await resources(record.kind,{refresh:true});notify('Price recorded. Saved recipe costs are unchanged.');}});}
+ if(name==='tab'){if(!await leaveEditor())return;state.resourceQuery='';state.resourceDeleted=false;state.resourceRequest++;if(a.tab==='costing')return costingOverview();if(a.tab==='library')return library();if(a.tab==='categories')return categories();if(a.tab==='access')return access();if(a.tab==='backups'){state.tab='backups';shell('<div id="recipe-backups"></div>');const m=await import('./recipe-backups.js?v=approved-ux-1');return m.mountRecipeBackups(root.querySelector('#recipe-backups'));}return resources(a.tab);}
+ if(name==='library'){if(await leaveEditor())return library({reuse:true});return;}
+ if(name==='new'){if(await leaveEditor()){beginEdit();}return;}
  if(name==='open')return openRecipe(a.id);
- if(name==='edit'){state.testFormula=null;beginEdit(state.record);return;}
- if(name==='edit-open'){const record=await api('get',{id:a.id});state.testFormula=null;beginEdit(record);return;}
- if(name==='view-saved'){if(await leaveEditor()){state.doc=model.normalizeRecipe(state.record.document);state.variant=Math.min(state.variant,state.doc.variants.length-1);state.testFormula=null;renderRecipe();}return;}
+ if(name==='edit'){beginEdit(state.record);return;}
+ if(name==='edit-open'){rememberLibrary();const request=++state.request,record=await api('get',{id:a.id});if(request!==state.request)return;beginEdit(record);return;}
+ if(name==='view-saved'){if(await leaveEditor()){state.doc=model.normalizeRecipe(state.record.document);state.variant=Math.min(state.variant,state.doc.variants.length-1);renderRecipe();}return;}
  if(name==='set-status'){const status=root.querySelector('[data-recipe-status]').value;const record=await api('set_status',{id:state.record.id,revision:state.record.revision,status});state.record=record;state.doc=model.normalizeRecipe(record.document);renderRecipe();notify(`Recipe is now ${recipeStatusLabel(record.status)}.`);return;}
  if(name==='page'){state.offset=Number(a.offset);return library();}
  if(name==='favorite'||name==='pin'){await api('favorite',{id:a.id,favorite:a.favorite==='true',pinned:a.pinned==='true'});return library();}
@@ -399,9 +485,9 @@ async function action(name,a={}){
  else if(name==='test-photo')return uploadTestPhoto();
  else if(name==='tests')return tests();
  else if(name==='runs')return productionHistory();
- else if(name==='add-test'){testEditor();return;}
- else if(name==='edit-test'){testEditor(state.tests.find(t=>t.id===a.id));return;}
- else if(name==='edit-test-formula'){const t=state.tests.find(t=>t.id===a.id);state.testFormula=t;closeDialog();beginEdit(state.record,t.proposed_document||state.record.document);return;}
+ else if(name==='add-test')return testEditor();
+ else if(name==='edit-test')return testEditor(state.tests.find(t=>t.id===a.id));
+ else if(name==='edit-test-formula')return testEditor(state.tests.find(t=>t.id===a.id));
  else if(name==='promote-test'){
   if(!await confirmDialog('Publish this test’s saved formula as the new production version?',{confirmLabel:'Promote test'}))return;
   const r=await api('promote_test',{test_id:a.id,revision:state.record.revision,status:'production',reason:'Promoted successful R&D test'});closeDialog();return openRecipe(r.id);
@@ -423,12 +509,12 @@ async function action(name,a={}){
   closeDialog();beginEdit(record,draft.document);state.draftId=draft.draft_id;state.dirty=true;return;
  }else if(name==='recover-draft-copy'){const draft=state.drafts.find(d=>d.draft_id===a.id);closeDialog();beginEdit(null,draft.document);return;}
  else if(name==='filters'){setDialog('More recipe filters',`<form id="recipe-filter-form"><div class="recipe-fields two">${canEdit()?`<label>Author<select name="author"><option value="">All authors</option>${(state.authors||[]).map(a=>`<option value="${a.id}" ${state.filters.author===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:''}${[['Tag','tag'],['Flavor','flavor'],['Product line','product_line'],['Version number','version'],['Updated since','updated_after']].map(([label,key])=>`<label>${label}<input name="${key}" type="${key==='updated_after'?'date':'text'}" value="${esc(state.filters[key]||'')}"></label>`).join('')}</div><button type="submit" class="primary">Apply filters</button></form>`);return;}
- else if(name==='csv'){const plan=await currentProductionPlan();download(model.csvTotals(plan.totals),`${state.doc.name}-ingredients.csv`,'text/csv;charset=utf-8');return;}
+ else if(name==='csv'){await api('get',{id:state.record.id,version_id:state.record.version_id,kitchen:state.kitchen});const plan=await currentProductionPlan();download(model.csvTotals(plan.totals),`${state.doc.name}-ingredients.csv`,'text/csv;charset=utf-8');return;}
  else if(name==='production-totals')return showProductionTotals();
  else if(name==='compare-base'){const link=state.record.links.find(l=>l.kind==='variation');if(!link)throw Error('Variation base was not found.');const base=await api('get',{id:link.recipe_id,version_id:link.version_id});const changes=model.differences(model.normalizeRecipe(base.document),state.doc).filter(c=>!c.field.startsWith('base.')&&!c.field.startsWith('detected_allergens'));setDialog(`Changes from ${base.document.name} · version ${base.version}`,`<table class="recipe-table recipe-diff"><thead><tr><th>Field</th><th>Base</th><th>Variation</th></tr></thead><tbody>${changes.map(c=>`<tr><td>${esc(c.field)}</td><td>${esc(JSON.stringify(c.before))}</td><td>${esc(JSON.stringify(c.after))}</td></tr>`).join('')}</tbody></table>`);return;}
- else if(name==='export'||name==='export-library'){const m=await import('./recipe-print.js?v=production-audit-1');return m.openRecipeExport({record:name==='export'?state.record:null,production:name==='export'?{variant_id:v.id,factor:exact(scaleFactor(v.yield,state.scale.mode,state.scale.target)),mode:state.scale.mode,target:state.scale.target,wholeComponents:state.wholeComponents}:null,selection:[...state.selection],filters:state.filters,kitchen:state.kitchen,settings:state.settings,api,fileUrl:recipeFileUrl,dialog:setDialog});}
- else if(name==='rebuild-import'){if(!await confirmDialog(`Rebuild ingredients and procedures for ${v.name} from the original import? This replaces those sections in your working draft, including any manual edits there. Yield, photos, packaging and other details stay as they are. Your saved recipe will not change until you save a new version.`,{confirmLabel:'Rebuild draft'}))return;const {rebuildImportedSections}=await import('./recipe-import.js?v=production-audit-1');const rebuilt=rebuildImportedSections(state.doc,state.variant);state.doc=rebuilt.document;notify(`Rebuilt ${rebuilt.recognized} ingredient rows. Review each component before saving.`);}
- else if(name==='import'){const m=await import('./recipe-import.js?v=production-audit-1');return m.openRecipeImport({dialog:setDialog,close:closeDialog,beginEdit,upload:uploadRecipeFile,notify});}
+ else if(name==='export'||name==='export-library'){const m=await import('./recipe-print.js?v=approved-ux-1');return m.openRecipeExport({record:name==='export'?state.record:null,production:name==='export'?{variant_id:v.id,factor:exact(scaleFactor(v.yield,state.scale.mode,state.scale.target)),mode:state.scale.mode,target:state.scale.target,wholeComponents:state.wholeComponents}:null,selection:[...state.selection],filters:state.filters,kitchen:state.kitchen,rd:state.rd,settings:state.settings,api,fileUrl:recipeFileUrl,dialog:setDialog});}
+ else if(name==='rebuild-import'){if(!await confirmDialog(`Rebuild ingredients and procedures for ${v.name} from the original import? This replaces those sections in your working draft, including any manual edits there. Yield, photos, packaging and other details stay as they are. Your saved recipe will not change until you save a new version.`,{confirmLabel:'Rebuild draft'}))return;const {rebuildImportedSections}=await import('./recipe-import.js?v=approved-ux-1');const rebuilt=rebuildImportedSections(state.doc,state.variant);state.doc=rebuilt.document;notify(`Rebuilt ${rebuilt.recognized} ingredient rows. Review each component before saving.`);}
+ else if(name==='import'){const m=await import('./recipe-import.js?v=approved-ux-1');return m.openRecipeImport({dialog:setDialog,close:closeDialog,beginEdit,upload:uploadRecipeFile,notify});}
  else return;
  markDirty();renderEditor();
  const focusPath=name==='add-group'?`variants.${state.variant}.groups.${v.groups.length-1}.name`:name==='add-step'?`variants.${state.variant}.methods.${a.method}.steps.${v.methods[Number(a.method)].steps.length-1}.instruction`:name==='add-method'?`variants.${state.variant}.methods.${v.methods.length-1}.steps.0.instruction`:null;
@@ -439,13 +525,14 @@ function download(text,filename,type){const blob=new Blob([text],{type}),url=URL
 // Event handlers are attached once; rendering does not accumulate listeners.
 async function handleClick(event){
  const target=event.target.closest('[data-action]');if(!target||target.disabled||state.saving)return;
- target.disabled=true;try{await action(target.dataset.action,target.dataset);}catch(error){showError(error);}finally{if(target.isConnected)target.disabled=false;}
+ target.disabled=true;try{await action(target.dataset.action,target.dataset);}catch(error){showError(error);}finally{target.disabled=false;}
 }
 root.addEventListener('click',handleClick);dialogBody.addEventListener('click',handleClick);
 root.addEventListener('submit',event=>{if(event.target.id==='recipe-editor'){event.preventDefault();saveRecipe().catch(showError);}});
 root.addEventListener('input',event=>{
  const el=event.target;
- if(el.hasAttribute('data-cost-filter')&&el.tagName==='INPUT'){clearTimeout(state.costSearchTimer);state.costFilters[el.dataset.costFilter]=el.value;state.costFilters.offset=0;state.request++;state.costSearchTimer=setTimeout(()=>{if(state.tab==='costing')costingOverview().catch(showError);},350);}
+ if(el.hasAttribute('data-test-field')){state.testWorkspace.data[el.dataset.testField]=el.value;markDirty();}
+ else if(el.hasAttribute('data-cost-filter')&&el.tagName==='INPUT'){clearTimeout(state.costSearchTimer);state.costFilters[el.dataset.costFilter]=el.value;state.costFilters.offset=0;state.request++;state.costSearchTimer=setTimeout(()=>{if(state.tab==='costing')costingOverview().catch(showError);},350);}
  else if(el.dataset.photoCaption){for(const photo of [...state.doc.photos,...state.doc.variants.flatMap(v=>[...v.photos,...v.packaging.photos])])if(photo.id===el.dataset.photoCaption)photo.caption=el.value;markDirty();}
  else if(el.dataset.path){setPath(state.doc,el.dataset.path,el.dataset.array?el.value.split(',').map(s=>s.trim()).filter(Boolean):el.value);syncSectionName(el);markDirty();
 
@@ -470,7 +557,9 @@ root.addEventListener('change',async event=>{const el=event.target;try{
  else if(el.hasAttribute('data-view-variant')){state.variant=Number(el.value);state.scale.target='1';state.scale.mode='multiplier';renderRecipe();}
  else if(el.dataset.scale){state.scale[el.dataset.scale]=el.value;renderRecipe();}
  else if(el.dataset.check){sessionStorage.setItem(checkKey(el.dataset.check),el.checked?'1':'0');}
- else if(el.dataset.accessUser||el.dataset.accessInvitation){
+ else if(el.dataset.accessRd){
+  el.disabled=true;try{await api('save_rd_access',{user_id:el.dataset.accessRd,can_view_rd:el.checked});await access();notify('R&D access updated.');}catch(error){await access();throw error;}
+ }else if(el.dataset.accessUser||el.dataset.accessInvitation){
   if(!el.value&&!await confirmDialog('Remove this account’s recipe access?',{confirmLabel:'Remove access',danger:true})){await access();return;}
   el.disabled=true;
   try{if(el.dataset.accessInvitation){const person=state.accessPeople.find(p=>p.invitation_id===el.dataset.accessInvitation);await api(el.value?'invite_access':'remove_invitation',el.value?{email:person.email,permission:el.value,send_email:true}:{invitation_id:person.invitation_id});}
@@ -517,10 +606,16 @@ export async function startRecipeLibrary(){
  if(!auth){shell('<div class="recipe-empty"><h1>Recipe library unavailable</h1><p>Check your connection and reload.</p></div>',{tabs:false});return;}
  const {data:{session}}=await auth.getSession();
  if(!session){shell('<div class="recipe-empty"><h1>Your private recipe library</h1><p>Sign in with an authorized account to continue.</p><a class="recipe-button" href="account.html?next=recipes.html">Sign in</a></div>',{tabs:false});return;}
- try{const setup=await api('bootstrap');Object.assign(state,setup);if(state.role==='kitchen')state.kitchen=true;await library();}
+ state.userId=session.user.id;
+ try{const setup=await api('bootstrap');Object.assign(state,setup);if(!canRD())state.rd=false;if(state.role==='kitchen')state.kitchen=true;await library();}
  catch(error){shell(`<div class="recipe-empty"><h1>Recipe access required</h1><p>${esc(error.message)}</p><a class="recipe-button" href="account.html">My account</a></div>`,{tabs:false});}
 }
-ready.then(()=>auth?.onAuthStateChange?.(event=>{if(event==='SIGNED_OUT'){state.doc=null;state.record=null;state.role=null;state.fileUrls.clear();state.editing=false;state.dirty=false;clearTimeout(autosaveTimer);closeDialog();setTimeout(()=>startRecipeLibrary().catch(showError),0);}}));
+ready.then(()=>auth?.onAuthStateChange?.((event,session)=>{
+ if(['SIGNED_OUT','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED'].includes(event))invalidateLibrary();
+ if(event==='SIGNED_OUT'||(event==='SIGNED_IN'&&state.userId&&session?.user?.id&&session.user.id!==state.userId)){
+  clearPrivateView();state.role=null;state.userId=null;state.can_view_rd=false;state.rd=false;setTimeout(()=>startRecipeLibrary().catch(showError),0);
+ }
+}));
 
 async function currentProductionPlan(){
  const v=state.doc.variants[state.variant];
@@ -534,12 +629,12 @@ async function showProductionTotals(){
 }
 
 async function renderTestPhotos(){
- const target=dialogBody.querySelector('[data-test-photos]');if(!target)return;target.replaceChildren();
- for(const file of state.testDraftPhotos){const img=document.createElement('img');img.alt='R&D test photo';img.src=await recipeFileUrl(file.path);if(target.isConnected)target.append(img);}
+ const target=state.testWorkspace?root.querySelector('[data-test-photos]'):dialogBody.querySelector('[data-test-photos]');if(!target)return;target.replaceChildren();
+ for(const file of state.testDraftPhotos.filter(f=>!f.test_formula)){const img=document.createElement('img');img.alt='R&D test photo';img.src=await recipeFileUrl(file.path);if(target.isConnected)target.append(img);}
 }
 function uploadTestPhoto(){
  const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp,image/heic,image/heif';
- input.addEventListener('change',async()=>{try{if(!input.files[0])return;const file=await prepareProductImage(input.files[0]),uploaded=await uploadRecipeFile(file);state.testDraftPhotos.push(uploaded);await renderTestPhotos();notify('Photo ready. Save the testing log to attach it.');}catch(error){showError(error);}});input.click();
+ input.addEventListener('change',async()=>{try{if(!input.files[0])return;const file=await prepareProductImage(input.files[0]),uploaded=await uploadRecipeFile(file);state.testDraftPhotos.push(uploaded);if(state.testWorkspace)markDirty();await renderTestPhotos();notify('Photo ready. Save the testing log to attach it.');}catch(error){showError(error);}});input.click();
 }
 
 async function productionHistory(){

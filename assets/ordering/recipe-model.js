@@ -1,4 +1,4 @@
-import {quantity,inputQuantity,exact,multiply,scaleIngredients,ingredientTotals,componentPlan,scaledYield,unitInfo,add,compare} from './recipe-math.js?v=production-audit-1';
+import {quantity,inputQuantity,exact,multiply,scaleIngredients,ingredientTotals,componentPlan,scaledYield,unitInfo,add,compare} from './recipe-math.js?v=approved-ux-1';
 export const id=()=>crypto.randomUUID();
 export const clone=value=>structuredClone(value);
 export const ingredient=()=>({id:id(),name:'',quantity:'',unit:'g',notes:'',brand:''});

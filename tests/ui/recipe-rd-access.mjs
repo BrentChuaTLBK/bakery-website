@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import {writeFile,mkdir} from 'node:fs/promises';
+import {join} from 'node:path';
+import {recipeBrowserHarness} from './recipe-audit-harness.mjs';
+import {blankRecipe} from '../../assets/ordering/recipe-model.js';
+
+const t=await recipeBrowserHarness(),{api,h,pageFor,origin}=t,results=[];
+const check=name=>{results.push(name);console.log('PASS '+name);};
+const fixture=name=>{const d=blankRecipe();d.name=name;d.private_notes='R&D_PRIVATE_NOTE';d.variants[0].groups[0].ingredients[0]={id:'flour',name:'Flour',quantity:'10',unit:'g'};d.variants[0].methods[0].steps[0].instruction='Mix.';return d;};
+const open=async(page,id)=>{await page.locator(`[data-action=open][data-id="${id}"]`).click();await page.locator('.recipe-scale-card').waitFor();};
+const back=async page=>{await page.locator('[data-action=library]').first().click();await page.locator('.recipe-library').waitFor();};
+try{
+ const out=join(t.out,'approved-ux');await mkdir(out,{recursive:true});
+ await api(h.ids.owner,'save_access',{user_id:h.ids.staff,permission:'chef'});await api(h.ids.owner,'save_access',{user_id:h.ids.customer,permission:'kitchen'});
+ const production=await api(h.ids.owner,'create',{document:fixture('QA Final reference'),status:'final'});
+ const research=await api(h.ids.owner,'create',{document:fixture('QA R&D secret formula'),status:'testing'});
+ const second=await api(h.ids.owner,'create',{document:fixture('QA R&D second formula'),status:'testing'});
+ const owner=await pageFor(h.ids.owner),chef=await pageFor(h.ids.staff),kitchen=await pageFor(h.ids.customer,390);
+ await owner.page.goto(origin+'/recipes.html');await owner.page.getByRole('button',{name:'Access',exact:true}).click();await owner.page.getByRole('heading',{name:'Accounts & permissions'}).waitFor();
+ const chefAccess=owner.page.locator(`[data-access-rd="${h.ids.staff}"]`),kitchenAccess=owner.page.locator(`[data-access-rd="${h.ids.customer}"]`);
+ assert.equal(await chefAccess.isChecked(),false);assert.equal(await kitchenAccess.isChecked(),false);assert.equal(await owner.page.getByRole('checkbox',{name:'Can view R&D',exact:true}).count(),2);
+ assert.equal(await owner.page.locator(`[data-access-rd="${h.ids.owner}"]`).count(),0);
+ await owner.page.screenshot({path:join(out,'rd-permission-owner-1440.png'),fullPage:true});check('Owner has one global Can view R&D checkbox for each account; default is off');
+ await chef.page.goto(origin+'/recipes.html');await chef.page.locator('.recipe-library').waitFor();assert.equal(await chef.page.locator(`[data-action=open][data-id="${research.id}"]`).count(),0);assert.equal(await chef.page.locator('[data-filter=status] option[value=testing]').count(),0);
+ await open(chef.page,production.id);assert.equal(await chef.page.getByRole('button',{name:'New test',exact:true}).count(),0);assert.equal(await chef.page.getByRole('button',{name:'Testing / R&D',exact:true}).count(),0);
+ await chef.page.getByRole('button',{name:'Edit recipe',exact:true}).click();assert.deepEqual(await chef.page.locator('#recipe-save-status option').allTextContents(),['Draft']);await back(chef.page);
+ await kitchen.page.goto(origin+'/recipes.html');await kitchen.page.getByRole('heading',{name:'Production recipes',exact:true}).waitFor();assert.equal(await kitchen.page.getByRole('link',{name:'R&D recipes',exact:true}).count(),0);check('Unassigned Chef and Kitchen accounts see Final recipes and no R&D controls or search results');
+ await chefAccess.check();await owner.page.getByText('R&D access updated.',{exact:true}).waitFor();assert.equal((await api(h.ids.owner,'access')).find(p=>p.user_id===h.ids.staff).can_view_rd,true);
+ await chef.page.evaluate(()=>window.dispatchEvent(new Event('focus')));await chef.page.locator(`[data-action=open][data-id="${second.id}"]`).waitFor();
+ await open(chef.page,research.id);await chef.page.getByRole('button',{name:'New test',exact:true}).waitFor();assert.equal(await chef.page.locator('[data-recipe-status]').count(),0);
+ await chef.page.getByRole('button',{name:'Edit recipe',exact:true}).click();assert.deepEqual(await chef.page.locator('#recipe-save-status option').allTextContents(),['Draft','R&D']);await back(chef.page);await open(chef.page,research.id);
+ await chefAccess.uncheck();await owner.page.getByText('R&D access updated.',{exact:true}).waitFor();await back(chef.page);assert.equal(await chef.page.locator('.recipe-library').getByText('QA R&D secret formula',{exact:true}).count(),0);assert.equal(await chef.page.locator('[data-filter=status] option[value=testing]').count(),0);
+ check('Grant reveals all R&D recipes and existing Chef editing rights; revocation discards retained R&D library results');
+ await kitchenAccess.check();await owner.page.getByText('R&D access updated.',{exact:true}).waitFor();await kitchen.page.evaluate(()=>window.dispatchEvent(new Event('focus')));await kitchen.page.getByRole('link',{name:'R&D recipes',exact:true}).waitFor();
+ await kitchen.page.getByRole('link',{name:'R&D recipes',exact:true}).click();await kitchen.page.getByRole('heading',{name:'R&D recipes',exact:true}).waitFor();await open(kitchen.page,research.id);
+ assert.equal(await kitchen.page.getByRole('button',{name:'Edit recipe',exact:true}).count(),0);assert.equal(await kitchen.page.getByRole('button',{name:'New test',exact:true}).count(),0);assert.equal(await kitchen.page.getByText('R&D_PRIVATE_NOTE',{exact:true}).count(),0);assert.equal(await kitchen.page.getByRole('heading',{name:'Costing & profitability',exact:true}).count(),0);
+ await kitchen.page.screenshot({path:join(out,'rd-kitchen-readonly-390.png')});assert.ok(await kitchen.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await kitchenAccess.uncheck();await owner.page.getByText('R&D access updated.',{exact:true}).waitFor();await kitchen.page.evaluate(()=>window.dispatchEvent(new Event('focus')));await kitchen.page.getByRole('heading',{name:'Production recipes',exact:true}).waitFor();assert.equal(await kitchen.page.getByText('QA R&D secret formula',{exact:true}).count(),0);assert.equal(await kitchen.page.getByRole('link',{name:'R&D recipes',exact:true}).count(),0);
+ check('Kitchen R&D view is separate, read-only and mobile-safe; revocation clears the open formula on focus');
+ await api(h.ids.owner,'save_rd_access',{user_id:h.ids.customer,can_view_rd:true});await kitchen.page.goto(origin+'/recipes.html?view=rd');await open(kitchen.page,research.id);
+ await kitchen.page.evaluate(()=>{window.auditPrintCount=0;window.print=()=>window.auditPrintCount++;});await kitchen.page.getByRole('button',{name:'Print / PDF',exact:true}).click();await kitchen.page.locator('#recipe-export-form').waitFor();
+ await api(h.ids.owner,'save_rd_access',{user_id:h.ids.customer,can_view_rd:false});await kitchen.page.evaluate(()=>document.querySelector('#recipe-export-form').requestSubmit());await kitchen.page.getByRole('heading',{name:'Production recipes',exact:true}).waitFor();
+ assert.equal(await kitchen.page.evaluate(()=>window.auditPrintCount),0);assert.equal(await kitchen.page.locator('.recipe-print-root').count(),0);check('Printing rechecks the exact saved version and refuses revoked R&D access before building a printable document');
+ assert.deepEqual(t.errors,[]);for(const client of [owner,chef,kitchen])await client.context.close();await writeFile(join(out,'rd-access-results.json'),JSON.stringify(results,null,2));
+}finally{await t.close();}

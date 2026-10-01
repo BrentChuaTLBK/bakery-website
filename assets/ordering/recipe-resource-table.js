@@ -1,4 +1,4 @@
-import {quantity,unitInfo,ingredientCost,compare} from './recipe-math.js?v=production-audit-1';
+import {quantity,unitInfo,ingredientCost,compare} from './recipe-math.js?v=approved-ux-1';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nameOrder=(a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.data?.brand||'').localeCompare(String(b.data?.brand||''));
@@ -40,7 +40,7 @@ export function resourceTableMarkup(rows,{kind='ingredient',sort='az',canDelete=
  const actions=row=>{
   const category=kind==='categories',suffix=category?'category':'resource',id=esc(row.id);
   if(row.deleted_at)return canDelete?`<button type="button" class="recipe-resource-edit" data-action="restore-${suffix}" data-id="${id}" aria-describedby="recipe-resource-name-${id}">Restore</button>`:'';
-  return `<button type="button" class="recipe-resource-edit" data-action="edit-${suffix}" data-id="${id}" aria-describedby="recipe-resource-name-${id}">Edit</button>${canDelete?`<button type="button" class="recipe-resource-edit danger" data-action="delete-${suffix}" data-id="${id}" aria-describedby="recipe-resource-name-${id}">Delete</button>`:''}`;
+  return `${['ingredient','packaging'].includes(kind)&&row.active!==false?`<button type="button" class="recipe-resource-edit" data-action="record-item-price" data-id="${id}" aria-describedby="recipe-resource-name-${id}">Record price</button>`:''}<button type="button" class="recipe-resource-edit" data-action="edit-${suffix}" data-id="${id}" aria-describedby="recipe-resource-name-${id}">Edit</button>${canDelete?`<button type="button" class="recipe-resource-edit danger" data-action="delete-${suffix}" data-id="${id}" aria-describedby="recipe-resource-name-${id}">Delete</button>`:''}`;
  };
  if(['supplier','equipment','categories'].includes(kind)){
   const heading={supplier:'Supplier',equipment:'Equipment',categories:'Category'}[kind];

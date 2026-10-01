@@ -14,18 +14,28 @@ export default async function({db,check,state}){
   assert.deepEqual(record.cost_snapshot,initial.cost_snapshot);assert.deepEqual(record.document,initial.document);
   assert.equal((await api('get',{id:record.id},customer)).version_id,record.version_id);
  })();
- await check('status changes require owner access, a current revision and one of the four statuses',async()=>{
+ await check('status changes require owner access, a current revision and one of the five statuses',async()=>{
   for(const user of [staff,customer])await assert.rejects(()=>api('set_status',{id:record.id,revision:record.revision,status:'hidden'},user),/owner|editor/);
   await assert.rejects(()=>api('set_status',{id:record.id,revision:initial.revision,status:'hidden'}),/another window/);
-  await assert.rejects(()=>api('set_status',{id:record.id,revision:record.revision,status:'testing'}),/Choose Draft/);
+  await assert.rejects(()=>api('set_status',{id:record.id,revision:record.revision,status:'unknown'}),/Choose Draft, R&D/);
   const same=await api('set_status',{id:record.id,revision:record.revision,status:'final'});assert.equal(same.version_id,record.version_id);
+ })();
+ await check('R&D is distinct from Draft and retains the last Final with unchanged historical costs',async()=>{
+  const final=record;record=await api('set_status',{id:record.id,revision:record.revision,status:'testing'});
+  assert.equal(record.status,'testing');assert.equal(record.production_version_id,final.version_id);assert.deepEqual(record.document,final.document);assert.deepEqual(record.cost_snapshot,final.cost_snapshot);
+  assert.equal((await api('get',{id:record.id},customer)).version_id,final.version_id);
+  assert.equal((await api('list',{query:'QA simplified workflow',status:'testing'})).total,1);assert.equal((await api('list',{query:'QA simplified workflow',status:'draft'})).total,0);
+  assert.equal((await api('costing_overview',{query:'QA simplified workflow',status:'testing',mode:'all'})).total,1);
+  assert.equal((await api('set_status',{id:record.id,revision:record.revision,status:'testing'})).version_id,record.version_id);
+  const proposed=structuredClone(record.document);proposed.description='Chef R&D edit';record=await api('save',{id:record.id,revision:record.revision,document:proposed,status:'testing'},staff);
+  assert.equal(record.status,'testing');assert.equal(record.production_version_id,final.version_id);assert.equal((await api('get',{id:record.id},customer)).version_id,final.version_id);
  })();
  await check('Hidden withdraws a recipe from kitchen listing and direct access while retaining admin history',async()=>{
   const finalId=record.version_id;record=await api('set_status',{id:record.id,revision:record.revision,status:'hidden'});
   assert.equal(record.status,'hidden');assert.equal(record.production_version_id,null);
   assert.equal((await api('list',{query:'QA simplified workflow',kitchen:true})).total,0);
   await assert.rejects(()=>api('get',{id:record.id},customer),/not found/);
-  await assert.rejects(()=>api('get',{id:record.id,version_id:finalId},customer),/not available/);
+  await assert.rejects(()=>api('get',{id:record.id,version_id:finalId},customer),/not available|R&D access/);
   assert.equal((await api('list',{query:'QA simplified workflow',status:'hidden'})).total,1);
   assert.equal((await api('get',{id:record.id,version_id:initial.version_id})).status,'draft');
  })();
@@ -50,10 +60,11 @@ export default async function({db,check,state}){
   await assert.rejects(()=>api('save',{id:record.id,revision:record.revision,document:record.document,status:'hidden'},staff),/owner/);
   record=await api('save',{id:record.id,revision:record.revision,document:record.document,status:'hidden'});assert.equal(record.production_version_id,null);
  })();
- await check('legacy Testing and Approved versions appear under Draft; legacy Production appears under Final',async()=>{
+ await check('legacy Testing versions appear under R&D, Approved under Draft and Production under Final without rewrites',async()=>{
   const testing=await api('create',{document:{...document(),name:'QA legacy workflow testing'},status:'testing'});
   const approved=await api('create',{document:{...document(),name:'QA legacy workflow approved'},status:'approved'});
-  const draft=await api('list',{query:'QA legacy workflow',status:'draft'});assert.equal(draft.total,2);assert.deepEqual(new Set(draft.rows.map(r=>r.id)),new Set([testing.id,approved.id]));
+  const draft=await api('list',{query:'QA legacy workflow',status:'draft'});assert.equal(draft.total,1);assert.equal(draft.rows[0].id,approved.id);
+  const rd=await api('list',{query:'QA legacy workflow',status:'testing'});assert.equal(rd.total,1);assert.equal(rd.rows[0].id,testing.id);
   const ready=await api('set_status',{id:approved.id,revision:approved.revision,status:'final'});assert.equal((await api('list',{query:'QA legacy workflow',status:'final'})).rows[0].id,ready.id);
   assert.equal(await h.scalar("select has_function_privilege('authenticated','tlb.recipe_api_before_workflow(text,jsonb)','execute')"),false);
   assert.equal(await h.scalar("select has_function_privilege('authenticated','tlb.recipe_status(text)','execute')"),false);

@@ -1,6 +1,10 @@
 # Recipe UX approval proposals — 1 October 2026
 
-**WAITING FOR APPROVAL. No optional UX changes have been implemented.**
+**All seven batches were approved by the owner and implemented on 1 October 2026.**
+The owner also requested visible ingredient brands, an R&D status, and a global
+per-account **Can view R&D** permission. See the [implementation and verification
+report](RECIPE-APPROVED-UX-2026-10-01.md). The original proposal details below are
+retained as the approval record; proposed mockups are not implementation evidence.
 
 The required technical fixes, profitability summary and Costing Overview are already
 implemented in the review branch. “BEFORE” means that tested branch state, after

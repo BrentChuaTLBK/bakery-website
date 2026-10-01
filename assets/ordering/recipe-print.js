@@ -1,9 +1,9 @@
-import {recipeStatusLabel} from './recipe-status.js?v=production-audit-1';
-import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=production-audit-1';
-import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=production-audit-1';
-import {productionPlan,recipeSections} from './recipe-model.js?v=production-audit-1';
+import {recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
+import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=approved-ux-1';
+import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=approved-ux-1';
+import {productionPlan,recipeSections} from './recipe-model.js?v=approved-ux-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,settings,api,fileUrl,dialog}) {
+export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,rd=false,settings,api,fileUrl,dialog}) {
  let defaults={layout:'kitchen',paper:'A4',font_size:'10',spacing:'1.45',packaging:true,process:true,notes:false};
  try{defaults={...defaults,...JSON.parse(localStorage.getItem('tlb-recipe-export-preferences')||'{}')};}catch{/* Use print defaults. */}
  const field=(label,name,type,value)=>`<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${type==='number'?'min="8" max="18" step="0.25"':''}></label>`;
@@ -17,11 +17,11 @@ export async function openRecipeExport({record,production=null,selection=[],filt
    options.font_size=String(Math.min(18,Math.max(8,Number(options.font_size)||10)));
    if(values.save_defaults==='on')localStorage.setItem('tlb-recipe-export-preferences',JSON.stringify(options));
    status.textContent='Loading recipe versions and photos…';let records=[];
-   if(record)records=[record];else{
+   if(record)records=[await api('get',{id:record.id,version_id:record.version_id,kitchen})];else{
     let ids=selection;
-    if(!ids.length){ids=[];let offset=0;while(true){const page=await api('list',{...filters,kitchen,limit:100,offset});ids.push(...page.rows.map(r=>r.id));offset+=page.rows.length;if(offset>=page.total||!page.rows.length)break;}}
+    if(!ids.length){ids=[];let offset=0;while(true){const page=await api('list',{...filters,kitchen,rd,limit:100,offset});ids.push(...page.rows.map(r=>r.id));offset+=page.rows.length;if(offset>=page.total||!page.rows.length)break;}}
     if(!ids.length)throw Error('There are no recipes in this export.');
-    for(let i=0;i<ids.length;i+=3){records.push(...await Promise.all(ids.slice(i,i+3).map(id=>api('get',{id,kitchen}))));status.textContent=`Loaded ${records.length} of ${ids.length} recipes…`;}
+    for(let i=0;i<ids.length;i+=3){records.push(...await Promise.all(ids.slice(i,i+3).map(id=>api('get',{id,kitchen,rd}))));status.textContent=`Loaded ${records.length} of ${ids.length} recipes…`;}
    }
    records.sort((a,b)=>a.document.name.localeCompare(b.document.name));
    records=await preparePrintRecords(records,{production:values.production==='on'?production:null,api,kitchen});
