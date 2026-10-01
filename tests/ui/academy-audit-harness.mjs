@@ -4,17 +4,18 @@ import {join,resolve,extname,sep} from 'node:path';
 import {setup} from '../academy-portal.mjs';
 import {validateWebP} from '../../supabase/functions/academy-media/handler.ts';
 const require=createRequire(import.meta.url);
-const {chromium}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
+const {chromium,firefox,webkit}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
 export async function auditHarness(channel=process.env.PLAYWRIGHT_CHANNEL||'chrome'){
  const state=await setup(),{db,h,api,service}=state;
  const root=resolve(import.meta.dirname,'../..'),origin='https://academy.test',out=join(root,'work/academy-audit/browser-'+channel);
  await mkdir(out,{recursive:true});
- const browser=await chromium.launch({headless:true,channel});let queue=Promise.resolve();const files=new Map(),errors=[];
+ const engine={firefox,webkit}[channel]||chromium;
+ const browser=await engine.launch({headless:true,...(engine===chromium?{channel}:{})});let queue=Promise.resolve();const files=new Map(),errors=[];
  const serial=fn=>{const task=queue.then(fn,fn);queue=task.catch(()=>{});return task;};
  const names=[...(await readFile(join(root,'assets/ordering/client.js'),'utf8')).matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+(\w+)/g)].map(m=>m[1]);
- async function pageFor(initialUser,width=1440){
+ async function pageFor(initialUser,width=1440,{height=1000,...device}={}){
   let actor=initialUser,delay=null,failure=null,uploadFailure=0,uploads=0;
-  const calls=[];const context=await browser.newContext({viewport:{width,height:1000},reducedMotion:'reduce'});
+  const calls=[];const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce',...device});
   await context.exposeFunction('auditActor',value=>{actor=value;});
   await context.exposeFunction('auditRpc',async(action,p)=>{
    calls.push({action,p});const fail=failure?.action===action?failure:null;if(fail)failure=null;
@@ -42,7 +43,11 @@ export async function auditHarness(channel=process.env.PLAYWRIGHT_CHANNEL||'chro
    export const academyBackupApi=async()=>({enabled:false,jobs:[],schedule:'Daily at 02:00 Asia/Manila'}),academyBackupConnection=async()=>({});
    ${names.filter(n=>!provided.includes(n)).map(n=>`export const ${n}=async()=>({});`).join('\n')}`;
   await context.route('**/*',async route=>{
-   const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
+   const u=new URL(route.request().url());
+   // WebKit routes local blob loads through interception; let its image decoder
+   // read the actual selected bytes instead of treating the blob as a repo file.
+   if(u.protocol==='blob:')return route.continue();
+   if(u.origin!==origin)return route.abort();
    if(u.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:client});
    if(u.pathname==='/assets/ordering/newsletter-client.js')return route.fulfill({contentType:'text/javascript',body:"let status='unsubscribed';export async function newsletterRequest(action){if(action==='subscribe')status='subscribed';if(action==='unsubscribe')status='unsubscribed';return {status};}"});
    let p=u.pathname;if(/^\/academy\/(dashboard|admin|unsubscribe)\/?$/.test(p))p=p.replace(/\/$/,'')+'/index.html';
