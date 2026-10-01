@@ -1,4 +1,4 @@
-import {api,money,escapeHtml as esc} from './client.js';
+import {api,money,escapeHtml as esc} from './client.js?v=approved-20261002-1';
 const date=value=>new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 const shortDate=value=>new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'}).format(new Date(value));
 export const voucherValue=v=>v.kind==='fixed'?`${money(v.value)} off`:`${v.value}% off`;

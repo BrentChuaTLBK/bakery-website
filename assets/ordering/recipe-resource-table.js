@@ -1,4 +1,4 @@
-import {quantity,unitInfo,ingredientCost,compare} from './recipe-math.js?v=approved-ux-1';
+import {quantity,unitInfo,ingredientCost,compare} from './recipe-math.js?v=approved-20261002-1';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nameOrder=(a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.data?.brand||'').localeCompare(String(b.data?.brand||''));
@@ -16,6 +16,7 @@ export function resourceUnitCost(resource){
 }
 
 export function sortResourceRows(rows,sort='az'){
+ if(sort==='server')return rows;
  const ranked=rows.map(row=>({row,cost:resourceUnitCost(row)}));
  ranked.sort((a,b)=>{
   if(sort!=='cost')return nameOrder(a.row,b.row);
@@ -44,7 +45,7 @@ export function resourceTableMarkup(rows,{kind='ingredient',sort='az',canDelete=
  };
  if(['supplier','equipment','categories'].includes(kind)){
   const heading={supplier:'Supplier',equipment:'Equipment',categories:'Category'}[kind];
-  return `<table class="recipe-resource-table recipe-directory-table"><caption class="recipe-resource-sr">${heading} records</caption><thead><tr><th scope="col">${heading}</th><th scope="col">${kind==='supplier'?'Contact':'Details'}</th><th scope="col"><span class="recipe-resource-sr">Actions</span></th></tr></thead><tbody>${sortResourceRows(rows).map(row=>{
+  return `<table class="recipe-resource-table recipe-directory-table"><caption class="recipe-resource-sr">${heading} records</caption><thead><tr><th scope="col">${heading}</th><th scope="col">${kind==='supplier'?'Contact':'Details'}</th><th scope="col"><span class="recipe-resource-sr">Actions</span></th></tr></thead><tbody>${sortResourceRows(rows,sort).map(row=>{
    const d=row.data||{},details=kind==='supplier'?[d.contact_name,d.phone,d.email].filter(Boolean).join(' · '):kind==='categories'?row.parent_name?`In ${row.parent_name}`:'Top-level category':d.notes;
    return `<tr data-resource-id="${esc(row.id)}"><td class="recipe-resource-identity"><div class="recipe-resource-name"><span class="recipe-resource-dot ${row.active===false?'inactive':''}" role="img" aria-label="${row.active===false?'Inactive':'Active'}"></span><div><span id="recipe-resource-name-${esc(row.id)}" class="recipe-resource-title">${esc(row.name)}</span>${d.type?`<span class="recipe-resource-meta">${esc(d.type)}</span>`:''}${row.active===false?'<span class="recipe-resource-inactive">Inactive</span>':''}</div></div></td><td class="recipe-resource-summary">${esc(details||'—')}</td><td class="recipe-resource-action">${actions(row)}</td></tr>`;
   }).join('')}</tbody></table>`;

@@ -1,9 +1,9 @@
-import {mountVouchers} from './vouchers.js';
+import {mountVouchers} from './vouchers.js?v=approved-20261002-1';
 let voucherController=null;
 import {applyNewsletterOffer} from './newsletter-offer.js?v=newsletter-settings-1';
-import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js';
-import { newsletterRequest } from './newsletter-client.js';
-import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=voucher-audit-1';
+import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js?v=approved-20261002-1';
+import { newsletterRequest } from './newsletter-client.js?v=approved-20261002-1';
+import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=approved-20261002-1';
 import { googleSignInEnabled } from './google-signin.js?v=google-1';
 
 const root = document.getElementById('account-root');

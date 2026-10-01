@@ -1,4 +1,4 @@
-import {api,escapeHtml as esc} from './client.js';
+import {api,escapeHtml as esc} from './client.js?v=approved-20261002-1';
 import {renderVoucherEmail} from './voucher-email.js?v=brand-20261001';
 
 export function createVoucherEmailPreview(){

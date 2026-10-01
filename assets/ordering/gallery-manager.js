@@ -1,6 +1,6 @@
 import {galleryPhoto,galleryThumbnail,bindThumbnailFallback} from './gallery-thumbnail.js?v=gallery-thumbnails-1';
 import { parseGalleryExport, safePhotoUrl } from './gallery-import.js';
-import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=heic-2';
+import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=approved-20261002-1';
 import { confirmDialog } from './site-dialog.js?v=brand-20261001';
 
 const names = { 'custom-orders': 'Custom Orders', pastries: 'Pastries' };
@@ -18,7 +18,7 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
     <div class="gallery-tabs" role="group" aria-label="Choose gallery">${Object.entries(names).map(([slug, name]) => `<button type="button" class="button button-secondary" data-gallery="${slug}" aria-pressed="${slug === gallery}">${name}</button>`).join('')}</div>
     <p class="notice" data-gallery-status></p>
     <section class="panel gallery-tools"><div class="row-actions"><label class="button">Upload photos<input data-gallery-upload type="file" accept="${galleryImageAccept}" multiple class="gallery-file"></label><label class="button button-secondary">Import MongoDB JSON<input data-gallery-import type="file" accept=".json,.jsonl,.ndjson,application/json" class="gallery-file"></label><button class="button button-secondary" type="button" data-gallery-publish></button><a data-gallery-link target="_blank" rel="noopener">View page ↗</a></div>
-      <p class="muted">Photos are automatically converted to WebP, up to 1600 px. JPG, PNG, WebP, AVIF, GIF, BMP, and HEIC · up to 25 MB each. Animated images become a still photo.</p>
+      <p class="muted">Photos use WebP, up to 1600 px, when available. Otherwise original PNG, JPEG or HEIC files are kept. JPG, PNG, WebP, AVIF, GIF, BMP, and HEIC · up to 25 MB each. Animated images become a still photo.</p>
       <form data-gallery-filter class="gallery-filters"><label>Search photos<input name="query" type="search" maxlength="120" placeholder="Category, name, or hidden keywords"></label><label>Category<select name="category"><option value="">All categories</option></select></label><button class="button button-secondary" type="submit">Search</button></form>
     </section>
     <p data-gallery-message role="status" aria-live="polite"></p><div data-gallery-import-preview></div><p data-gallery-count></p><div class="gallery-admin-grid" data-gallery-items></div><button type="button" class="button button-secondary" data-gallery-more hidden>Load more photos</button>
@@ -69,14 +69,14 @@ export function mountGalleryManager(root, { role, connected, api, upload }) {
   }
   async function selectImage(file) {
     prepared = null; uploadedUrl = ''; lock(true);
-    $('[data-gallery-editor-message]').textContent = 'Converting photo to WebP…';
+    $('[data-gallery-editor-message]').textContent = 'Preparing photo…';
     try {
       const result = await prepareGalleryImage(file);
       if (!root.isConnected) return;
       prepared = result; revokePreview(); previewUrl = URL.createObjectURL(result.file);
       $('[data-gallery-preview]').src = previewUrl;
-      $('[data-gallery-file-info]').textContent = `${kb(result.originalSize)} original → ${kb(result.file.size)} WebP · ${result.width} × ${result.height} px`;
-      $('[data-gallery-editor-message]').textContent = 'WebP ready. Add the photo details and save.';
+      $('[data-gallery-file-info]').textContent = `${kb(result.originalSize)} original → ${kb(result.file.size)} ${result.file.type.replace('image/','').toUpperCase()} · ${result.width} × ${result.height} px`;
+      $('[data-gallery-editor-message]').textContent = `${result.converted?'Photo ready.':'Original photo kept; WebP conversion was unavailable.'} Add the photo details and save.`;
     } catch (error) { $('[data-gallery-editor-message]').textContent = error.message; }
     finally { lock(false); }
   }

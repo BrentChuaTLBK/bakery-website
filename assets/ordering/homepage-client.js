@@ -1,4 +1,4 @@
-import { auth, ready } from './client.js?v=academy-1';
+import { auth, ready } from './client.js?v=approved-20261002-1';
 import { config } from './config.js';
 
 export async function homepageApi(action, payload = {}) {

@@ -1,5 +1,6 @@
-import {convert,exact,unitInfo} from './recipe-math.js?v=approved-ux-1';
-import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=approved-ux-1';
+import {setUnitSelection} from './recipe-units.js?v=approved-20261002-1';
+import {convert,exact,unitInfo} from './recipe-math.js?v=approved-20261002-1';
+import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=approved-20261002-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function selectRecipeIngredient(row,resource){
@@ -53,7 +54,7 @@ export function mountIngredientPicker(root,{api,getRow,onChange}){
  function choose(index){
   const resource=choices[index],target=input,row=target&&getRow(target);if(!resource||!row||!target.isConnected)return;
   selectRecipeIngredient(row,resource);context.set(resource.id,resource);target.value=row.name;update(target);
-  const editor=target.closest('[data-ingredient-row]'),qty=editor.querySelector('[data-path$=".quantity"]');qty.value=row.quantity;editor.querySelector('[data-path$=".unit"]').value=row.unit;
+  const editor=target.closest('[data-ingredient-row]'),qty=editor.querySelector('[data-path$=".quantity"]');qty.value=row.quantity;setUnitSelection(editor.querySelector('[data-path$=".unit"]'),row.unit);
   const brand=editor.querySelector('[data-path$=".brand"]');if(brand){brand.value=row.brand;brand.readOnly=true;}close();onChange();qty.focus();
  }
  root.addEventListener('focusin',event=>{if(event.target.matches('[data-ingredient-search]'))queue(event.target);});

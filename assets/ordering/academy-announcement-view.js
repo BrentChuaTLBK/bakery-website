@@ -1,4 +1,4 @@
-import {prepareProductImage} from './product-image.js';
+import {prepareProductImage} from './product-image.js?v=approved-20261002-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
 
 // The student view and the unsaved Admin preview share the same markup.

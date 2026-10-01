@@ -1,11 +1,11 @@
-import {createVoucherEmailPreview} from './voucher-email-preview.js?v=brand-20261001';
-import {api,money,escapeHtml as esc,manilaDate} from './client.js';
+import {createVoucherEmailPreview} from './voucher-email-preview.js?v=approved-20261002-1';
+import {api,money,escapeHtml as esc,manilaDate} from './client.js?v=approved-20261002-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 const dateTime=value=>new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 const manilaInput=value=>value?new Date(new Date(value).getTime()+8*3600000).toISOString().slice(0,16):'';
 const manilaTimestamp=value=>value?new Date(value+':00+08:00').toISOString():null;
 import {accountingDateTimePicker,bindAccountingDates} from './accounting-date-picker.js?v=branded-calendars-1';
-import {voucherValue,voucherTerms} from './vouchers.js';
+import {voucherValue,voucherTerms} from './vouchers.js?v=approved-20261002-1';
 const options=(choices,value)=>choices.map(([key,label])=>`<option value="${key}" ${key===value?'selected':''}>${label}</option>`).join('');
 const input=(name,label,value,attrs='')=>`<label class="field">${label}<input name="${name}" value="${esc(value)}" ${attrs}></label>`;
 const number=(name,label,value,min=0,max=1000000,step='0.01')=>input(name,label,value,`type="number" min="${min}" max="${max}" step="${step}" required`);

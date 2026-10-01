@@ -1,5 +1,6 @@
 import {credentials,endpoint,HttpError,json,readBody,uuid,verifiedUser} from '../_shared/server.ts';
-import {inspectOriginalPhoto,originalPhotoLimit} from '../../../assets/ordering/academy-photo-format.js';
+import {inspectImage} from '../../../assets/ordering/image-format.js';
+const originalPhotoLimit=26214400;
 export function validateWebP(bytes:Uint8Array){
  const fail=()=>{throw new HttpError(400,'Choose a valid, static WebP photo without camera metadata.');};
  const text=(a:number,b:number)=>new TextDecoder().decode(bytes.subarray(a,b));
@@ -20,7 +21,7 @@ export function validateWebP(bytes:Uint8Array){
 export function validatePhoto(bytes:Uint8Array,mime='image/webp'){
  if(mime==='image/webp')return validateWebP(bytes);
  if(!['image/png','image/jpeg','image/heic'].includes(mime))throw new HttpError(415,'Choose a PNG, JPEG, HEIC or WebP photo.');
- try{const info=inspectOriginalPhoto(bytes);if(info.mime_type!==mime)throw new Error('The photo contents do not match its upload format.');return {width:info.width,height:info.height};}
+ try{const info=inspectImage(bytes);if(info.mime!==mime)throw new Error('The photo contents do not match its upload format.');return {width:info.width,height:info.height};}
  catch(error){throw new HttpError(415,(error as Error).message);}
 }
 async function rpc(name:string,body:any,authorization?:string){const {url,key}=credentials();const response=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:authorization||`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});const data=await response.json().catch(()=>null);if(!response.ok)throw new HttpError(403,'This upload is not available to your account.');return data;}

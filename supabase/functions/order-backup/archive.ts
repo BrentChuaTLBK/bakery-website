@@ -18,7 +18,7 @@ export async function buildProofArchive(snapshot:any,read=fetchProof){
  const files:any[]=[],manifest:any[]=[],signal=AbortSignal.timeout(60000);let size=0;
  // Strict order-owned paths: never fetch an arbitrary URL or another order's proof.
  for(const order of snapshot.orders)for(const path of proofPaths(order)){
-  if(!/^[0-9a-f-]{36}\/[-A-Za-z0-9_]{1,150}\.(png|jpg|jpeg|webp)$/i.test(path)||path.split('/')[0]!==order.id)throw new BackupError('proof_missing');
+  if(!/^[0-9a-f-]{36}\/[-A-Za-z0-9_]{1,150}\.(png|jpg|jpeg|webp|heic|heif)$/i.test(path)||path.split('/')[0]!==order.id)throw new BackupError('proof_missing');
   if(signal.aborted)throw new BackupError('network');
   const bytes=await read(path,signal);size+=bytes.length;if(size>45*1024*1024)throw new BackupError('too_large');
   try{imageType(bytes);}catch{throw new BackupError('proof_missing');}

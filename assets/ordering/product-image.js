@@ -1,4 +1,4 @@
-import { prepareGalleryImage } from './gallery-image.js?v=heic-2';
+import { prepareGalleryImage } from './gallery-image.js?v=approved-20261002-1';
 
 export const productImageAccept = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
@@ -8,5 +8,5 @@ export async function prepareProductImage(file) {
   if (!heic && !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     throw new Error('Use a JPEG, PNG, WebP, or HEIC/HEIF image.');
   }
-  return (await prepareGalleryImage(file)).file;
+  return (await prepareGalleryImage(file, { format: 'webp' })).file;
 }

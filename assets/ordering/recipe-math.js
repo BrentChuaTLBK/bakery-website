@@ -55,6 +55,12 @@ export function displayQuantity(value,{mode='exact',step='1'}={}) {
 export function scaleFactor(yieldInfo,mode,target) {
   const wanted=inputQuantity(target); if(!wanted.n)throw Error('Production quantity must be greater than zero.');
   if(mode==='multiplier')return wanted;
+  if(String(mode).startsWith('custom:')){
+    const option=yieldInfo?.scale_options?.find(item=>'custom:'+item.id===mode);
+    if(!option)throw Error('This scaling option is no longer available. Choose another option.');
+    const base=inputQuantity(option.quantity);if(!base.n)throw Error('Set a positive base amount for this scaling option.');
+    return divide(wanted,base);
+  }
   const fields={yield:'quantity',pieces:yieldInfo?.unit&&unitInfo(yieldInfo.unit).dimension==='count'?'quantity':'portions',portions:'portions',portion:'portion_weight',weight:'batch_weight',pans:'pans'};
   if(!fields[mode])throw Error('Unknown scaling method.');
   if(!yieldInfo?.[fields[mode]])throw Error(`Add a base ${fields[mode].replaceAll('_',' ')} before using this scaling method.`);
@@ -70,8 +76,18 @@ export function scaledYield(yieldInfo,factor,{mode='multiplier',target=null}={})
  const keys=mode==='portion'?['batch_weight','finished_weight']:['quantity','portions','batch_weight','finished_weight','pans'];
  if(mode==='portion'&&['mass','volume'].includes(unitInfo(result.unit).dimension))keys.push('quantity');
  for(const key of keys)if(result[key])result[key]=exact(multiply(quantity(result[key]),f));
- if(mode==='portion')result.portion_weight=target?exact(quantity(target)):exact(multiply(quantity(result.portion_weight),f));
- return result;
+  if(mode==='portion')result.portion_weight=target?exact(quantity(target)):exact(multiply(quantity(result.portion_weight),f));
+  if(Array.isArray(result.scale_options))result.scale_options=result.scale_options.map(option=>({...option,quantity:exact(multiply(quantity(option.quantity),f))}));
+  return result;
+}
+export function scalingOptions(yieldInfo){
+ const configured=yieldInfo?.scale_options;
+ if(Array.isArray(configured)&&configured.length)return [['multiplier','Multiplier'],...configured.map(option=>['custom:'+option.id,option.label])];
+ return [['multiplier','Multiplier'],['yield','Desired yield'],['pieces','Number of pieces'],['portions','Number of portions'],['portion','Portion weight · g'],['weight','Batch weight · g'],['pans','Number of pans']];
+}
+export function initialScale(yieldInfo){
+ const mode=yieldInfo?.scale_default,option=yieldInfo?.scale_options?.find(item=>'custom:'+item.id===mode);
+ return {mode:option?mode:'multiplier',target:option?String(option.quantity):'1',rounding:'exact',step:'1'};
 }
 const units = {
   g:['mass','1','g'],gram:['mass','1','g'],grams:['mass','1','g'],kg:['mass','1000','g'],mg:['mass','0.001','g'],

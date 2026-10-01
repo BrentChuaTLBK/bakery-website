@@ -1,7 +1,5 @@
 import {brandName} from './brand.js?v=brand-20261001';
-import { escapeHtml as esc, money, formatDate } from './client.js?v=academy-1';
-
-import {deliveryStatusText} from './pos.js?v=pos-1';
+import { escapeHtml as esc, formatDate } from './client.js?v=approved-20261002-1';
 
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
 const text = value => String(value ?? '').trim();
@@ -27,7 +25,8 @@ function variations(item, product) {
 }
 
 // Only fields intended for the package are copied into the print document.
-// Prices and labels come from the saved order; catalog data supplies its current photo.
+// Preparation slips contain client and item details only. Financial values are
+// deliberately omitted from the model, not merely hidden by print CSS.
 function printModel(order, products, settings) {
   const popup = order.source === 'popup';
   const pickup = order.method === 'pickup';
@@ -43,22 +42,17 @@ function printModel(order, products, settings) {
     order.address?.line1, order.address?.line2, [order.address?.locality, order.address?.postal_code].filter(Boolean).join(' '),
   ]) || 'Not recorded' });
   details.push({ title: 'Instructions', value: text(order.instructions) || 'None' });
-  if(order.payment_method) details.push({title:'Payment received',value:lines([order.payment_method_label||({cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'})[order.payment_method]||order.payment_method,order.payment_method==='cash'?`Cash: ${money(order.cash_received_cents)} | Change: ${money(order.change_cents)}`:''])});
-  if(order.deferred_delivery) details.push({title:'Delivery payment',value:lines([deliveryStatusText(order),order.delivery_paid_cents?`Received: ${money(order.delivery_paid_cents)} via ${order.delivery_payment_method_label||label(order.delivery_payment_method)}`:'',order.delivery_payment_method==='cash'?`Cash: ${money(order.delivery_cash_received_cents)} | Change: ${money(order.delivery_change_cents)}`:''])});
-  const status = [order.refund_label ? 'Refund label' : '', ['cancelled', 'expired'].includes(order.fulfillment_status) ? label(order.fulfillment_status) : '', `Payment: ${label(order.payment_status) || 'Not recorded'}`].filter(Boolean).join(' | ');
+  const status = ['cancelled', 'expired'].includes(order.fulfillment_status) ? label(order.fulfillment_status) : '';
   return {
     shop: brandName(settings.shop_name), reference: text(order.reference) || 'Order',
     date: formatDate(order.fulfillment_date), method: popup ? 'In-person sale' : pickup ? 'Pickup' : 'Delivery', status,
     window: popup ? '' : text(pickup ? order.pickup_hours ?? settings.pickup_hours : order.delivery_window ?? settings.delivery_window),
-    buyer: { name: text(buyer.name) || 'Not recorded', phone: text(buyer.phone) || 'Not recorded', social }, details,
+    buyer: { name: text(buyer.name) || 'Not recorded', email: text(buyer.email), phone: text(buyer.phone) || 'Not recorded', social }, details,
     items: (order.items || []).map((item, index) => {
       const product = products.find(entry => entry.id === item.product_id);
       return { index, name: text(item.name) || product?.name || 'Product', quantity: item.quantity,
-        variation: lines([item.description,variations(item, product)]) || 'Standard', photo: photoUrl(product?.photos?.[0]),
-        unit: money(item.unit_price_cents), total: money(item.line_total_cents ?? item.quantity * item.unit_price_cents) };
+        variation: lines([item.description,variations(item, product)]) || 'Standard', photo: photoUrl(product?.photos?.[0]) };
     }),
-    subtotal: money(order.subtotal_cents), discount: money(order.discount_cents), fee: order.deferred_delivery&&order.delivery_payment_status==='pending'?'Pending':money(order.delivery_cents),
-    total: money(order.total_cents), promo: text(order.promo_snapshot?.code),
   };
 }
 
@@ -73,7 +67,7 @@ function createSlip(doc, model) {
     <header class="slip-header"><p class="slip-brand">${esc(model.shop)}</p><h1 class="slip-reference">${esc(model.reference)}</h1>
       <p class="slip-method">${esc(model.method.toUpperCase())}</p><p class="slip-date">${esc(model.date)}${model.window ? ` | ${esc(model.window)}` : ''}</p><p class="slip-state">${esc(model.status)}</p></header>
     <div class="slip-body"><div class="slip-left"><h2 class="slip-heading slip-item-heading">Items to prepare</h2><div class="slip-items"></div></div>
-      <div class="slip-right"><section class="slip-buyer"><h2 class="slip-heading">Buyer</h2><p class="slip-buyer-name">${esc(model.buyer.name)}</p><p class="slip-buyer-phone">${esc(model.buyer.phone)}</p><p class="slip-buyer-social">${esc(model.buyer.social)}</p></section><div class="slip-details"></div><p class="slip-signoff">Prepared: ______ &nbsp; Checked: ______</p></div></div>
+      <div class="slip-right"><section class="slip-buyer"><h2 class="slip-heading">Buyer</h2><p class="slip-buyer-name">${esc(model.buyer.name)}</p><p class="slip-buyer-phone">${esc(model.buyer.phone)}</p>${model.buyer.email?`<p>${esc(model.buyer.email)}</p>`:''}<p class="slip-buyer-social">${esc(model.buyer.social)}</p></section><div class="slip-details"></div><p class="slip-signoff">Prepared: ______ &nbsp; Checked: ______</p></div></div>
     <footer class="slip-footer"><span class="slip-number">Slip 000 of 000</span><span>Keep all slips with this order</span></footer></article>`);
 }
 
@@ -81,17 +75,11 @@ function itemCard(doc, item, value, continued = false) {
   return element(doc, `<section class="slip-item" data-item-index="${item.index}" data-continued="${continued}">
     <div class="slip-photo">${!continued && item.photo ? `<img src="${esc(item.photo)}" alt="${esc(item.name)}" referrerpolicy="no-referrer">` : continued ? 'Options continued' : 'No photo'}</div>
     <div class="slip-item-copy"><h3 class="slip-item-title">${continued ? `<span class="slip-continuation">Item ${item.index + 1} continued</span>` : `<span class="slip-quantity">${esc(item.quantity)}×</span>${esc(item.name)}`}</h3>
-    <p class="slip-variation">${esc(value)}</p>${continued ? '' : `<p class="slip-price"><span>${esc(item.quantity)} × ${esc(item.unit)}</span><strong>${esc(item.total)}</strong></p>`}</div></section>`);
+    <p class="slip-variation">${esc(value)}</p></div></section>`);
 }
 
 function detailCard(doc, title, value, continued = false) {
   return element(doc, `<section class="slip-detail"><h2 class="slip-heading">${esc(title)}${continued ? ' (continued)' : ''}</h2><p>${esc(value)}</p></section>`);
-}
-
-function paymentCard(doc, model) {
-  return element(doc, `<section class="slip-payment"><h2 class="slip-heading">Payment breakdown - entire order</h2><dl>
-    <div><dt>Subtotal</dt><dd>${esc(model.subtotal)}</dd></div><div><dt>Discount${model.promo ? ` (${esc(model.promo)})` : ''}</dt><dd>−${esc(model.discount)}</dd></div>
-    <div><dt>${model.method === 'Delivery' ? 'Delivery' : 'Pickup'} fee</dt><dd>${esc(model.fee)}</dd></div><div class="slip-total"><dt>Order total</dt><dd>${esc(model.total)}</dd></div></dl></section>`);
 }
 
 const fits = column => column.scrollHeight <= column.clientHeight + 1;
@@ -103,7 +91,6 @@ function fitOrder(doc, model) {
   for(const [size,compact,columns] of [['quarter',false],['quarter',true],['quarter',true,2],['half',false],['half',true],['half',true,3]]){
     const slip=createSlip(doc,model);slip.dataset.size=size;slip.classList.toggle('slip--compact',compact);slip.classList.toggle('slip--dense',columns>1);host.append(slip);
     for(const item of model.items)slip.querySelector('.slip-items').append(itemCard(doc,item,item.variation));
-    slip.querySelector('.slip-left').append(paymentCard(doc,model));
     for(const detail of model.details)slip.querySelector('.slip-details').append(detailCard(doc,detail.title,detail.value));
     slip.querySelector('.slip-number').textContent=size==='half'?'Half-sheet order slip':'Quarter-sheet order slip';
     slip.querySelector('.slip-footer span:last-child').textContent='Keep with this order';
@@ -155,11 +142,6 @@ function paginateOverflow(doc, model) {
   const newPage = () => { const page = createSlip(doc, model); page.dataset.size='half';page.classList.add('slip--compact');host.append(page); pages.push(page); return page; };
   newPage();
   for (const item of model.items) appendText(pages, newPage, '.slip-items', (value, continued) => itemCard(doc, item, value, continued), item.variation);
-  let last = pages.at(-1), payment = paymentCard(doc, model);
-  last.querySelector('.slip-left').append(payment);
-  if (!fits(last.querySelector('.slip-left'))) {
-    payment.remove(); last = newPage(); last.querySelector('.slip-left').append(payment);
-  }
   const detailPages = [pages[0]];
   const nextDetails = () => {
     const page = pages[detailPages.length] || newPage(); detailPages.push(page); return page;
@@ -170,16 +152,10 @@ function paginateOverflow(doc, model) {
   if (detailPages.length === 1) {
     for (const page of pages.slice(1)) page.querySelector('.slip-details').innerHTML = pages[0].querySelector('.slip-details').innerHTML;
   }
-  // The complete payment breakdown always belongs to the final slip, even when
-  // additional pages were needed only for delivery details or instructions.
-  if (payment.closest('.slip') !== pages.at(-1)) {
-    payment.remove(); pages.at(-1).querySelector('.slip-left').append(payment);
-  }
   pages.forEach((page, index) => {
     page.querySelector('.slip-number').textContent = `Slip ${index + 1} of ${pages.length}`;
     const cards = [...page.querySelectorAll('.slip-item')];
     page.querySelector('.slip-item-heading').textContent = cards.length ? `Items ${Number(cards[0].dataset.itemIndex) + 1}-${Number(cards.at(-1).dataset.itemIndex) + 1} of ${model.items.length}` : 'Order details';
-    if (index < pages.length - 1) page.querySelector('.slip-item-heading').append(` | Totals on slip ${pages.length}`);
     if (!fits(page.querySelector('.slip-left')) || !fits(page.querySelector('.slip-details')) || page.scrollHeight > page.clientHeight + 1) {
       throw new Error('These order details cannot fit on a half-sheet slip. Please check the order details and try again.');
     }

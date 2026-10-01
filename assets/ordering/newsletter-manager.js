@@ -1,5 +1,5 @@
-import {uploadNewsletterImage,newsletterImageAccept} from './newsletter-image.js?v=newsletter-photos-1';
-import {newsletterAdmin} from './newsletter-admin-client.js';
+import {uploadNewsletterImage,newsletterImageAccept} from './newsletter-image.js?v=approved-20261002-1';
+import {newsletterAdmin} from './newsletter-admin-client.js?v=approved-20261002-1';
 import {newsletterTemplates,renderNewsletterCampaign,sampleNewsletter} from './newsletter-templates.js?v=brand-20261001';
 import {newsletterPromos,newsletterPromoOffer} from './newsletter-promo-offer.js?v=offer-templates-1';
 import {offerLabel,offerTerms} from './newsletter-offer.js?v=newsletter-settings-1';

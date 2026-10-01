@@ -1,4 +1,4 @@
-import {api,configured,escapeHtml as esc} from './client.js';
+import {api,configured,escapeHtml as esc} from './client.js?v=approved-20261002-1';
 
 const date=value=>value?new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'';
 let current=null,pending=false,timer,countdownTimer,signature='',screenSignature='';

@@ -36,7 +36,7 @@ async function pageFor(user,width=1440){
  });
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.dismiss());return {page,context};
 }
-const fill=(page,path,value)=>page.locator(`[data-path="${path}"]`).fill(value);
+const fill=async(page,path,value)=>{const el=page.locator(`[data-path="${path}"]`);return await el.evaluate(n=>n.tagName)==='SELECT'?el.selectOption(value):el.fill(value);};
 const synthetic='QA Layer Cake\nSponge\nFlour 100 g\nSugar 25 g\nProcedure\n1. Mix and bake the sponge.\nMousse\nCream 200 g\nSugar 10 g\nProcedure\n1. Whip the cream.\nGlaze\nWater 50 ml\nGelatin 1 g\nProcedure\n1. Bloom and dissolve.\nAssembly\n1. Layer and glaze the cake.';
 const sample=process.env.RECIPE_COMPONENT_SAMPLE_PDF;
 try{

@@ -49,18 +49,18 @@ export default async function({db,check}){
   assert.equal(await h.scalar('select count(*)::int from tlb.recipe_supplier_items where resource_id=$1 and supplier_id=$2',[box.id,supplier.id]),1);
   await assert.rejects(()=>api('save_resource',{kind:'packaging',name:'Invalid box',data:{supplier_id:box.id}}),/Supplier not found/);
  })();
- await check('alternative quotes use lowest compatible unit cost with an explicit preferred-supplier override',async()=>{
+ await check('alternative quotes use highest compatible unit cost with an explicit preferred-supplier override',async()=>{
   const a=await api('save_resource',{kind:'supplier',name:'Supplier A',data:{}}),b=await api('save_resource',{kind:'supplier',name:'Supplier B',data:{}}),c=await api('save_resource',{kind:'supplier',name:'Incompatible supplier',data:{}});
   let item=await api('save_resource',{kind:'ingredient',name:'Compared flour',data:{default_unit:'g'},suppliers:[{supplier_id:a.id,price:{amount:'300',quantity:'1',unit:'kg'}},{supplier_id:b.id,price:{amount:'170',quantity:'500',unit:'g'}},{supplier_id:c.id,price:{amount:'1',quantity:'1',unit:'box'}}]});
   const current=()=>api('resources',{kind:'ingredient',query:'Compared flour'}).then(r=>r.rows[0]);
-  assert.equal((await current()).price.supplier_id,a.id);assert.equal((await current()).suppliers.length,3);
+  assert.equal((await current()).price.supplier_id,b.id);assert.equal((await current()).suppliers.length,3);
   const doc={name:'Cost snapshot test',variants:[{id:'base',name:'Standard',yield:{quantity:'1',unit:'batch'},groups:[{id:'g',name:'Dough',ingredients:[{id:'flour',ingredient_id:item.id,name:'Flour',quantity:'100',unit:'g'}]}],methods:[]}]};
-  const recipe=await api('create',{document:doc,status:'production'});assert.equal(Number(recipe.cost_snapshot.variants[0].total),30);
-  item=await api('save_resource',{id:item.id,revision:item.revision,kind:'ingredient',name:item.name,data:{default_unit:'g',preferred_supplier_id:b.id}});assert.equal((await current()).price.supplier_id,b.id);
-  assert.equal(Number((await api('cost_preview',{document:doc})).snapshot.variants[0].total),34);assert.equal(Number((await api('get',{id:recipe.id})).cost_snapshot.variants[0].total),30);
+  const recipe=await api('create',{document:doc,status:'production'});assert.equal(Number(recipe.cost_snapshot.variants[0].total),34);
+  item=await api('save_resource',{id:item.id,revision:item.revision,kind:'ingredient',name:item.name,data:{default_unit:'g',preferred_supplier_id:a.id}});assert.equal((await current()).price.supplier_id,a.id);
+  assert.equal(Number((await api('cost_preview',{document:doc})).snapshot.variants[0].total),30);assert.equal(Number((await api('get',{id:recipe.id})).cost_snapshot.variants[0].total),34);
   item=await api('save_resource',{id:item.id,revision:item.revision,kind:'ingredient',name:item.name,data:{default_unit:'g',preferred_supplier_id:c.id}});assert.equal((await current()).price,null);
   assert.equal((await api('cost_preview',{document:doc})).snapshot.variants[0].complete,false);
-  item=await api('save_resource',{id:item.id,revision:item.revision,kind:'ingredient',name:item.name,data:{default_unit:'g'},suppliers:[{supplier_id:a.id,price:{amount:'400',quantity:'1',unit:'kg'}},{supplier_id:b.id,price:{amount:'170',quantity:'500',unit:'g'}},{supplier_id:c.id,price:{amount:'1',quantity:'1',unit:'box'}}]});assert.equal((await current()).price.supplier_id,b.id);
+  item=await api('save_resource',{id:item.id,revision:item.revision,kind:'ingredient',name:item.name,data:{default_unit:'g'},suppliers:[{supplier_id:a.id,price:{amount:'400',quantity:'1',unit:'kg'}},{supplier_id:b.id,price:{amount:'170',quantity:'500',unit:'g'}},{supplier_id:c.id,price:{amount:'1',quantity:'1',unit:'box'}}]});assert.equal((await current()).price.supplier_id,a.id);
   assert.equal((await api('prices',{id:item.id})).length,4);
   await assert.rejects(()=>api('save_resource',{id:item.id,revision:item.revision,kind:'ingredient',name:item.name,data:{},suppliers:[{supplier_id:a.id},{supplier_id:a.id}]}),/only once/);
  })();

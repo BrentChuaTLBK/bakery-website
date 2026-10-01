@@ -1,4 +1,4 @@
-import {api,escapeHtml as esc,manilaDate} from './client.js';
+import {api,escapeHtml as esc,manilaDate} from './client.js?v=approved-20261002-1';
 const manilaInput=value=>value?new Date(new Date(value).getTime()+8*3600000).toISOString().slice(0,16):'';
 const manilaTimestamp=value=>value?new Date(value+':00+08:00').toISOString():null;
 const dateTime=value=>value?new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'';

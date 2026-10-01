@@ -1,10 +1,10 @@
 import { credentials, endpoint, field, HttpError, json, readBody, service, storageRequest, uuid, verifiedUser } from "../_shared/server.ts";
-import { imageType, MAX_IMAGE_BYTES } from "../_shared/images.ts";
+import { imageType, MAX_IMAGE_BYTES, MAX_PHOTO_BYTES } from "../_shared/images.ts";
 
 Deno.serve(endpoint(async (request, headers) => {
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.startsWith("multipart/form-data;")) throw new HttpError(400, "Send an image using a multipart form.");
-  const bytes = await readBody(request, MAX_IMAGE_BYTES + 65536);
+  const bytes = await readBody(request, MAX_PHOTO_BYTES + 65536);
   let form: FormData;
   try { form = await new Response(bytes, { headers: { "Content-Type": contentType } }).formData(); }
   catch { throw new HttpError(400, "The upload form is invalid."); }
@@ -12,9 +12,10 @@ Deno.serve(endpoint(async (request, headers) => {
   if (!["proof", "product"].includes(kind)) throw new HttpError(400, "Choose a payment proof or product image.");
   const file = form.get("file");
   if (!(file instanceof File) || form.getAll("file").length !== 1) throw new HttpError(400, "Choose one image to upload.");
-  if (file.size > MAX_IMAGE_BYTES) throw new HttpError(413, "Images must be 5 MB or smaller.");
+  const maximum = kind === 'product' ? MAX_PHOTO_BYTES : MAX_IMAGE_BYTES;
+  if (file.size > maximum) throw new HttpError(413, `Images must be ${maximum / 1024 / 1024} MB or smaller.`);
   const contents = new Uint8Array(await file.arrayBuffer());
-  const image = imageType(contents);
+  const image = imageType(contents, maximum);
   const userId = await verifiedUser(request, kind === "product");
   const orderId = kind === "proof" ? uuid(form.get("order_id")) : null;
   const token = field(form.get("token"), "Order access token", 256);

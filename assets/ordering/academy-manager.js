@@ -1,6 +1,6 @@
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {esc,clone,uid,slugify,emptyClass,photoRef,moveItem,orderedClasses,missingContent,instagramUrl,enquiryUrl,classLink} from './academy-model.js';
-import {academyApi,academyImages,uploadAcademyPhoto,galleryImageAccept} from './academy-client.js?v=album-photos-2';
+import {academyApi,academyImages,uploadAcademyPhoto,galleryImageAccept} from './academy-client.js?v=approved-20261002-1';
 import {academyPhoto} from './academy-view.js?v=album-preload-1';
 import {createAcademyImageCache,bindAcademyLazyImages} from './academy-loading.js?v=admin-lazy-1';
 import {accountingDatePicker,bindAccountingDates,validateAccountingDates} from './accounting-date-picker.js?v=branded-calendars-1';

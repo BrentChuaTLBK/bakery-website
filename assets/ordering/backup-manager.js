@@ -1,4 +1,4 @@
-import {escapeHtml as esc} from './client.js?v=order-backups-2';
+import {escapeHtml as esc} from './client.js?v=approved-20261002-1';
 import {buildBackupWorkbook,validateBackup} from './order-backup.js?v=brand-20261001';
 const errors={proof_missing:'An attached proof image could not be copied. The last good backup has been kept; check the image in the order and try again.',access:'Google access was denied. Check that the backup spreadsheet and proof ZIP are shared with the service account as an Editor.',api_disabled:'Enable Google Sheets API and Google Drive API in the service account’s Google Cloud project.',configuration:'The Google connection or the Orders, Items and Recovery tabs need attention.',quota:'Google has temporarily limited requests. The next scheduled run will retry.',too_large:'The backup is too large for this spreadsheet sync. Download the JSON recovery file and contact support.',network:'The last sync could not reach the backup service. It will retry automatically.'};
 const date=value=>value?new Date(value).toLocaleString('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}):'Not yet';

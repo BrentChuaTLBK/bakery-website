@@ -110,8 +110,9 @@ try {
   check('Print summary opens one compact slip for a two-line delivery order', await popup.locator('.slip').count() === 1);
   const body = await popup.locator('#slips').innerText();
   check('Saved buyer, social, recipient and all delivery address fields print', ['Alex Cruz', '@alex.sample', 'Jamie Cruz', '09XX XXX 5678', 'Unit 3B', 'Brgy. Sample', 'Quezon City', '1100'].every(value => body.includes(value)));
-  check('Saved labels/prices are preserved despite changed catalog data', body.includes('Krisp Nori Pouch') && body.includes('₱130.00') && !body.includes('Renamed catalog') && !body.includes('₱999.00'));
-  check('Payment breakdown uses the current saved total and promo', ['₱650.00', '₱65.00', '₱100.00', '₱685.00', 'DEMO10'].every(value => body.includes(value)));
+  check('Saved item names and options are preserved despite changed catalog data', body.includes('Krisp Nori Pouch') && body.includes('Flavor: Original') && !body.includes('Renamed catalog'));
+  check('Prices, totals, payment details and promos are absent', !/₱|Subtotal|Order total|Discount|DEMO10|Payment|Cash|Change:/.test(body));
+  check('Client email is preserved on the summary',body.includes('alex@example.test'));
   check('Private notes, history, proof and original approved payment stay out of the print document', !/PRIVATE-|Original approved|1,624/.test(await popup.content()));
   check('Product photos finish loading before the native print dialog opens', await popup.evaluate(() => window.photosReadyAtPrint));
   check('Small slip has no clipped content', await noOverflow(popup));
@@ -123,23 +124,23 @@ try {
 
   popup = await print({...small,source:'popup',method:'pickup',event_name:'Weekend booth',event_location:'QA mall',payment_method:'cash',cash_received_cents:70000,change_cents:1500});
   const posSlip=await popup.locator('#slips').innerText();
-  check('Pop-up slip shows the event and correct cash/change, without kitchen pickup details', /IN-PERSON SALE/.test(posSlip)&&posSlip.includes('Weekend booth')&&posSlip.includes('QA mall')&&posSlip.includes('Change: ₱15.00')&&!posSlip.includes('CUSTOMER-PICKUP-GUIDE')&&!posSlip.includes('NEW ADDRESS'));
+  check('Pop-up summary preserves the event and excludes cash or change', /IN-PERSON SALE/.test(posSlip)&&posSlip.includes('Weekend booth')&&posSlip.includes('QA mall')&&!/₱|Cash|Change:|CUSTOMER-PICKUP-GUIDE|NEW ADDRESS/.test(posSlip));
   check('Pop-up receipt fits within the existing quarter/half-sheet limits',await noOverflow(popup));
   await popup.locator('.slip').screenshot({path:join(output,'pos-slip.png')});await popup.close();
   popup=await print({...small,source:'popup',method:'pickup',payment_method:'pos-private-id',payment_method_label:'Card <terminal>',deferred_delivery:true,delivery_paid_cents:1000,delivery_payment_method:'pos-other-id',delivery_payment_method_label:'Maya wallet'});
   const customTender=await popup.locator('#slips').innerText();
-  check('Printed POS receipts retain custom payment names and escape labels',customTender.includes('Card <terminal>')&&customTender.includes('Maya wallet')&&!customTender.includes('pos-private-id')&&await popup.locator('terminal').count()===0);await popup.close();
+  check('Printed POS summaries exclude all custom payment names',!/Card|terminal|Maya wallet|pos-private-id|₱/.test(customTender)&&await popup.locator('terminal').count()===0);await popup.close();
   popup = await print({...small,source:'direct_message',buyer:{},items:[{name:'Custom birthday cake',description:'CUSTOM DESIGN: blue icing',quantity:1,unit_price_cents:68500,line_total_cents:68500}]});
   check('Direct order slip keeps custom item notes and permits empty client details',(await popup.locator('#slips').innerText()).includes('CUSTOM DESIGN: blue icing')&&await noOverflow(popup));await popup.close();
   popup=await print({...small,source:'direct_message',deferred_delivery:true,delivery_payment_status:'pending',delivery_cents:0});
-  check('Delivery-pending slip does not imply the courier is free',(await popup.locator('#slips').innerText()).includes('Delivery fee pending')&&await noOverflow(popup));await popup.close();
+  check('Delivery-pending summary preserves recipient details without fee information',(await popup.locator('#slips').innerText()).includes('Jamie Cruz')&&!/Delivery fee|₱/.test(await popup.locator('#slips').innerText())&&await noOverflow(popup));await popup.close();
   popup=await print({...small,source:'direct_message',deferred_delivery:true,delivery_payment_status:'paid',delivery_cents:1550,delivery_paid_cents:1550,delivery_payment_method:'cash',delivery_cash_received_cents:2000,delivery_change_cents:450});
-  check('Separate delivery payment and change remain readable on a compact slip',(await popup.locator('#slips').innerText()).includes('Change: ₱4.50')&&await noOverflow(popup));await popup.close();
+  check('Separate delivery payment and change are excluded from the summary',!/₱|Change:|Payment/.test(await popup.locator('#slips').innerText())&&await noOverflow(popup));await popup.close();
   popup = await print(large, { role: 'staff' });
   check('Six-line pickup order fits one compact slip instead of two', await popup.locator('.slip').count() === 1);
   check('Each item appears once, in the saved order', await popup.locator('.slip-item[data-continued="false"]').count() === 6 && (await popup.locator('.slip-item').evaluateAll(cards => cards.map(card => Number(card.dataset.itemIndex)))).join() === '0,1,2,3,4,5');
   check('Single compact slip includes reference, buyer and its physical size', await popup.locator('.slip-reference').count() === 1 && await popup.locator('.slip-buyer-name').count() === 1 && /sheet order slip/.test(await popup.locator('.slip-number').innerText()));
-  check('The complete payment breakdown appears only on the final slip', await popup.locator('.slip-payment').count() === 1 && await popup.locator('.slip').last().locator('.slip-total').innerText() === 'Order total\n₱3,663.00');
+  check('Every continuation excludes payment and total blocks', await popup.locator('.slip-payment,.slip-total,.slip-price').count() === 0 && !/₱/.test(await popup.locator('#slips').innerText()));
   check('Pickup preserves its saved location/hours but excludes general customer pickup instructions', (await popup.locator('#slips').innerText()).includes('Collection at the kitchen') && !/Unit 3B|NEW ADDRESS|NEW HOURS|NEW PICKUP|CUSTOMER-PICKUP-GUIDE|Pickup instructions/.test(await popup.locator('#slips').innerText()));
   check('Customer-entered preparation instructions still print', (await popup.locator('#slips').innerText()).includes('Keep chilled. Box separately.'));
   check('Large order has no clipped content', await noOverflow(popup));
@@ -154,7 +155,7 @@ try {
   const mediumItems=Array.from({length:12},(_,i)=>item(`Treat ${i+1}`,1,13000,`Flavour ${i+1}`));
   const medium={...small,id:'medium-order',reference:'SAMPLE-HALF',items:mediumItems,subtotal_cents:156000,discount_cents:0,total_cents:166000,promo_snapshot:null};
   popup=await print(medium);
-  check('Twelve items expand to one half-sheet slip with all details readable',await popup.locator('.slip').count()===1&&await popup.locator('.slip').getAttribute('data-size')==='half'&&await popup.locator('.slip-item').count()===12&&await noOverflow(popup));
+  check('Twelve items fit one slip with all details readable',await popup.locator('.slip').count()===1&&await popup.locator('.slip-item').count()===12&&await noOverflow(popup));
   const halfDimensions=await popup.locator('.slip').evaluate(el=>({width:el.offsetWidth*25.4/96,height:el.offsetHeight*25.4/96}));
   check('Expanded slip is landscape and fits within half of A4 or Letter',halfDimensions.width>halfDimensions.height&&halfDimensions.width<=254.8&&halfDimensions.height<=101.9);
   await popup.locator('.slip').screenshot({path:join(output,'half-slip.png')});await popup.pdf({path:join(output,'half-slip.pdf'),preferCSSPageSize:true,printBackground:true});await popup.close();
@@ -167,7 +168,7 @@ try {
   check('Extra-long mixed-box selections continue without losing characters', chunks.join('') === longOptions && chunks.length > 1);
   check('Long instructions continue without losing characters', instructionChunks.join('') === longNote && instructionChunks.length > 1);
   check('Only exceptional long orders need extra half-sheet slips',await popup.locator('.slip').count()>1&&await popup.locator('.slip:not([data-size=half])').count()===0);
-  check('Long text does not clip and totals remain on the last slip', await noOverflow(popup) && await popup.locator('.slip').last().locator('.slip-payment').count() === 1);
+  check('Long text does not clip and every slip excludes totals', await noOverflow(popup) && await popup.locator('.slip-payment,.slip-total').count() === 0);
   await popup.pdf({ path: join(output, 'long-details.pdf'), preferCSSPageSize: true, printBackground: true });
   await popup.close();
 
@@ -192,10 +193,10 @@ try {
   imageDelay = 0;
   await popup.close();
   popup = await print({ ...small, refund_label: true, fulfillment_status: 'cancelled', payment_status: 'under_review' });
-  check('Cancelled/refunded/unapproved orders print their actual status', (await popup.locator('.slip-state').innerText()).includes('Refund label | Cancelled | Payment: Under review'));
+  check('Cancelled orders preserve operational status without payment details', (await popup.locator('.slip-state').innerText())==='Cancelled');
   await popup.close();
   popup = await print({ ...small, buyer: {}, recipient: {}, address: {}, items: [], instructions: '' });
-  check('Older incomplete orders still produce a printable summary', await popup.locator('.slip-payment').count() === 1 && await noOverflow(popup));
+  check('Older incomplete orders still produce a printable summary', await popup.locator('.slip').count() === 1 && await noOverflow(popup));
   await popup.close();
 
   const batch = [small, { ...large, id: 'order-2' }, { ...small, id: 'order-3', reference: 'SAMPLE-PICKUP', method: 'pickup', buyer: { ...small.buyer, name: 'Sam Reyes' }, instructions: 'Pack the flavors separately.', delivery_cents: 0, total_cents: 58500 }];
@@ -219,7 +220,7 @@ try {
   check('Select all shown orders selects the full current result', await page.locator('[data-print-order]:checked').count() === 3);
   popup = await selectedPreview();
   check('Batch preview allows paper choice before opening the print dialog', !await popup.evaluate(() => window.printCalls) && !await popup.locator('#paper-size').isDisabled());
-  check('Three selected orders share one sheet without unnecessary continuations', await popup.locator('.print-sheet').count() === 1 && await popup.locator('.slip').count() === 3 && await popup.locator('.slip-payment').count() === 3);
+  check('Three selected orders share one sheet without financial details', await popup.locator('.print-sheet').count() === 1 && await popup.locator('.slip').count() === 3 && await popup.locator('.slip-payment').count() === 0);
   const dimensions = await popup.locator('.slip').first().evaluate(el => ({ width: el.offsetWidth * 25.4 / 96, height: el.offsetHeight * 25.4 / 96 }));
   check('Every slip is five inches wide and four inches high', Math.abs(dimensions.width - 127) < .3 && Math.abs(dimensions.height - 101.6) < .3);
   await popup.emulateMedia({ media: 'print' });

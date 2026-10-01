@@ -1,4 +1,4 @@
-import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=heic-2';
+import { prepareGalleryImage, galleryImageAccept } from './gallery-image.js?v=approved-20261002-1';
 import { confirmDialog } from './site-dialog.js?v=brand-20261001';
 import { defaultShopFeature, shopFeatureMarkup } from './website-content.js?v=brand-20261001';
 import { esc, validPage } from './homepage-view.js?v=homepage-1';

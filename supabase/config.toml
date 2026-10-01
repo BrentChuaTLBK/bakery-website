@@ -1,5 +1,9 @@
 project_id = "tlb-kitchen-ordering"
 
+[functions.cake-inquiry]
+# Public inquiry; bounded attachments and durable service-only send reservations.
+verify_jwt = false
+
 [functions.academy-media]
 # The handler verifies the current customer/admin JWT and upload ownership.
 verify_jwt = false
