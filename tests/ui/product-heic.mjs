@@ -75,8 +75,8 @@ try {
     assert.equal(Buffer.from(uploaded.header).toString('ascii', 8, 12), 'WEBP');
     assert.equal(await page.locator('[name="description"]').inputValue(), 'Preserve this draft');
     await input.setInputFiles({name:'broken.heic',mimeType:'image/heic',buffer:Buffer.from('Not an image')});
-    await page.waitForFunction(() => document.querySelector('[data-form="product"] .form-error').textContent.includes('could not be converted'));
-    assert.equal(await page.locator('.photo-tile').count(), 1);
+    await page.waitForFunction(() => document.querySelector('#product-photo-status').textContent.includes('could not be converted'));
+    assert.equal(await page.locator('.photo-tile').count(), 1);await page.getByRole('button',{name:'Continue without the failed photo',exact:true}).click();
     assert(!(await page.locator('[data-form="product"] button[type="submit"]').isDisabled()));
     const jpeg = await page.evaluate(() => {
       const canvas = document.createElement('canvas'); canvas.width = 10; canvas.height = 10;

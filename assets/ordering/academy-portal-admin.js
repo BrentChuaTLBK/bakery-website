@@ -1,7 +1,7 @@
-import {mountConversationList} from './academy-conversations.js?v=academy-r2-1';
+import {mountConversationList} from './academy-conversations.js?v=approved-20261002-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
-import {mountRecipeEditor,bindRecipePreview} from './academy-recipe-editor.js?v=academy-r2-1';
-import {bindAnnouncementPreview,bindUpcomingPreview} from './academy-announcement-view.js?v=academy-r2-1';
+import {mountRecipeEditor,bindRecipePreview} from './academy-recipe-editor.js?v=approved-20261002-1';
+import {bindAnnouncementPreview,bindUpcomingPreview} from './academy-announcement-view.js?v=approved-20261002-1';
 export async function mountAcademyAdmin(ui){
  const {api,root,user,shell,notice,heading,empty,field,area,select,check,link,button,esc,date,photo,hydrate,dialog,formSubmit,uploadPhotos,productImageAccept}=ui;
  const boot=await api('admin_bootstrap'),[requestedView,id]=location.hash.slice(1).split('/');
@@ -79,7 +79,7 @@ export async function mountAcademyAdmin(ui){
  root.querySelector('form').classList.add('ap-recipe-edit-form');
  const readVariants=mountRecipeEditor(root.querySelector('#ap-components'),r.document,ui);
  bindRecipePreview(root.querySelector('form'),r,readVariants,ui);
- root.querySelector('[data-action=source-photos]')?.addEventListener('click',async event=>{const btn=event.currentTarget;btn.disabled=true;try{const sources=await api('recipe_source_photos',{id});const {recipeFileBlob}=await import('./client.js?v=academy-audit-1');for(const source of sources){const blob=await recipeFileBlob(source.path);await uploadPhotos([new File([blob],source.name,{type:blob.type})],{purpose:'recipe',recipe_id:id},root.querySelector('#ap-import-photos'));}notice(sources.length?'Independent product photos copied.':'No supported product photos in this source recipe.');}catch(e){notice(academyErrorMessage(e),true);}finally{btn.disabled=false;}});
+ root.querySelector('[data-action=source-photos]')?.addEventListener('click',async event=>{const btn=event.currentTarget;btn.disabled=true;try{const sources=await api('recipe_source_photos',{id});const {recipeFileBlob}=await import('./client.js?v=approved-20261002-1');for(const source of sources){const blob=await recipeFileBlob(source.path);await uploadPhotos([new File([blob],source.name,{type:blob.type})],{purpose:'recipe',recipe_id:id},root.querySelector('#ap-import-photos'));}notice(sources.length?'Independent product photos copied.':'No supported product photos in this source recipe.');}catch(e){notice(academyErrorMessage(e),true);}finally{btn.disabled=false;}});
  formSubmit(root.querySelector('form'),async(data,f)=>{const saved=await saveOnce(f,'save_recipe',{id:id==='new'?null:id,revision:r.revision,title:data.get('title'),document:{description:data.get('description'),student_notes:data.get('student_notes'),student_tips:data.get('student_tips'),variants:readVariants()}});await thumbnail('recipe',saved.id,f);if(id==='new')location.hash='recipes/'+saved.id;else{await refresh();notice('Independent student recipe version saved.');}});return;
  }
  if(['announcements','upcoming'].includes(view)){
@@ -112,6 +112,6 @@ export async function mountAcademyAdmin(ui){
  audience.onchange=showRecipientDetails;showRecipientDetails();
  formSubmit(composer,async data=>{const payload={...Object.fromEntries(data),kind};payload.emails=lines(payload.emails);const preview=await api('broadcast_preview',payload);const d=dialog(newsletter?'Review Academy newsletter':'Review class email',`<h3>${esc(payload.subject)}</h3><p class="ap-copy">${esc(payload.body)}</p><p>${preview.recipients} ${newsletter?'opted-in subscribers':'eligible accounts'}.</p>${newsletter?'<p>Only Academy newsletter subscribers are included.</p>':'<p>For essential class communications. News and promotions belong in Newsletter.</p>'}<p class="ap-banner error" data-send-error role="alert" tabindex="-1" hidden></p>${button(newsletter?'Queue newsletter':'Queue class email','send')}`);const requestKey=crypto.randomUUID();const sendButton=d.querySelector('[data-action=send]');let sending=false;sendButton.onclick=async()=>{if(sending)return;sending=true;sendButton.disabled=true;try{const sent=await api('broadcast_send',{...payload,idempotency_key:requestKey});d.close();await refresh();notice(`${sent.recipients} emails queued for delivery.`);}catch(e){const error=d.querySelector('[data-send-error]');error.textContent=academyErrorMessage(e);error.hidden=false;error.focus();}finally{sending=false;sendButton.disabled=false;}};});return;
  }
- if(view==='backup'){const {mountAcademyBackup}=await import('./academy-portal-backup.js');return mountAcademyBackup({...ui,draw});}
+ if(view==='backup'){const {mountAcademyBackup}=await import('./academy-portal-backup.js?v=approved-20261002-1');return mountAcademyBackup({...ui,draw});}
  draw(empty('Choose an Academy section.'));
 }

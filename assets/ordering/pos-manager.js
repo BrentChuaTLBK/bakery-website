@@ -1,10 +1,10 @@
 import {posAppMarkup,refreshPOSConnection} from './pos-app.js?v=pos-app-1';
-import {escapeHtml as esc,money,manilaDate} from './client.js?v=academy-1';
+import {escapeHtml as esc,money,manilaDate} from './client.js?v=approved-20261002-1';
 import {accountingDatePicker,bindAccountingDates} from './accounting-date-picker.js?v=branded-calendars-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {POS_METHODS,pesoCents,posEstimate,posOrderUrl,salesSource,productsDue,deliveryStatusText} from './pos.js?v=pos-1';
 
-import {defaultPOSConfig,posPaymentFields,posCashView,posMethodsView} from './pos-register.js?v=pos-cash-1';
+import {defaultPOSConfig,posPaymentFields,posCashView,posMethodsView} from './pos-register.js?v=approved-20261002-1';
 
 const amount=cents=>(Number(cents||0)/100).toFixed(2);
 const field=(name,label,value='',type='text',attrs='')=>type==='date'?accountingDatePicker(name,label,value,manilaDate(),{attrs}):`<label class="field">${esc(label)}<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${attrs}></label>`;

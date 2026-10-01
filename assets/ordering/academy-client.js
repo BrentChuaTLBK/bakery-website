@@ -1,5 +1,5 @@
-import {academyApi,academyUpload,academySignedUrls} from './client.js?v=academy-1';
-import {prepareGalleryImage,galleryImageAccept} from './gallery-image.js?v=heic-2';
+import {academyApi,academyUpload,academySignedUrls} from './client.js?v=approved-20261002-1';
+import {prepareGalleryImage,galleryImageAccept} from './gallery-image.js?v=approved-20261002-1';
 import {assetIds} from './academy-model.js';
 export {academyApi,galleryImageAccept};
 export async function academyImages(content){
@@ -8,9 +8,9 @@ export async function academyImages(content){
  return map;
 }
 export async function uploadAcademyPhoto(file,onProgress=()=>{}){
- onProgress('Converting to WebP…');const prepared=await prepareGalleryImage(file),id=crypto.randomUUID();
+ onProgress('Preparing photo…');const prepared=await prepareGalleryImage(file),id=crypto.randomUUID();
  onProgress('Uploading…');await academyUpload(prepared.file,id);
- onProgress('Saving image…');const asset=await academyApi('register_asset',{id,name:file.name,width:prepared.width,height:prepared.height});
+ onProgress('Saving image…');const asset=await academyApi('register_asset',{id,name:file.name,mime_type:prepared.file.type,width:prepared.width,height:prepared.height});
  const urls=await academySignedUrls([asset.storage_path]);return {...asset,url:urls[0]?.signedUrl||''};
 }
 

@@ -4,7 +4,7 @@ import { config } from './config.js';
 // private token from the address bar, before loading any network-backed module.
 let clientPromise;
 async function client() {
-  clientPromise ||= import('./client.js');
+  clientPromise ||= import('./client.js?v=approved-20261002-1');
   const value = await clientPromise;
   await value.ready;
   return value;

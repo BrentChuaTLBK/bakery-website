@@ -52,8 +52,8 @@ export function mountRecipeEditor(host,document,{esc}){
  });
  render();return ()=>clone(variants);
 }
-import {prepareProductImage} from './product-image.js';
-import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=academy-r2-1';
+import {prepareProductImage} from './product-image.js?v=approved-20261002-1';
+import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=approved-20261002-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
 
 export function bindRecipePreview(form,record,readVariants,ui){

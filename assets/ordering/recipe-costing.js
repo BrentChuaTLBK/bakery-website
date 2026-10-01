@@ -1,4 +1,4 @@
-import {inputQuantity} from './recipe-math.js?v=approved-ux-1';
+import {inputQuantity} from './recipe-math.js?v=approved-20261002-1';
 import {recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const saleUnits=[['each','Each'],['box','Box'],['whole_cake','Whole cake'],['tray','Tray'],['set','Set']];

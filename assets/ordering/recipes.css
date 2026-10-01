@@ -152,3 +152,5 @@
  .recipe-cost-controls{gap:12px}.recipe-cost-controls>div{grid-column:1/-1}.recipe-cost-controls .recipe-segmented{flex-wrap:nowrap}.recipe-cost-controls button{flex:1}
  .recipe-cost-sheet .recipe-cost-highlights{grid-template-columns:repeat(2,minmax(0,1fr))}.recipe-cost-sheet .recipe-cost-highlights>div:last-child:nth-child(odd){grid-column:1/-1}
 }
+
+.recipe-scaling-option{margin:16px 0 22px}.recipe-scaling-option>.danger{margin-top:10px}

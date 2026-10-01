@@ -1,7 +1,7 @@
 import {recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
-import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=approved-ux-1';
-import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=approved-ux-1';
-import {productionPlan,recipeSections} from './recipe-model.js?v=approved-ux-1';
+import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=approved-20261002-1';
+import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=approved-20261002-1';
+import {productionPlan,recipeSections} from './recipe-model.js?v=approved-20261002-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,rd=false,settings,api,fileUrl,dialog}) {
  await api('export_authorize',{kind:'print'});

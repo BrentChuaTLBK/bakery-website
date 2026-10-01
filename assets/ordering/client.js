@@ -1,4 +1,6 @@
 import { config } from './config.js';
+import {imageExtension} from './image-format.js?v=approved-20261002-1';
+import './heic-preview.js?v=approved-20261002-1';
 
 const setupMessage = 'Backend setup is pending. Accounts and orders will be available after the shop owner connects the ordering service.';
 const currentUrl = new URL(window.location.href);
@@ -129,6 +131,12 @@ export async function recipeApi(action,payload={}) {
 }
 export async function uploadRecipeFile(file) {
   if(!file?.size || file.size>25*1024*1024)throw Error('Choose a file up to 25 MB.');
+  // Covers imported recipe photos as well as product, process, packaging and
+  // testing photos. Hash and reserve the actual converted upload, not its source.
+  if((file.type.startsWith('image/')||/\.(jpe?g|png|webp|avif|gif|bmp|heic|heif)$/i.test(file.name))&&file.type!=='image/webp'){
+    const {prepareGalleryImage,preparedImageFiles}=await import('./gallery-image.js?v=approved-20261002-1');
+    if(!preparedImageFiles.has(file))file=(await prepareGalleryImage(file,{format:'webp'})).file;
+  }
   const bytes=await file.arrayBuffer();
   const sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
   const record=await recipeApi('reserve_file',{filename:file.name,mime_type:file.type,size_bytes:file.size,sha256});
@@ -146,7 +154,7 @@ export async function recipeFileUrl(path,kitchenContext=null) {
       body:JSON.stringify({...kitchenContext,file_id:path}),signal:AbortSignal.timeout(15000),
     });
     if(!response.ok)throw Error('Kitchen photo access could not be verified.');
-    const blob=await response.blob();if(!['image/jpeg','image/png','image/webp'].includes(blob.type))throw Error('This kitchen photo is unavailable.');
+    const blob=await response.blob();if(!['image/jpeg','image/png','image/webp','image/heic'].includes(blob.type))throw Error('This kitchen photo is unavailable.');
     return URL.createObjectURL(blob);
   }
   const {data,error}=await client.storage.from('recipe-files').createSignedUrl(path,900);
@@ -231,9 +239,10 @@ export async function academyPortalUpload(id, file, onProgress = () => {}) {
   });
 }
 export async function academyUpload(file,id) {
-  if(file.type!=='image/webp'||file.size>5*1024*1024)throw new Error('Choose a converted WebP image up to 5 MB.');
+  const extension=imageExtension(file.type);
+  if(!extension||file.size>25*1024*1024)throw new Error('Choose a PNG, JPEG, WebP, or HEIC image up to 25 MB.');
   const client=await connection();
-  const {error}=await client.storage.from('academy-photos').upload(id+'.webp',file,{contentType:'image/webp',upsert:false});
+  const {error}=await client.storage.from('academy-photos').upload(id+'.'+extension,file,{contentType:file.type,upsert:false});
   if(error)throw new Error(error.message || 'Photo upload failed.');
 }
 export async function academySignedUrls(paths) {
@@ -291,8 +300,11 @@ export async function websiteVisitorStats({ signal } = {}) {
 
 export async function upload(file, { kind = 'proof', order_id, token, payment_reference, payment_stage, delivery_fee_cents } = {}) {
   if (!(file instanceof File) || !file.size) throw new Error('Choose a photo to upload.');
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Choose a JPG, PNG, or WebP image.');
-  if (file.size > 5 * 1024 * 1024) throw new Error('The image must be 5 MB or smaller.');
+  const {prepareGalleryImage,preparedImageFiles}=await import('./gallery-image.js?v=approved-20261002-1');
+  if(!preparedImageFiles.has(file))file=(await prepareGalleryImage(file)).file;
+  if (!imageExtension(file.type)) throw new Error('Choose a JPG, PNG, WebP, or HEIC image.');
+  const maximum=kind==='proof'?5:25;
+  if (file.size > maximum * 1024 * 1024) throw new Error(`The image must be ${maximum} MB or smaller.`);
   const body = new FormData();
   body.set('file', file);
   body.set('kind', kind);

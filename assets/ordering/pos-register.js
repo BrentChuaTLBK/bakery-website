@@ -1,4 +1,4 @@
-import {escapeHtml as esc,money} from './client.js?v=academy-1';
+import {escapeHtml as esc,money} from './client.js?v=approved-20261002-1';
 
 export const defaultPOSConfig=()=>({revision:1,methods:[{id:'cash',label:'Cash',active:true},{id:'gcash',label:'GCash',active:true},{id:'bdo',label:'BDO',active:true},{id:'eastwest',label:'EastWest',active:true}]});
 const amount=cents=>(Number(cents||0)/100).toFixed(2);

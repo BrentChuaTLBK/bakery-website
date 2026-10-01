@@ -1,6 +1,6 @@
 import {esc,plain,classLink,orderedClasses,dateLabel,enquiryUrl,instagramUrl,missingContent} from './academy-model.js';
 import {academyPhoto as renderPhoto,bindAcademyInteractions} from './academy-view.js?v=first-view-2';
-import {academyApi,academyImages} from './academy-client.js';
+import {academyApi,academyImages} from './academy-client.js?v=approved-20261002-1';
 import {createAcademyImageCache,bindAcademyLazyImages,preloadAcademyBatch} from './academy-loading.js?v=first-view-2';
 import {showLoading,finishLoading} from './loading-state.js?v=loading-1';
 

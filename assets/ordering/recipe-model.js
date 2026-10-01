@@ -1,4 +1,4 @@
-import {quantity,inputQuantity,exact,multiply,scaleIngredients,ingredientTotals,componentPlan,scaledYield,unitInfo,add,compare} from './recipe-math.js?v=approved-ux-1';
+import {quantity,inputQuantity,exact,multiply,scaleIngredients,ingredientTotals,componentPlan,scaledYield,unitInfo,add,compare} from './recipe-math.js?v=approved-20261002-1';
 export const id=()=>crypto.randomUUID();
 export const clone=value=>structuredClone(value);
 export const ingredient=()=>({id:id(),name:'',quantity:'',unit:'g',notes:'',brand:''});
@@ -50,6 +50,14 @@ export function validateRecipe(doc) {
       try{const q=inputQuantity(v.yield[key]);if(key==='loss_percent'&&compare(q,quantity('100'))>0)throw Error();}
       catch{errors.push(`${v.name}: ${key.replaceAll('_',' ')} must be nonnegative${key==='loss_percent'?' and no greater than 100%':''}.`);}
     }
+    const scaleOptions=v.yield.scale_options||[],scaleIds=new Set();
+    if(!Array.isArray(scaleOptions)||scaleOptions.length>12)errors.push(`${v.name}: use up to 12 scaling options.`);
+    else for(const option of scaleOptions){
+      if(!option.label?.trim()||option.label.length>60||!option.unit?.trim()||option.unit.length>60)errors.push(`${v.name}: name each scaling option and its unit (up to 60 characters).`);
+      if(!/^[a-zA-Z0-9_-]{1,64}$/.test(option.id)||scaleIds.has(option.id))errors.push(`${v.name}: scaling option identifiers must be unique.`);scaleIds.add(option.id);
+      try{if(!inputQuantity(option.quantity).n)throw Error();}catch{errors.push(`${option.label||'Scaling option'}: enter a positive base amount.`);}
+    }
+    if(v.yield.scale_default&&v.yield.scale_default!=='multiplier'&&!scaleOptions.some(option=>'custom:'+option.id===v.yield.scale_default))errors.push(`${v.name}: choose an available default scaling option.`);
     for(const g of v.groups)for(const r of g.ingredients) {
       if(!r.name?.trim())errors.push(`${v.name} / ${g.name}: name each ingredient or remove the empty row.`);
       try{inputQuantity(r.quantity);}catch{errors.push(`${r.name||'Ingredient'}: enter a nonnegative quantity or fraction, at most 1 trillion.`);}

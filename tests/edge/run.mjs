@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const result = spawnSync(process.execPath, [
   '--experimental-transform-types', '--test',
+  fileURLToPath(new URL('./cake-inquiry.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./email-burst.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./calendar-sync.test.mjs', import.meta.url)),
   fileURLToPath(new URL('./order-backup.test.mjs', import.meta.url)),
@@ -22,4 +23,3 @@ if (result.error) {
   process.exit(1);
 }
 process.exit(result.status ?? 1);
-

@@ -5,5 +5,6 @@ export const jpeg=Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYG
 export function structuralHeic(width=4,height=3){
  const box=(name,...parts)=>{const body=Buffer.concat(parts),head=Buffer.alloc(8);head.writeUInt32BE(body.length+8);head.write(name,4);return Buffer.concat([head,body]);};
  const ispe=Buffer.alloc(12);ispe.writeUInt32BE(width,4);ispe.writeUInt32BE(height,8);
- return Buffer.concat([box('ftyp',Buffer.from('heic'),Buffer.alloc(4),Buffer.from('mif1heic')),box('meta',Buffer.alloc(4),box('pitm',Buffer.alloc(6)),box('iloc',Buffer.alloc(8)),box('iinf',Buffer.alloc(6)),box('iprp',box('ipco',box('ispe',ispe),box('hvcC',Buffer.alloc(23))))),box('mdat',Buffer.from([1,2,3,4]))]);
+ const handler=Buffer.alloc(12);handler.write('pict',8);
+ return Buffer.concat([box('ftyp',Buffer.from('heic'),Buffer.alloc(4),Buffer.from('mif1heic')),box('meta',Buffer.alloc(4),box('hdlr',handler),box('pitm',Buffer.alloc(6)),box('iloc',Buffer.alloc(8)),box('iinf',Buffer.alloc(6)),box('iprp',box('ipco',box('ispe',ispe),box('hvcC',Buffer.alloc(23))))),box('mdat',Buffer.from([1,2,3,4,5,6,7,8,9]))]);
 }

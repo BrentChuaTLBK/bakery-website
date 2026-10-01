@@ -1,24 +1,25 @@
 import {brandName} from './brand.js?v=brand-20261001';
-import {mountMaintenance} from './maintenance-admin.js?v=maintenance-1';
+import {mountMaintenance} from './maintenance-admin.js?v=approved-20261002-1';
 let maintenanceController=null;
-import {mountVoucherCampaigns} from './voucher-campaigns.js?v=brand-20261001';
+import {mountVoucherCampaigns} from './voucher-campaigns.js?v=approved-20261002-1';
 let voucherController=null;
 import {bindDashboardNav} from './dashboard-nav.js?v=grouped-nav-1';
 import {paymentSettingsMarkup,readPaymentSettings,bindPaymentSettings} from './payment-options-manager.js?v=brand-20261001';
-import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=brand-20261001';
+import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=approved-20261002-1';
 import { confirmDialog } from './site-dialog.js?v=brand-20261001';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
-import { mountAcademy } from './academy-manager.js?v=brand-20261001';
+import { mountAcademy } from './academy-manager.js?v=approved-20261002-1';
 import { renderNewsletterPromos } from './newsletter-promos.js?v=vouchers-1';
-import { prepareProductImage, productImageAccept } from './product-image.js?v=heic-2';
-import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=pos-2';
+import { prepareProductImage, productImageAccept } from './product-image.js?v=approved-20261002-1';
+import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate, toast, upload, websiteVisitorStats } from './client.js?v=approved-20261002-1';
 import { prepareOrderSave, normalizeOrderEditReason } from './order-edit-save.js?v=custom-confirmation-1';
 import { confirmOrderTotalChange } from './order-edit-confirmation.js?v=custom-confirmation-1';
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=pos-2';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
-import { printOrderSlips } from './order-slips.js?v=brand-20261001';
+import { printOrderSlips } from './order-slips.js?v=approved-20261002-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
+import { duplicateProductDraft } from './product-duplicate.js?v=approved-20261002-1';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
 import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
 import { quantitySelection, quantitySaveRows, quantityStatus } from './daily-quantities.js?v=daily-quantities-1';
@@ -29,15 +30,15 @@ import { renderPickupReminder } from './pickup-reminder.js?v=pickup-reminder-1';
 import { mountAccounting, mountDeliveryAccounting } from './accounting-manager.js?v=brand-20261001';
 import { monthRange } from './accounting.js?v=accounting-1';
 import { renderWebsiteVisitors, createVisitorPoller } from './website-visitors.js?v=visitors-2';
-import { mountGalleryManager } from './gallery-manager.js?v=brand-20261001';
-import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=brand-20261001';
+import { mountGalleryManager } from './gallery-manager.js?v=approved-20261002-1';
+import { mountPartyCartPhotos } from './party-cart-photos-manager.js?v=approved-20261002-1';
 import { orderedCatalogProducts, productCategoryIds } from './catalog-ordering.js?v=multi-category-1';
 import { mountCatalogOrder } from './catalog-order.js?v=brand-20261001';
 import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=brand-20261001';
 
 import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
-import {mountPOS} from './pos-manager.js?v=brand-20261001';
+import {mountPOS} from './pos-manager.js?v=approved-20261002-1';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -60,6 +61,9 @@ state.promoFilter = '';
 state.printSelection = new Set();
 let activeOrder = null;
 let productDraft = null;
+let productCopySource = null;
+let productUpload = null;
+let productPhotoError = '';
 let clearPhotoDrag = () => {};
 let catalogOrder = null;
 let editDraft = null;
@@ -88,7 +92,7 @@ window.addEventListener('pageshow', syncPromoStatuses);
 window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();maintenanceController?.destroy();});
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
-  if (catalogOrder?.dirty || catalogOrder?.busy || ['#pos-manager','#payment-options-editor','#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#voucher-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
+  if (productUpload || catalogOrder?.dirty || catalogOrder?.busy || ['#pos-manager','#payment-options-editor','#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#voucher-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
 });
 bindDateCalendars($('#workspace'));
 bindAccountingDates($('#workspace'));
@@ -144,7 +148,7 @@ function setupNotice() {
 }
 function showDialog(title, content, { preserveScroll = false, focusSelector } = {}) {
   // Actions await the discard decision before replacing a catalog editor.
-  if (catalogOrder?.dirty || catalogOrder?.busy) return false;
+  if (productUpload || catalogOrder?.dirty || catalogOrder?.busy) return false;
   catalogOrder?.destroy(); catalogOrder = null;
   clearPhotoDrag();
   const scrollTop = preserveScroll && modal.open ? modal.scrollTop : 0;
@@ -172,7 +176,7 @@ async function leaveCatalogEditor() {
   editor.destroy(); catalogOrder = null;
   return true;
 }
-async function closeDialog() { if (!await leaveCatalogEditor()) return; clearPhotoDrag(); modal.close(); modalReturnFocus?.focus?.({ preventScroll: true }); }
+async function closeDialog() { if (productUpload || !await leaveCatalogEditor()) return; clearPhotoDrag(); modal.close(); modalReturnFocus?.focus?.({ preventScroll: true }); }
 // Editor dismissal is explicit: backdrop taps and Escape must not discard work.
 modal.addEventListener('cancel', event => event.preventDefault());
 $('#dialog-close').addEventListener('click', closeDialog);
@@ -227,13 +231,13 @@ function render() {
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if(state.view==='backups'){
     const root=$('#backup-manager');root.textContent='Opening order backups…';
-    Promise.all([import('./backup-manager.js?v=brand-20261001'),import('./client.js?v=order-backups-2')]).then(([view,client])=>{
+    Promise.all([import('./backup-manager.js?v=approved-20261002-1'),import('./client.js?v=approved-20261002-1')]).then(([view,client])=>{
       if(root.isConnected)view.mountBackups(root,{role:state.role,connected:state.connected,api:client.orderBackupApi,connection:client.orderBackupConnection,archive:client.orderBackupDownload});
     }).catch(()=>{if(root.isConnected)root.textContent='Order backups could not load. Open this tab again to retry.';});
   }
   if (state.view === 'homepage') {
     const root = $('#homepage-manager'); root.textContent = 'Opening the Website content editor…';
-    Promise.all([import('./homepage-manager.js?v=brand-20261001'), import('./homepage-client.js?v=homepage-1')]).then(([view, client]) => {
+    Promise.all([import('./homepage-manager.js?v=approved-20261002-1'), import('./homepage-client.js?v=approved-20261002-1')]).then(([view, client]) => {
       if(root.isConnected) view.mountHomepage(root,{role:state.role,connected:state.connected,api:client.homepageApi,upload});
     }).catch(() => { if(root.isConnected) root.textContent = 'The Home page editor could not load. Open this tab again to retry.'; });
   }
@@ -248,12 +252,12 @@ function render() {
     mountAcademy($('#academy-manager'),{role:state.role,connected:state.connected});
   }
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
-  if(state.view==='calendar')calendarController=mountCalendar($('#order-calendar-manager'),{api,calendarConnection:async(...args)=>(await import('./client.js?v=fulfillment-calendar-1')).calendarConnection(...args),role:state.role,connected:state.connected,openOrder,toast,esc,filters:state.calendarFilters});
+  if(state.view==='calendar')calendarController=mountCalendar($('#order-calendar-manager'),{api,calendarConnection:async(...args)=>(await import('./client.js?v=approved-20261002-1')).calendarConnection(...args),role:state.role,connected:state.connected,openOrder,toast,esc,filters:state.calendarFilters});
   clearSalesChart = bindSalesChart($('#workspace'));
-  if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=pos-2')).galleryApi(...args), upload });
+  if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=approved-20261002-1')).galleryApi(...args), upload });
   if (['packages', 'dessert'].includes(state.view)) {
     const page = state.view === 'dessert' ? 'dessert' : 'party', service = eventPage(page);
-    const invoke = name => async (...args) => (await import('./client.js?v=pos-2'))[name](...args);
+    const invoke = name => async (...args) => (await import('./client.js?v=approved-20261002-1'))[name](...args);
     mountPartyPackageManager($('#party-package-manager'), { role: state.role, connected: state.connected, page, api: invoke(service.packagesClient), cartApi: invoke(service.itemsClient) });
     mountPartyCartPhotos($('#party-cart-photo-manager'), { role: state.role, connected: state.connected, page, api: invoke(service.photosClient), upload });
   }
@@ -347,7 +351,7 @@ function productFiltersActive() {
 }
 function productResults(products) {
   if (!state.products.length) return `<section class="panel">${empty('Room for something delicious', 'Your ordering catalog starts empty. Add your own products, photos, and prices when you’re ready.', `<button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add your first product</button>`)}</section>`;
-  return products.length ? `<div class="product-grid">${products.map(product => `<article class="panel product-card"><div class="product-photo">${safeImage(product.photos?.[0]) ? `<img src="${esc(safeImage(product.photos[0]))}" alt="${esc(product.name)}" loading="lazy">` : '<span aria-hidden="true">♧</span>'}</div><div class="product-card-body"><h3>${esc(product.name)}</h3><p class="muted">${esc(productCategoryIds(product, state.categories).map(id => state.categories.find(c => c.id === id)?.name).join(' · ') || 'Uncategorized')}</p><div class="product-card-meta"><span>${product.lead_days} full production day${product.lead_days === 1 ? '' : 's'}</span><span>${product.allow_same_day === true ? '<span class="badge">Same-day eligible</span> ' : ''}${product.pickup_only ? '<span class="badge">Pickup only</span> ' : ''}${badge(product.active ? 'active' : 'hidden')}</span></div><div class="product-card-bottom"><strong>${money(product.price_cents)}</strong><div class="product-card-actions"><button class="button button-quiet" data-action="edit-product" data-id="${esc(product.id)}">${owner() ? 'Edit product' : 'View product'} →</button>${state.connected && state.role === 'owner' ? `<button type="button" class="button button-quiet product-delete-button" data-action="delete-product" data-id="${esc(product.id)}" aria-label="Delete ${esc(product.name)}">Delete</button>` : ''}</div></div></div></article>`).join('')}</div>` : `<section class="panel">${empty('No matching products', 'Try another product name, status, or category, or clear the filters.')}</section>`;
+  return products.length ? `<div class="product-grid">${products.map(product => `<article class="panel product-card"><div class="product-photo">${safeImage(product.photos?.[0]) ? `<img src="${esc(safeImage(product.photos[0]))}" alt="${esc(product.name)}" loading="lazy">` : '<span aria-hidden="true">♧</span>'}</div><div class="product-card-body"><h3>${esc(product.name)}</h3><p class="muted">${esc(productCategoryIds(product, state.categories).map(id => state.categories.find(c => c.id === id)?.name).join(' · ') || 'Uncategorized')}</p><div class="product-card-meta"><span>${product.lead_days} full production day${product.lead_days === 1 ? '' : 's'}</span><span>${product.allow_same_day === true ? '<span class="badge">Same-day eligible</span> ' : ''}${product.pickup_only ? '<span class="badge">Pickup only</span> ' : ''}${badge(product.active ? 'active' : 'hidden')}</span></div><div class="product-card-bottom"><strong>${money(product.price_cents)}</strong><div class="product-card-actions"><button class="button button-quiet" data-action="edit-product" data-id="${esc(product.id)}">${owner() ? 'Edit product' : 'View product'} →</button>${state.connected && state.role === 'owner' ? `<button type="button" class="button button-quiet" data-action="duplicate-product" data-id="${esc(product.id)}" aria-label="Duplicate ${esc(product.name)}">Duplicate</button><button type="button" class="button button-quiet product-delete-button" data-action="delete-product" data-id="${esc(product.id)}" aria-label="Delete ${esc(product.name)}">Delete</button>` : ''}</div></div></div></article>`).join('')}</div>` : `<section class="panel">${empty('No matching products', 'Try another product name, status, or category, or clear the filters.')}</section>`;
 }
 function updateProductResults() {
   const products = filteredProducts();
@@ -498,7 +502,18 @@ function teamView() {
 }
 
 function openProduct(id) {
+  if (productUpload) return;
+  productPhotoError = '';
+  productCopySource = null;
   productDraft = clone(state.products.find(p => p.id === id) || { name: '', description: '', category_id: '', category_ids: [], price_cents: 0, min_quantity: 1, lead_days: 1, active: false, pickup_only: false, allow_same_day: false, photos: [], option_groups: [], sort_order: 0 });
+  renderProductDialog();
+}
+function duplicateProduct(id) {
+  if (productUpload) return;
+  productPhotoError = '';
+  if (!state.connected || state.role !== 'owner') throw Error('Only the owner can duplicate products.');
+  const source=state.products.find(p=>p.id===id);
+  productDraft=duplicateProductDraft(source,state.products);productCopySource=source.name;
   renderProductDialog();
 }
 function captureProduct() {
@@ -548,8 +563,9 @@ function bindPhotoOrder() {
 }
 function renderProductDialog(view = {}) {
   const p = productDraft;
-  showDialog(p.id ? 'Edit product' : 'Add a little deliciousness', `<form data-form="product">${formError}<div class="field-row">${input('name', 'Product name', p.name, 'text', 'required maxlength="160"')}</div><fieldset class="product-categories"><legend>Categories</legend><p class="help-text">Choose every category where this product should appear. Leave all clear for Uncategorized.</p><div class="product-category-options">${state.categories.map(c => `<label class="check-field"><input type="checkbox" name="category_ids" value="${esc(c.id)}" ${productCategoryIds(p, state.categories).includes(c.id) ? 'checked' : ''} ${ownerLocked()}>${esc(c.name)}</label>`).join('') || '<span class="muted">Add a category to organize products.</span>'}</div></fieldset>${textarea('description', 'Description', p.description, 'Describe the bake, what is included, and anything customers should know.', 'maxlength="6000"')}<div class="field-row three">${input('price', 'Base price · PHP', amount(p.price_cents), 'number', 'required min="0" max="9999999" step="0.01"')}${input('min_quantity', 'Minimum sellable units', p.min_quantity, 'number', 'required min="1" max="9999" step="1"', 'For a cookie box, one unit is one whole box.')}${input('lead_days', 'Full production days', p.lead_days, 'number', 'required min="0" max="365" step="1"')}</div><div class="field-row">${check('active', 'Show this product in the shop', p.active)}</div><div class="subsection"><h3>Fulfillment</h3>${check('pickup_only', 'Pickup only — this product cannot be delivered', p.pickup_only === true, ownerLocked())}<p class="help-text">Use for cakes, fragile products, or any item you do not deliver. An order containing this product must use pickup.</p>${check('allow_same_day', 'Allow same-day orders', p.allow_same_day === true, ownerLocked())}<p class="help-text">For ready-stock products with 0 full production days. Same-day orders follow the cutoff in Production schedule; after the cutoff, the earliest date is tomorrow. With no cutoff, same-day orders remain available throughout the day. The fulfillment date must be open with stock available, and every product in the basket must allow same-day orders.</p></div>${productLabelEditor(p.label)}<div class="subsection"><h3>Product photos</h3><p class="muted">JPEG, PNG, WebP, or HEIC/HEIF · up to 25 MB each. Automatically converted to WebP, up to 1600 px. The first photo is the menu cover. Product photos are public.</p><p class="help-text" id="photo-order-help">Drag photos to rearrange them. On a keyboard, focus a photo and use the arrow keys. Save the product to publish the new order.</p><div id="product-photo-order">${renderProductPhotos(p.photos, { escapeHtml: esc, safeImage, disabled: Boolean(ownerLocked()) })}</div><p class="sr-only" id="photo-order-status" role="status" aria-live="polite" aria-atomic="true"></p>${input('photos', 'Upload photos', '', 'file', `accept="${productImageAccept}" multiple id="product-photos" ${ownerLocked()}`)}</div><div class="subsection"><div class="section-heading"><h3 class="no-margin">Options & mixed boxes</h3><button type="button" class="button button-secondary" data-action="add-group">+ Add option group</button></div><p class="muted">A required count of 1 creates a single choice. Larger counts let customers build a mix. A box of six requires six selections in total; only the box quantity uses daily stock.</p><div>${p.option_groups.map((group, gi) => `<div class="option-group"><div class="section-heading"><strong>Option group ${gi + 1}</strong><button class="button button-quiet" type="button" data-action="remove-group" data-index="${gi}">Remove group</button></div><div class="field-row">${input(`group_label_${gi}`, 'Group name', group.label, 'text', 'required placeholder="Flavors, size, or packaging"')}${input(`group_count_${gi}`, 'Required selections per unit', group.required_count, 'number', 'required min="1" max="100" step="1"')}</div><div class="option-choices">${group.choices.map((choice, ci) => `<div class="option-choice">${input(`choice_label_${gi}_${ci}`, 'Choice name', choice.label, 'text', 'required')}${input(`choice_price_${gi}_${ci}`, 'Surcharge · PHP / choice', amount(choice.surcharge_cents), 'number', 'required min="0" step="0.01"')}${check(`choice_active_${gi}_${ci}`, 'Available', choice.active !== false)}<button type="button" class="icon-button" data-action="remove-choice" data-group="${gi}" data-index="${ci}" aria-label="Remove choice">×</button></div>`).join('')}</div><button type="button" class="button button-quiet" data-action="add-choice" data-index="${gi}">+ Add choice</button></div>`).join('')}</div></div>${actions(p.id ? 'Save product' : 'Create product')}${p.id && state.connected && state.role === 'owner' ? `<section class="product-delete-section"><div><h3>Delete product</h3><p class="help-text">Permanently remove a product that has never been ordered. Products with order history can be hidden using “Show this product in the shop” above.</p></div><button type="button" class="button button-secondary product-delete-button" data-action="delete-product" data-id="${esc(p.id)}">Delete product</button></section>` : ''}</form>`, view);
+  showDialog(productCopySource ? 'Duplicate product' : p.id ? 'Edit product' : 'Add a little deliciousness', `<form data-form="product">${formError}${productCopySource?`<p class="notice">Unpublished copy of <strong>${esc(productCopySource)}</strong>. Edit the details below. Turn on “Show this product in the shop” when you are ready to publish.</p>`:''}<div class="field-row">${input('name', 'Product name', p.name, 'text', 'required maxlength="160"')}</div><fieldset class="product-categories"><legend>Categories</legend><p class="help-text">Choose every category where this product should appear. Leave all clear for Uncategorized.</p><div class="product-category-options">${state.categories.map(c => `<label class="check-field"><input type="checkbox" name="category_ids" value="${esc(c.id)}" ${productCategoryIds(p, state.categories).includes(c.id) ? 'checked' : ''} ${ownerLocked()}>${esc(c.name)}</label>`).join('') || '<span class="muted">Add a category to organize products.</span>'}</div></fieldset>${textarea('description', 'Description', p.description, 'Describe the bake, what is included, and anything customers should know.', 'maxlength="6000"')}<div class="field-row three">${input('price', 'Base price · PHP', amount(p.price_cents), 'number', 'required min="0" max="9999999" step="0.01"')}${input('min_quantity', 'Minimum sellable units', p.min_quantity, 'number', 'required min="1" max="9999" step="1"', 'For a cookie box, one unit is one whole box.')}${input('lead_days', 'Full production days', p.lead_days, 'number', 'required min="0" max="365" step="1"')}</div><div class="field-row">${check('active', 'Show this product in the shop', p.active)}</div><div class="subsection"><h3>Fulfillment</h3>${check('pickup_only', 'Pickup only — this product cannot be delivered', p.pickup_only === true, ownerLocked())}<p class="help-text">Use for cakes, fragile products, or any item you do not deliver. An order containing this product must use pickup.</p>${check('allow_same_day', 'Allow same-day orders', p.allow_same_day === true, ownerLocked())}<p class="help-text">For ready-stock products with 0 full production days. Same-day orders follow the cutoff in Production schedule; after the cutoff, the earliest date is tomorrow. With no cutoff, same-day orders remain available throughout the day. The fulfillment date must be open with stock available, and every product in the basket must allow same-day orders.</p></div>${productLabelEditor(p.label)}<div class="subsection"><h3>Product photos</h3><p class="muted">JPEG, PNG, WebP, or HEIC/HEIF · up to 25 MB each. WebP when available, up to 1600 px; otherwise the original PNG, JPEG or HEIC is kept. The first photo is the menu cover. Product photos are public.</p><p class="help-text" id="photo-order-help">Drag photos to rearrange them. On a keyboard, focus a photo and use the arrow keys. Save the product to publish the new order.</p><div id="product-photo-order">${renderProductPhotos(p.photos, { escapeHtml: esc, safeImage, disabled: Boolean(ownerLocked()) })}</div><p class="sr-only" id="photo-order-status" role="status" aria-live="polite" aria-atomic="true"></p>${input('photos', 'Upload photos', '', 'file', `accept="${productImageAccept}" multiple id="product-photos" ${ownerLocked()}`)}<p id="product-photo-status" role="status" tabindex="-1" class="${productPhotoError?'form-error':'help-text'}">${esc(productPhotoError)}</p>${productPhotoError?'<button type="button" class="button button-secondary" data-action="skip-failed-product-photo">Continue without the failed photo</button>':''}</div><div class="subsection"><div class="section-heading"><h3 class="no-margin">Options & mixed boxes</h3><button type="button" class="button button-secondary" data-action="add-group">+ Add option group</button></div><p class="muted">A required count of 1 creates a single choice. Larger counts let customers build a mix. A box of six requires six selections in total; only the box quantity uses daily stock.</p><div>${p.option_groups.map((group, gi) => `<div class="option-group"><div class="section-heading"><strong>Option group ${gi + 1}</strong><button class="button button-quiet" type="button" data-action="remove-group" data-index="${gi}">Remove group</button></div><div class="field-row">${input(`group_label_${gi}`, 'Group name', group.label, 'text', 'required placeholder="Flavors, size, or packaging"')}${input(`group_count_${gi}`, 'Required selections per unit', group.required_count, 'number', 'required min="1" max="100" step="1"')}</div><div class="option-choices">${group.choices.map((choice, ci) => `<div class="option-choice">${input(`choice_label_${gi}_${ci}`, 'Choice name', choice.label, 'text', 'required')}${input(`choice_price_${gi}_${ci}`, 'Surcharge · PHP / choice', amount(choice.surcharge_cents), 'number', 'required min="0" step="0.01"')}${check(`choice_active_${gi}_${ci}`, 'Available', choice.active !== false)}<button type="button" class="icon-button" data-action="remove-choice" data-group="${gi}" data-index="${ci}" aria-label="Remove choice">×</button></div>`).join('')}</div><button type="button" class="button button-quiet" data-action="add-choice" data-index="${gi}">+ Add choice</button></div>`).join('')}</div></div>${actions(productCopySource ? (p.active?'Publish product':'Save unpublished copy') : p.id ? 'Save product' : 'Create product')}${!productCopySource && p.id && state.connected && state.role === 'owner' ? `<section class="product-delete-section"><div><h3>Delete product</h3><p class="help-text">Permanently remove a product that has never been ordered. Products with order history can be hidden using “Show this product in the shop” above.</p></div><button type="button" class="button button-secondary product-delete-button" data-action="delete-product" data-id="${esc(p.id)}">Delete product</button></section>` : ''}</form>`, view);
   bindPhotoOrder();
+  if(productCopySource){const form=$('[data-form="product"]');form.elements.active.addEventListener('change',()=>{if(form.dataset.busy!=='true')$('button[type="submit"]',form).textContent=form.elements.active.checked?'Publish product':'Save unpublished copy';});}
   updateProductLabelPreview();
   for (const name of ['label_enabled', 'label_text', 'label_color']) {
     $('[data-form="product"]').elements.namedItem(name).addEventListener('input', updateProductLabelPreview);
@@ -774,12 +790,13 @@ async function deleteProduct(button, id) {
 }
 
 async function onAction(button) {
-  if (button.disabled) return;
+  if (button.disabled || productUpload) return;
   const action = button.dataset.action;
   const id = button.dataset.id;
   const index = Number(button.dataset.index);
   if (catalogOrder && action !== 'close-dialog' && !await leaveCatalogEditor()) return;
   switch (action) {
+    case 'skip-failed-product-photo': captureProduct(); productPhotoError=''; renderProductDialog({preserveScroll:true}); break;
     case 'acknowledge-email-alert': {
       const row = state.email_status.find(item => item.id === id);
       if (!row || row.alert_acknowledged) break;
@@ -816,6 +833,7 @@ async function onAction(button) {
       updateProductResults(); $('#product-search').focus(); break;
     case 'new-product': openProduct(); break;
     case 'edit-product': openProduct(id); break;
+    case 'duplicate-product': duplicateProduct(id); break;
     case 'delete-product': await deleteProduct(button, id); break;
     case 'categories': categoriesDialog(); break;
     case 'reorder-products': if (!ownerLocked()) catalogOrderDialog('products'); break;
@@ -1001,24 +1019,37 @@ document.addEventListener('change', async event => {
       if (target.value === 'percent') value.max = '100'; else value.removeAttribute('max');
     }
     if (target.id === 'product-photos') {
+      if (productUpload) return;
       captureProduct();
       const files = [...target.files];
+      if (!files.length) return;
       if (files.length + productDraft.photos.length > 12) throw new Error('Use up to 12 photos per product.');
       const form = target.closest('form');
       const errorBox = $('.form-error', form); errorBox.textContent = '';
-      target.disabled = true;
-      const saveButton = $('button[type="submit"]', form); saveButton.disabled = true;
+      const draft = productDraft, buttons = [...form.querySelectorAll('button'), $('#dialog-close')].map(button=>[button,button.disabled]);
+      productUpload = {draft,form}; productPhotoError=''; form.dataset.busy='true'; target.disabled = true;
+      buttons.forEach(([button])=>button.disabled=true);
+      let currentFile;
       try {
         for (const file of files) {
+          currentFile=file;
           toast(`Preparing ${file.name}…`);
+          $('#product-photo-status').textContent=`Preparing ${file.name}…`;
           const prepared = await prepareProductImage(file);
           toast(`Uploading ${prepared.name}…`);
+          $('#product-photo-status').textContent=`Uploading ${prepared.name}…`;
           const result = await upload(prepared, { kind: 'product' });
           if (!safeImage(result.url)) throw new Error('The upload service did not return a valid image URL.');
-          productDraft.photos.push(result.url);
+          if (productDraft !== draft || !form.isConnected) throw new Error('The product editor changed. Open the product and retry the photo.');
+          draft.photos.push(result.url);
         }
-        renderProductDialog({ preserveScroll: true }); toast('Photos uploaded. Save the product to publish your changes.');
-      } catch (error) { errorBox.textContent = error.message; } finally { target.disabled = !state.connected; saveButton.disabled = !state.connected || state.role !== 'owner'; }
+        toast('Photos uploaded. Save the product to publish your changes.');
+      } catch (error) { productPhotoError=`${currentFile?.name || 'Photo'} was not uploaded. ${error.message} Choose the failed photo again to retry, or explicitly continue without it.`; }
+      finally {
+        if (productDraft === draft && form.isConnected) captureProduct();
+        productUpload=null;form.dataset.busy='false';buttons.forEach(([button,disabled])=>button.disabled=disabled);target.disabled=false;
+        if (productDraft === draft && form.isConnected) renderProductDialog({preserveScroll:true,focusSelector:productPhotoError?'#product-photo-status':undefined});
+      }
     }
     if (target.hasAttribute('data-edit-product')) {
       captureEdit();
@@ -1077,12 +1108,14 @@ async function submitForm(form) {
   const type = form.dataset.form;
   switch (type) {
     case 'product': {
+      if (productUpload) throw Error('Wait for the photos to finish uploading.');
+      if (productPhotoError) throw Error('A photo has not uploaded. Retry it or choose Continue without the failed photo.');
       captureProduct();
       if (productDraft.allow_same_day && productDraft.lead_days !== 0) throw new Error('Same-day orders require 0 full production days. Set full production days to 0, or turn off Allow same-day orders.');
       if (productDraft.label.enabled && !productDraft.label.text) throw new Error('Enter text for your product label, or turn the label off.');
       if (productDraft.option_groups.some(group => !group.choices.length || !group.choices.some(choice => choice.active))) throw new Error('Every option group needs at least one available choice.');
       await api('save_product', { product: productDraft, preserve_order: true });
-      closeDialog(); await refresh(); toast('Product saved.'); break;
+      const copied=!!productCopySource,published=productDraft.active;closeDialog(); await refresh(); toast(copied?(published?'Product copy published.':'Unpublished copy saved. Turn on Show this product in the shop when ready.'):'Product saved.'); break;
     }
     case 'category': await api('save_category', { category: { ...(form.dataset.id ? { id: form.dataset.id } : {}), name: fieldValue(form, 'name') }, preserve_order: true }); closeDialog(); await refresh(); toast('Category saved.'); break;
     case 'delete-category': await api('delete_category', { id: form.dataset.id }); closeDialog(); await refresh(); toast('Category removed. Products are preserved.'); break;

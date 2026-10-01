@@ -20,7 +20,8 @@ try{
   for(const extra of [{size_bytes:26214401},{width:16385},{width:9000,height:9000},{size_bytes:0}])await assert.rejects(reserve(submission,'image/png',extra));
   await assert.rejects(reserve(submission,'image/webp',{size_bytes:5242881}));await assert.rejects(reserve(submission,'image/webp',{width:4097}));
   for(const mime of ['image/gif','image/svg+xml','application/pdf','image/avif',''])await assert.rejects(reserve(submission,mime));
-  await assert.rejects(api(h.ids.owner,'reserve_media',{purpose:'class',class_id:cookie.id,mime_type:'image/png',size_bytes:42,width:4,height:3}));
+  const classPhoto=await api(h.ids.owner,'reserve_media',{purpose:'class',class_id:cookie.id,mime_type:'image/png',size_bytes:42,width:4,height:3});assert.equal(classPhoto.mime_type,'image/png');
+  await assert.rejects(api(h.ids.customer,'reserve_media',{purpose:'class',class_id:cookie.id,mime_type:'image/png',size_bytes:42,width:4,height:3}));
   const legacy=await api(h.ids.customer,'reserve_media',{purpose:'submission',submission_id:submission.id,size_bytes:42,width:4,height:3});assert.equal(legacy.mime_type,'image/webp');assert.ok(legacy.path.endsWith('.webp'));
  });
  await check('Upload confirmation checks original metadata and revocation blocks unfinished original uploads',async()=>{
@@ -28,6 +29,6 @@ try{
   await assert.rejects(service('academy_portal_confirm_upload',[m.id,h.ids.customer,'b'.repeat(64)]));await db.query("update storage.objects set metadata=$2::jsonb where name=$1",[m.path,JSON.stringify({size:43,mimetype:'image/png'})]);await assert.rejects(service('academy_portal_confirm_upload',[m.id,h.ids.customer,'b'.repeat(64)]));
   const account=await api(h.ids.owner,'account',{id:h.ids.customer});await api(h.ids.owner,'revoke',{id:account.enrollments.find(e=>e.class_id===cookie.id&&e.status==='active').id});
   await assert.rejects(h.as(h.ids.customer,()=>db.query('select public.academy_portal_upload_check($1)',[m.id])));await assert.rejects(reserve(submission,'image/png'));
-  const bucket=(await db.query("select public,file_size_limit,allowed_mime_types from storage.buckets where id='academy-student-media'")).rows[0];assert.equal(bucket.public,false);assert.equal(Number(bucket.file_size_limit),26214400);assert.deepEqual(bucket.allowed_mime_types,['image/webp','image/png','image/jpeg','image/heic']);
+  const bucket=(await db.query("select public,file_size_limit,allowed_mime_types from storage.buckets where id='academy-student-media'")).rows[0];assert.equal(bucket.public,false);assert.equal(Number(bucket.file_size_limit),26214400);assert.deepEqual([...bucket.allowed_mime_types].sort(),['image/webp','image/png','image/jpeg','image/heic'].sort());
  });
 }finally{await mkdir('work/academy-original-photos',{recursive:true});await writeFile('work/academy-original-photos/database-results.json',JSON.stringify({results},null,2));await db.close();}

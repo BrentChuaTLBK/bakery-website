@@ -33,7 +33,7 @@ async function pageFor(user,width=1440){
  });
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.dismiss());return {page,context};
 }
-const fill=(page,path,value)=>page.locator(`[data-path="${path}"]`).fill(value);
+const fill=async(page,path,value)=>{const el=page.locator(`[data-path="${path}"]`);return await el.evaluate(n=>n.tagName)==='SELECT'?el.selectOption(value):el.fill(value);};
 const {blankRecipe,freshVariant}=await import('../../assets/ordering/recipe-model.js');
 const doc=blankRecipe();doc.name='QA compact celebration cake';doc.description='A multi-component kitchen recipe.';doc.allergens=['Milk','Eggs'];doc.critical_notes='Keep mousse chilled until assembly.';doc.private_notes='OWNER ONLY';
 const v=doc.variants[0];v.yield={quantity:'2',unit:'cakes',portions:'16',portion_weight:'90',pan_size:'7 inch'};

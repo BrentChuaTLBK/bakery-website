@@ -1,4 +1,4 @@
-import {prepareGalleryImage} from './gallery-image.js?v=newsletter-photos-1';
+import {prepareGalleryImage} from './gallery-image.js?v=approved-20261002-1';
 
 export const newsletterImageAccept = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
@@ -8,7 +8,7 @@ export async function uploadNewsletterImage(file, onProgress = () => {}) {
   // converter also resizes large originals and decodes iPhone HEIC photos.
   const prepared = await prepareGalleryImage(file, {format: 'jpeg'});
   onProgress('Uploading photo…');
-  const {upload} = await import('./client.js?v=academy-1');
+  const {upload} = await import('./client.js?v=approved-20261002-1');
   // This existing public-image endpoint verifies the signed-in owner before
   // storing a new immutable file. No catalogue product is created or changed.
   const result = await upload(prepared.file, {kind: 'product'});

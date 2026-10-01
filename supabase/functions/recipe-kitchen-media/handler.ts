@@ -30,7 +30,7 @@ export function createKitchenMediaHandler(dependencies={authorize,imageBytes}){
    rd:body.rd===true,
   };
   const media=await dependencies.authorize(request,input);
-  if(!['image/jpeg','image/png','image/webp'].includes(media.mime_type)||!Number.isSafeInteger(media.size_bytes)||media.size_bytes<=0||media.size_bytes>25*1024*1024)throw new HttpError(403,'Only authorized kitchen photos are available.');
+  if(!['image/jpeg','image/png','image/webp','image/heic'].includes(media.mime_type)||!Number.isSafeInteger(media.size_bytes)||media.size_bytes<=0||media.size_bytes>25*1024*1024)throw new HttpError(403,'Only authorized kitchen photos are available.');
   const bytes=await dependencies.imageBytes(media);
   if(bytes.byteLength!==media.size_bytes)throw new HttpError(503,'The kitchen photo could not be verified.');
   // A slow transfer must not finish with an expired permission. No signed URL,

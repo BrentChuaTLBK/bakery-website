@@ -1,14 +1,15 @@
-import {createPortalMedia} from './academy-media-view.js?v=academy-r2-1';
-import {mountConversationList,conversationTime} from './academy-conversations.js?v=academy-r2-1';
-import {ready,auth,academyPortalApi as rawApi,academyPortalMedia,academyPortalUpload,escapeHtml as esc} from './client.js?v=academy-r2-1';
+import {recentRecipe,rememberRecipe,clearRecentRecipe} from './academy-recent-recipe.js?v=approved-20261002-1';
+import {createPortalMedia} from './academy-media-view.js?v=approved-20261002-1';
+import {mountConversationList,conversationTime} from './academy-conversations.js?v=approved-20261002-1';
+import {ready,auth,academyPortalApi as rawApi,academyPortalMedia,academyPortalUpload,escapeHtml as esc} from './client.js?v=approved-20261002-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
-import {productImageAccept} from './product-image.js';
-import {prepareAcademyPhoto} from './academy-photo-prepare.js?v=academy-original-1';
-import {photoTrayMarkup,mountPhotoTray} from './academy-photo-tray.js?v=academy-original-1';
-import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=academy-r2-1';
-import {mountAcademyGallery} from './academy-gallery-view.js?v=academy-reaudit-1';
-import {createAnnouncementView,createUpcomingView} from './academy-announcement-view.js?v=academy-r2-1';
-import {classSearchMarkup,bindClassSearch,enhanceClassDiscovery} from './academy-discovery.js?v=academy-r2-1';
+import {productImageAccept} from './product-image.js?v=approved-20261002-1';
+import {prepareAcademyPhoto} from './academy-photo-prepare.js?v=approved-20261002-1';
+import {photoTrayMarkup,mountPhotoTray} from './academy-photo-tray.js?v=approved-20261002-1';
+import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=approved-20261002-1';
+import {mountAcademyGallery} from './academy-gallery-view.js?v=approved-20261002-1';
+import {createAnnouncementView,createUpcomingView} from './academy-announcement-view.js?v=approved-20261002-1';
+import {classSearchMarkup,bindClassSearch,enhanceClassDiscovery} from './academy-discovery.js?v=approved-20261002-1';
 const root=document.getElementById('academy-app'),isAdmin=location.pathname.includes('/academy/admin');
 let user=null,dashboard=null,generation=0,pendingNotice=null;const viewCleanups=new Set();
 let activeThread=null,galleryController=null,galleryMemory=null;
@@ -59,7 +60,7 @@ function shell(content,active='dashboard',config={}){
  }
  if(chromeKey!==nav.key){
   root.querySelector('.ap-sidebar').innerHTML=nav.desktop;root.querySelector('.ap-mobile-header').innerHTML=nav.mobile;chromeKey=nav.key;
-  root.querySelectorAll('[data-action=signout]').forEach(b=>b.onclick=async()=>{generation++;galleryMemory=null;cleanupView();root.innerHTML='';await auth.signOut();location.href='/academy/dashboard';});
+  root.querySelectorAll('[data-action=signout]').forEach(b=>b.onclick=async()=>{clearRecentRecipe(user?.id);generation++;galleryMemory=null;cleanupView();root.innerHTML='';await auth.signOut();location.href='/academy/dashboard';});
   root.querySelectorAll('.ap-more a').forEach(a=>a.addEventListener('click',()=>a.closest('details').open=false));
   root.querySelectorAll('.ap-more').forEach(more=>more.addEventListener('keydown',event=>{if(event.key==='Escape'){more.open=false;more.querySelector('summary').focus();}}));
  }
@@ -115,10 +116,19 @@ function bindAnnouncements(){root.querySelectorAll('[data-announcement]').forEac
 async function showGallery(postId){
  const state=galleryMemory?.actor===user.id&&Date.now()-galleryMemory.at<15*60*1000?galleryMemory:{};
  const actor=user.id;
- galleryController=await mountAcademyGallery({api,root,shell,heading,options,button,galleryCards,bindGallery,hydrate,dialog,photo,esc,notice,errorMessage:academyErrorMessage,
+ galleryController=await mountAcademyGallery({api,root,shell,heading,options,button,galleryCards,bindGallery,hydrate,dialog,photo,esc,notice,errorMessage:academyErrorMessage,shareAction:dashboard.classes.length?button('Share what you made','gallery-share'):link('Explore upcoming classes','#upcoming',true),bindShare:bindGalleryShare,
   closeGalleryPost:()=>{if(history.state?.academyGalleryParent?.startsWith('#gallery'))history.back();else{history.replaceState(null,'','#gallery');route();}}
  },{state,postId,onState:value=>{if(user?.id===actor)galleryMemory={...value,actor};}});
  registerCleanup(()=>galleryController?.dispose());
+}
+function bindGalleryShare(){
+ const action=root.querySelector('[data-action=gallery-share]');if(!action)return;
+ action.onclick=()=>{const classes=dashboard.classes;if(!classes.length){location.hash='#upcoming';return;}const picker=dialog('Choose your class',`<p>Choose the class for your creation. You’ll choose who can see it in the next step.</p><div class="ap-actions">${classes.map(c=>`<button type="button" class="ap-button secondary" data-share-class="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>`);picker.querySelectorAll('[data-share-class]').forEach(b=>b.onclick=()=>{picker.close();location.hash='#share/'+encodeURIComponent(b.dataset.shareClass);});};
+}
+async function continueRecipeMarkup(){
+ const recent=recentRecipe(user.id);if(!recent)return '';
+ const c=dashboard.classes.find(c=>c.id===recent.classId);if(!c){clearRecentRecipe(user.id);return '';}
+ try{const recipe=await api('recipe',{class_id:recent.classId,id:recent.recipeId});return `<section class="ap-section ap-continue-recipe" aria-label="Continue your last recipe"><article class="ap-card"><div class="ap-card-content"><p class="ap-category">Continue your last recipe</p><h2>${esc(recipe.title)}</h2><p class="ap-small ap-muted">${esc(c.name)}</p><div class="ap-actions">${link('Continue recipe →',`#recipe/${recent.classId}/${recent.recipeId}`)}</div></div></article></section>`;}catch(error){if(error.code==='ACADEMY_STALE')throw error;if(['42501','23503','22P02','P0002'].includes(error.code)||/not available|not found|not assigned|access denied/i.test(error.message||''))clearRecentRecipe(user.id);return '';}
 }
 async function showClass(id){
  const c=await api('class',{id});c.id=id;
@@ -131,13 +141,14 @@ async function showRecipe(classId,id){
  const [recipe,classInfo]=await Promise.all([api('recipe',{class_id:classId,id}),api('class',{id:classId})]);
  classInfo.canAsk=dashboard.classes.some(c=>c.id===classId);
  shell(renderBakingRecipe({recipe,classInfo,classId,esc,photo,link}),'classes',{focus:'recipe'});bindBakingRecipe(root);
+ if(classInfo.canAsk)rememberRecipe(user.id,classId,id);
 }
 
 
 const uploadReservations=new WeakMap(),preparedPhotos=new WeakMap();
 async function preparePhoto(source,allowOriginal=true){
  let prepared=preparedPhotos.get(source);
- if(!prepared||(!allowOriginal&&prepared.original)){prepared=await prepareAcademyPhoto(source,{allowOriginal});preparedPhotos.set(source,prepared);}
+ if(!prepared){prepared=await prepareAcademyPhoto(source,{allowOriginal});preparedPhotos.set(source,prepared);}
  return prepared;
 }
 async function uploadPhotos(files,context,container){
@@ -148,7 +159,7 @@ async function uploadPhotos(files,context,container){
   const status=item.querySelector('span'),progress=item.querySelector('progress');
   try{
    let saved=uploadReservations.get(source);if(saved?.context!==JSON.stringify(context))saved=null;
-   if(!saved){const {file,width,height,original}=await preparePhoto(source,['submission','message'].includes(context.purpose));const reservation=await api('reserve_media',{...context,size_bytes:file.size,width,height,mime_type:file.type});saved={file,reservation,original,context:JSON.stringify(context)};uploadReservations.set(source,saved);}
+   if(!saved){const {file,width,height,original}=await preparePhoto(source);const reservation=await api('reserve_media',{...context,size_bytes:file.size,width,height,mime_type:file.type});saved={file,reservation,original,context:JSON.stringify(context)};uploadReservations.set(source,saved);}
    if(!saved.completed)await academyPortalUpload(saved.reservation.id,saved.file,n=>{progress.value=n;status.textContent='Uploading '+n+'%';});progress.value=100;status.textContent=saved.original?'Original photo ready':'Photo ready';records.push(saved.reservation);saved.completed=true;
   }catch(e){const message=academyErrorMessage(e);status.textContent=message;const submit=container.closest('form')?.querySelector('button[type=submit]');if(submit)submit.textContent='Retry upload & send';throw Error('A photo could not be uploaded. Retry to continue. '+message);}
  }
@@ -208,7 +219,7 @@ async function preferences(){
  const sync=()=>{const dirty=form.elements.academy.checked!==saved;form.querySelector('button').disabled=!dirty;form.querySelector('.ap-preference-state').textContent=dirty?'Unsaved changes':'Saved';};
  form.elements.academy.onchange=sync;form.addEventListener('ap:form-complete',sync);
  formSubmit(form,async data=>{const r=await api('newsletter',{academy:data.has('academy')});dashboard.academy_newsletter=saved=r.academy;sync();notice('Your Academy newsletter preference is saved.');});
- const {mountNewsletterPreferences}=await import('./newsletter.js?v=academy-ux-1');await mountNewsletterPreferences(root.querySelector('#ap-kitchen-newsletter'),user.email,{showSavedState:true});
+ const {mountNewsletterPreferences}=await import('./newsletter.js?v=approved-20261002-1');await mountNewsletterPreferences(root.querySelector('#ap-kitchen-newsletter'),user.email,{showSavedState:true});
 }
 function gate(){
  cleanupView();root.setAttribute('aria-busy','false');root.dataset.layout='';chromeKey='';
@@ -225,24 +236,25 @@ async function route(){
  const current=++generation;cleanupView();showLoading();
  try{
   await ready;const {data}=await auth.getSession();if(current!==generation)return;
-  const actor=data.session?.user;if(user?.id!==actor?.id)galleryMemory=null;user=actor;if(!user)return gate();
+  const actor=data.session?.user;if(user?.id!==actor?.id){clearRecentRecipe(user?.id);galleryMemory=null;}user=actor;if(!user)return gate();
   const overviewViews=['dashboard','classes','announcements','upcoming','preferences'];
   dashboard=await api(!isAdmin&&overviewViews.includes(view)?'dashboard':'navigation');if(current!==generation)return;
-  if(isAdmin){const {mountAcademyAdmin}=await import('./academy-portal-admin.js?v=academy-r2-1');if(current!==generation)return;return await mountAcademyAdmin({api,root,user,dashboard,shell,notice,heading,empty,field,area,select,check,options,link,button,esc,date,photo,hydrate,dialog,formSubmit,uploadPhotos,productImageAccept,showThread,announcementView,upcomingView,registerCleanup,inspectPhotos});}
+  if(isAdmin){const {mountAcademyAdmin}=await import('./academy-portal-admin.js?v=approved-20261002-1');if(current!==generation)return;return await mountAcademyAdmin({api,root,user,dashboard,shell,notice,heading,empty,field,area,select,check,options,link,button,esc,date,photo,hydrate,dialog,formSubmit,uploadPhotos,productImageAccept,showThread,announcementView,upcomingView,registerCleanup,inspectPhotos});}
   if(view==='class')return await showClass(id);if(view==='recipe')return await showRecipe(id,recipeId);if(['share','ask','contact'].includes(view))return await showCompose(id,view,recipeId);if(view==='gallery')return await showGallery(id);if(view==='messages')return await showThreads();if(view==='thread')return await showThread(id);if(view==='preferences')return await preferences();
   if(view==='classes'){shell(`${heading('My classes','Your recipes, notes, and a little guidance along the way.')}${classSearchMarkup(dashboard.classes)}${classCards(dashboard.classes)}`,'classes');bindClassSearch(root);}
   else if(view==='upcoming')shell(`${heading('Coming up in the Academy')}${upcomingCards(dashboard.upcoming)}`,'upcoming');
   else if(view==='announcements'){shell(`${heading('Academy announcements')}${announcements(dashboard.announcements)}`,'announcements');bindAnnouncements();}
   else{
    if(!dashboard.announcements)dashboard=await api('dashboard');
-   shell(`<header class="ap-welcome"><p class="ap-category">Welcome to your Academy</p><h1>Welcome, ${esc(dashboard.name.split(' ')[0])}.</h1><p>Ready for a little time in the kitchen?</p></header>${replyCards(dashboard.classes)}<section class="ap-section ap-dashboard-classes">${dashboard.classes.length?heading('My classes','Keep creating, at your own pace.',link('View all','#classes',true))+classCards(dashboard.classes.slice(0,4))+(dashboard.classes.length>4?'<p class="ap-small ap-muted">Showing 4 of '+dashboard.classes.length+' classes</p>':''):'<div class="ap-context-strip"><strong>No classes assigned yet</strong><p>Your class materials will appear here when assigned.</p></div><h2>Make yourself at home</h2><p>Explore what is happening around the Academy.</p><div class="ap-actions">'+link('Find an upcoming class','#upcoming')+link('Explore student creations','#gallery',true)+link('Read Academy updates','#announcements',true)+'</div>'}</section><section class="ap-section">${heading('Latest from the Academy')}${announcements(dashboard.announcements.slice(0,2))}</section><section class="ap-section">${heading('What our students are baking','A shared love of making something from scratch.',link('Explore gallery','#gallery',true))}${galleryCards(dashboard.gallery.slice(0,6))}</section><section class="ap-section">${heading('More good things to learn')}${upcomingCards(dashboard.upcoming.slice(0,2))}</section>`);bindGallery();bindAnnouncements();
+   const continueRecipe=await continueRecipeMarkup();if(current!==generation)return;
+   shell(`<header class="ap-welcome"><p class="ap-category">Welcome to your Academy</p><h1>Welcome, ${esc(dashboard.name.split(' ')[0])}.</h1><p>Ready for a little time in the kitchen?</p></header>${replyCards(dashboard.classes)}${continueRecipe}<section class="ap-section ap-dashboard-classes">${dashboard.classes.length?heading('My classes','Keep creating, at your own pace.',link('View all','#classes',true))+classCards(dashboard.classes.slice(0,4))+(dashboard.classes.length>4?'<p class="ap-small ap-muted">Showing 4 of '+dashboard.classes.length+' classes</p>':''):'<div class="ap-context-strip"><strong>No classes assigned yet</strong><p>Your class materials will appear here when assigned.</p></div><h2>Make yourself at home</h2><p>Explore what is happening around the Academy.</p><div class="ap-actions">'+link('Find an upcoming class','#upcoming')+link('Explore student creations','#gallery',true)+link('Read Academy updates','#announcements',true)+'</div>'}</section><section class="ap-section">${heading('Latest from the Academy')}${announcements(dashboard.announcements.slice(0,2))}</section><section class="ap-section">${heading('What our students are baking','A shared love of making something from scratch.',link('Explore gallery','#gallery',true))}${galleryCards(dashboard.gallery.slice(0,6))}</section><section class="ap-section">${heading('More good things to learn')}${upcomingCards(dashboard.upcoming.slice(0,2))}</section>`);bindGallery();bindAnnouncements();
   }
  }catch(e){if(current!==generation)return;routeError(e);}
 }
 window.addEventListener('hashchange',route);
 await ready;
 auth?.onAuthStateChange((event,session)=>{
- if(event==='SIGNED_OUT'||(user&&session?.user?.id!==user.id)){generation++;dashboard=null;user=null;galleryMemory=null;cleanupView();gate();}
+ if(event==='SIGNED_OUT'||(user&&session?.user?.id!==user.id)){clearRecentRecipe(user?.id);generation++;dashboard=null;user=null;galleryMemory=null;cleanupView();gate();}
  if(event==='SIGNED_IN'&&!user)setTimeout(route,0);
 });
 let checkingAccess=false;

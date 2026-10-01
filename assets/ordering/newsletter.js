@@ -21,7 +21,7 @@ const preferenceKey = 'tlb-newsletter-preference';
 let shownInMemory = false;
 let preferenceInMemory = '';
 let servicePromise;
-const service = () => servicePromise ||= import('./newsletter-client.js');
+const service = () => servicePromise ||= import('./newsletter-client.js?v=approved-20261002-1');
 const request = async (action, payload) => (await service()).newsletterRequest(action, payload);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
 

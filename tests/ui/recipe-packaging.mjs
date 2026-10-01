@@ -44,7 +44,7 @@ async function pageFor(user,width=1440){
  });
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.dismiss());return {page,context};
 }
-const fill=(page,path,value)=>page.locator(`[data-path="${path}"]`).fill(value);
+const fill=async(page,path,value)=>{const el=page.locator(`[data-path="${path}"]`);return await el.evaluate(n=>n.tagName)==='SELECT'?el.selectOption(value):el.fill(value);};
 await api(h.ids.owner,'save_resource',{kind:'ingredient',name:'QA Flour',data:{default_unit:'g'},price:{amount:'100',quantity:'1',unit:'kg'}});
 let box=await api(h.ids.owner,'save_resource',{kind:'packaging',name:'QA Cake box',data:{default_unit:'pc',dimensions:'10 × 10 × 6 inches',type:'Cake box',notes:'Store flat',photos:[{file_id:boxPhoto.id,caption:'Empty cake box'}]},price:{amount:'300',quantity:'10',unit:'pc'}});
 const board=await api(h.ids.owner,'save_resource',{kind:'packaging',name:'QA Cake board',data:{default_unit:'pc',dimensions:'10 inches',photos:[{file_id:boardPhoto.id,caption:'Square board'}]},price:{amount:'100',quantity:'10',unit:'pc'}});
