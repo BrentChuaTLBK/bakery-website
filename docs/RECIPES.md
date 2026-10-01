@@ -15,8 +15,8 @@ Ordinary staff and customers receive no recipe access automatically.
 
 | Permission | Access |
 | --- | --- |
-| Owner | All editing, costs, permissions, backups, approval and Production status |
-| Chef | Drafts, testing logs, master resources, production records and costs; cannot approve or publish |
+| Owner | All editing, costs, permissions, backups and status changes |
+| Chef | Drafts, testing logs, master resources, production records and costs; cannot mark Final |
 | Kitchen | Published production recipes, packaging, special equipment, temporary scaling, checkoffs and printing |
 
 Kitchen responses are filtered on the server. Costs, supplier details, private
@@ -83,8 +83,15 @@ children moved or deleted first; restore a parent before its deleted children.
 
 ## Preserve approved formulas
 
-Saving creates an immutable version. A new draft does not replace the published
-production version. Only the owner can explicitly approve or publish a version.
+Saving creates an immutable version and keeps the editor open for continued work.
+The statuses are **Draft, Final, Hidden, Archive**. Only the owner can mark Final
+or change status directly from the saved recipe. Historical Testing/Approved
+labels display as Draft; historical Production displays as Final.
+A new draft does not replace the last Final version used by the kitchen.
+Explicitly changing status to Draft, Hidden or Archive withdraws kitchen access;
+use Hidden to withdraw a recipe while keeping it in the admin library.
+Archive is excluded from the default library. A status change creates a new
+version with the exact formula and saved cost snapshot; it does not reprice it.
 Draft autosave is a separate recovery record and never republishes a recipe.
 Concurrent edits are checked using a revision number before saving.
 
@@ -104,9 +111,12 @@ promoted into a new version. Editing a testing log does not edit the approved re
 ## Production and scaling
 
 Kitchen view uses large controls and no formula-editing controls. Choose a size and
-scale by multiplier, yield, pieces, portion weight, batter/dough weight or pan count.
-Base and production ingredient quantities appear together. Original formula values
-remain unchanged. Save a scaled copy only when a new saved recipe is intended.
+scale by multiplier, yield, pieces, portions, portion weight, batter/dough weight
+or pan count. Ingredient tables show the quantity needed for the selected run.
+Original formula values remain unchanged. Save a scaled copy only when a new
+saved recipe is intended. Invalid quantities or rounding hide the numeric recipe
+and disable print/export until corrected. Kitchen sections have a selector and
+previous/next buttons; owner/chef accounts can return to recipe admin.
 
 Scaling uses rational arithmetic, including mixed and additive fractions. Exact
 values are preserved; display rounding is explicit. Whole-gram or row-specific
@@ -151,12 +161,42 @@ including captions. These uploads are included in recipe backup archives.
 Maintain reusable ingredients, suppliers, packaging and equipment. Supplier item
 links and price history are retained. Add ingredient purchase size, purchase price
 and unit; compatible-unit conversions calculate cost per quantity used. Packaging
-can reference a priced master item. Labor, utilities and other costs are separate
-optional amounts.
+can reference a priced master item. Other direct charges can be variable or fixed
+for one production run.
+
+Each size has **Costing Only** or **Saleable Product Costing**. Saleable products
+require an explicit finished saleable yield, unit (item, box, cake, tray or set),
+selling price and price basis (per item or base batch). Raw batter weight is never
+assumed to be saleable yield. Labor & Utilities is a percentage allowance on the
+base cost, not a profit markup:
+
+- Base cost = ingredients + packaging + other direct costs.
+- Allowance = base cost × allowance percentage / 100.
+- Adjusted cost = base cost + allowance.
+- Profit = selling revenue − adjusted cost.
+- Margin = profit / selling revenue × 100; undefined at zero revenue.
+- Markup = profit / adjusted cost × 100; undefined at zero adjusted cost.
+
+Negative profit stays visible. Missing prices/conversions suppress full totals,
+profit, margin and markup while listing the missing items and known costs.
+Zero purchase prices remain explicit and receive a confirmation reminder.
+The summary includes per-batch and per-saleable-unit values and break-even price.
+Portion-weight scaling raises costs while retaining the saleable item count.
+
+**Costing Overview** compares saved current-version costs by product and size.
+It supports search, category, product line, status, missing/negative/profitable
+costs, recent updates and cost/profit/margin sorting. Open a product to compare
+current active prices with its saved snapshot. Snapshots over 90 days old get an
+informational reminder. No selling price is automatically changed.
 
 Saved recipes capture historical cost snapshots, including pinned component and
 packaging costs. A current cost preview is separate. A master price update does
-not rewrite historical costs, approved formulas or shop selling prices. Missing
+not rewrite historical costs, approved formulas or shop selling prices. Current
+costing reprices the same pinned component formulas recursively; saved costing
+retains each component's historical costs. Component allowance is not silently
+added again to parent base cost. Legacy snapshots reconstruct from saved amounts,
+never current quotes. PostgreSQL is the saved/current costing authority; browser
+rational arithmetic handles quantity scaling and unit-price previews. Missing
 prices and unsupported unit conversions remain visibly incomplete rather than
 being represented as a complete zero-cost formula.
 

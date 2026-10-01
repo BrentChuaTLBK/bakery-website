@@ -1,0 +1,1196 @@
+{
+  "source": "Python fractions.Fraction; no application imports",
+  "cases": [
+    {
+      "id": "A",
+      "name": "Single ingredient",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "212",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "212",
+        "base_cost": "212",
+        "labor_allowance": "0",
+        "adjusted_cost": "212",
+        "revenue": "1080",
+        "profit": "868",
+        "margin": "80.3703703703703703703703703703703703703703703704",
+        "markup": "409.433962264150943396226415094339622641509433962",
+        "saleable_yield": "6",
+        "unit_base": "35.3333333333333333333333333333333333333333333333",
+        "unit_adjusted": "35.3333333333333333333333333333333333333333333333",
+        "unit_revenue": "180",
+        "unit_profit": "144.666666666666666666666666666666666666666666667"
+      }
+    },
+    {
+      "id": "B",
+      "name": "Mixed purchase sizes",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Butter",
+          "quantity": "94",
+          "unit": "g",
+          "price": {
+            "amount": "60",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Milk",
+          "quantity": "125",
+          "unit": "ml",
+          "price": {
+            "amount": "80",
+            "quantity": "1",
+            "unit": "l",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Vanilla",
+          "quantity": "0.25",
+          "unit": "g",
+          "price": {
+            "amount": "437.5",
+            "quantity": "1000",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "278.509375",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "278.509375",
+        "base_cost": "278.509375",
+        "labor_allowance": "0",
+        "adjusted_cost": "278.509375",
+        "revenue": "1080",
+        "profit": "801.490625",
+        "margin": "74.2120949074074074074074074074074074074074074074",
+        "markup": "287.778687880793958910718894112630858476487550913",
+        "saleable_yield": "6",
+        "unit_base": "46.4182291666666666666666666666666666666666666667",
+        "unit_adjusted": "46.4182291666666666666666666666666666666666666667",
+        "unit_revenue": "180",
+        "unit_profit": "133.581770833333333333333333333333333333333333333"
+      }
+    },
+    {
+      "id": "C",
+      "name": "Ingredients, multiple packaging items and direct cost",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Butter",
+          "quantity": "94",
+          "unit": "g",
+          "price": {
+            "amount": "60",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Milk",
+          "quantity": "125",
+          "unit": "ml",
+          "price": {
+            "amount": "80",
+            "quantity": "1",
+            "unit": "l",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Vanilla",
+          "quantity": "0.25",
+          "unit": "g",
+          "price": {
+            "amount": "437.5",
+            "quantity": "1000",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [
+        {
+          "name": "Outer box",
+          "quantity": "1",
+          "unit": "pc",
+          "price": {
+            "amount": "2000",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Holders",
+          "quantity": "3",
+          "unit": "pc",
+          "price": {
+            "amount": "150",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "other_direct": "5",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "278.509375",
+        "packaging_cost": "24.5",
+        "other_direct_cost": "5",
+        "known_total": "308.009375",
+        "base_cost": "308.009375",
+        "labor_allowance": "0",
+        "adjusted_cost": "308.009375",
+        "revenue": "1080",
+        "profit": "771.990625",
+        "margin": "71.4806134259259259259259259259259259259259259259",
+        "markup": "250.638677799985795886894676501324026257317654698",
+        "saleable_yield": "6",
+        "unit_base": "51.3348958333333333333333333333333333333333333333",
+        "unit_adjusted": "51.3348958333333333333333333333333333333333333333",
+        "unit_revenue": "180",
+        "unit_profit": "128.665104166666666666666666666666666666666666667"
+      }
+    },
+    {
+      "id": "D",
+      "name": "Pinned component portion",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [
+        {
+          "name": "Outer box",
+          "quantity": "1",
+          "unit": "pc",
+          "price": {
+            "amount": "2000",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "other_direct": "0",
+      "factor": "1",
+      "component": {
+        "cost": "10",
+        "needed": "50",
+        "yield": "100"
+      },
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "217",
+        "packaging_cost": "20",
+        "other_direct_cost": "0",
+        "known_total": "237",
+        "base_cost": "237",
+        "labor_allowance": "0",
+        "adjusted_cost": "237",
+        "revenue": "1080",
+        "profit": "843",
+        "margin": "78.0555555555555555555555555555555555555555555556",
+        "markup": "355.696202531645569620253164556962025316455696203",
+        "saleable_yield": "6",
+        "unit_base": "39.5",
+        "unit_adjusted": "39.5",
+        "unit_revenue": "180",
+        "unit_profit": "140.5"
+      }
+    },
+    {
+      "id": "E",
+      "name": "Half batch",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Butter",
+          "quantity": "94",
+          "unit": "g",
+          "price": {
+            "amount": "60",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Milk",
+          "quantity": "125",
+          "unit": "ml",
+          "price": {
+            "amount": "80",
+            "quantity": "1",
+            "unit": "l",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Vanilla",
+          "quantity": "0.25",
+          "unit": "g",
+          "price": {
+            "amount": "437.5",
+            "quantity": "1000",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [
+        {
+          "name": "Outer box",
+          "quantity": "1",
+          "unit": "pc",
+          "price": {
+            "amount": "2000",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Holders",
+          "quantity": "3",
+          "unit": "pc",
+          "price": {
+            "amount": "150",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "other_direct": "5",
+      "factor": "0.5",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "139.2546875",
+        "packaging_cost": "12.25",
+        "other_direct_cost": "2.5",
+        "known_total": "154.0046875",
+        "base_cost": "154.0046875",
+        "labor_allowance": "0",
+        "adjusted_cost": "154.0046875",
+        "revenue": "540",
+        "profit": "385.9953125",
+        "margin": "71.4806134259259259259259259259259259259259259259",
+        "markup": "250.638677799985795886894676501324026257317654698",
+        "saleable_yield": "3",
+        "unit_base": "51.3348958333333333333333333333333333333333333333",
+        "unit_adjusted": "51.3348958333333333333333333333333333333333333333",
+        "unit_revenue": "180",
+        "unit_profit": "128.665104166666666666666666666666666666666666667"
+      }
+    },
+    {
+      "id": "F",
+      "name": "1.15 batch",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Butter",
+          "quantity": "94",
+          "unit": "g",
+          "price": {
+            "amount": "60",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Milk",
+          "quantity": "125",
+          "unit": "ml",
+          "price": {
+            "amount": "80",
+            "quantity": "1",
+            "unit": "l",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Vanilla",
+          "quantity": "0.25",
+          "unit": "g",
+          "price": {
+            "amount": "437.5",
+            "quantity": "1000",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [
+        {
+          "name": "Outer box",
+          "quantity": "1",
+          "unit": "pc",
+          "price": {
+            "amount": "2000",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Holders",
+          "quantity": "3",
+          "unit": "pc",
+          "price": {
+            "amount": "150",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "other_direct": "5",
+      "factor": "1.15",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "320.28578125",
+        "packaging_cost": "28.175",
+        "other_direct_cost": "5.75",
+        "known_total": "354.21078125",
+        "base_cost": "354.21078125",
+        "labor_allowance": "0",
+        "adjusted_cost": "354.21078125",
+        "revenue": "1242",
+        "profit": "887.78921875",
+        "margin": "71.4806134259259259259259259259259259259259259259",
+        "markup": "250.638677799985795886894676501324026257317654698",
+        "saleable_yield": "6.9",
+        "unit_base": "51.3348958333333333333333333333333333333333333333",
+        "unit_adjusted": "51.3348958333333333333333333333333333333333333333",
+        "unit_revenue": "180",
+        "unit_profit": "128.665104166666666666666666666666666666666666667"
+      }
+    },
+    {
+      "id": "G",
+      "name": "Ten batches",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Butter",
+          "quantity": "94",
+          "unit": "g",
+          "price": {
+            "amount": "60",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Milk",
+          "quantity": "125",
+          "unit": "ml",
+          "price": {
+            "amount": "80",
+            "quantity": "1",
+            "unit": "l",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Vanilla",
+          "quantity": "0.25",
+          "unit": "g",
+          "price": {
+            "amount": "437.5",
+            "quantity": "1000",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [
+        {
+          "name": "Outer box",
+          "quantity": "1",
+          "unit": "pc",
+          "price": {
+            "amount": "2000",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Holders",
+          "quantity": "3",
+          "unit": "pc",
+          "price": {
+            "amount": "150",
+            "quantity": "100",
+            "unit": "pc",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "other_direct": "5",
+      "factor": "10",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "2785.09375",
+        "packaging_cost": "245",
+        "other_direct_cost": "50",
+        "known_total": "3080.09375",
+        "base_cost": "3080.09375",
+        "labor_allowance": "0",
+        "adjusted_cost": "3080.09375",
+        "revenue": "10800",
+        "profit": "7719.90625",
+        "margin": "71.4806134259259259259259259259259259259259259259",
+        "markup": "250.638677799985795886894676501324026257317654698",
+        "saleable_yield": "60",
+        "unit_base": "51.3348958333333333333333333333333333333333333333",
+        "unit_adjusted": "51.3348958333333333333333333333333333333333333333",
+        "unit_revenue": "180",
+        "unit_profit": "128.665104166666666666666666666666666666666666667"
+      }
+    },
+    {
+      "id": "H",
+      "name": "Missing ingredient price",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        },
+        {
+          "name": "Unpriced sugar",
+          "quantity": "100",
+          "unit": "g",
+          "price": null
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": false,
+      "expected": {
+        "ingredient_cost": "212",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "212",
+        "base_cost": null,
+        "labor_allowance": null,
+        "adjusted_cost": null,
+        "revenue": "1080",
+        "profit": null,
+        "margin": null,
+        "markup": null,
+        "saleable_yield": "6",
+        "unit_base": null,
+        "unit_adjusted": null,
+        "unit_revenue": "180",
+        "unit_profit": null
+      }
+    },
+    {
+      "id": "I",
+      "name": "New supplier price",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "790",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "223.306666666666666666666666666666666666666666667",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "223.306666666666666666666666666666666666666666667",
+        "base_cost": "223.306666666666666666666666666666666666666666667",
+        "labor_allowance": "0",
+        "adjusted_cost": "223.306666666666666666666666666666666666666666667",
+        "revenue": "1080",
+        "profit": "856.693333333333333333333333333333333333333333333",
+        "margin": "79.3234567901234567901234567901234567901234567901",
+        "markup": "383.639837592548363983759254836398375925483639838",
+        "saleable_yield": "6",
+        "unit_base": "37.2177777777777777777777777777777777777777777778",
+        "unit_adjusted": "37.2177777777777777777777777777777777777777777778",
+        "unit_revenue": "180",
+        "unit_profit": "142.782222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "id": "J",
+      "name": "Labor allowance zero",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "0",
+        "selling_price": "200",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "100",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "100",
+        "base_cost": "100",
+        "labor_allowance": "0",
+        "adjusted_cost": "100",
+        "revenue": "200",
+        "profit": "100",
+        "margin": "50",
+        "markup": "100",
+        "saleable_yield": "1",
+        "unit_base": "100",
+        "unit_adjusted": "100",
+        "unit_revenue": "200",
+        "unit_profit": "100"
+      }
+    },
+    {
+      "id": "K",
+      "name": "Labor allowance ten percent",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "10",
+        "selling_price": "200",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "100",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "100",
+        "base_cost": "100",
+        "labor_allowance": "10",
+        "adjusted_cost": "110",
+        "revenue": "200",
+        "profit": "90",
+        "margin": "45",
+        "markup": "81.8181818181818181818181818181818181818181818182",
+        "saleable_yield": "1",
+        "unit_base": "100",
+        "unit_adjusted": "110",
+        "unit_revenue": "200",
+        "unit_profit": "90"
+      }
+    },
+    {
+      "id": "L",
+      "name": "Labor allowance twenty-five percent",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "25",
+        "selling_price": "200",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "100",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "100",
+        "base_cost": "100",
+        "labor_allowance": "25",
+        "adjusted_cost": "125",
+        "revenue": "200",
+        "profit": "75",
+        "margin": "37.5",
+        "markup": "60",
+        "saleable_yield": "1",
+        "unit_base": "100",
+        "unit_adjusted": "125",
+        "unit_revenue": "200",
+        "unit_profit": "75"
+      }
+    },
+    {
+      "id": "M",
+      "name": "Selling below adjusted cost",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "20",
+        "selling_price": "100",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "100",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "100",
+        "base_cost": "100",
+        "labor_allowance": "20",
+        "adjusted_cost": "120",
+        "revenue": "100",
+        "profit": "-20",
+        "margin": "-20",
+        "markup": "-16.6666666666666666666666666666666666666666666667",
+        "saleable_yield": "1",
+        "unit_base": "100",
+        "unit_adjusted": "120",
+        "unit_revenue": "100",
+        "unit_profit": "-20"
+      }
+    },
+    {
+      "id": "N",
+      "name": "Break even",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "20",
+        "selling_price": "120",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "100",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "100",
+        "base_cost": "100",
+        "labor_allowance": "20",
+        "adjusted_cost": "120",
+        "revenue": "120",
+        "profit": "0",
+        "margin": "0",
+        "markup": "0",
+        "saleable_yield": "1",
+        "unit_base": "100",
+        "unit_adjusted": "120",
+        "unit_revenue": "120",
+        "unit_profit": "0"
+      }
+    },
+    {
+      "id": "O",
+      "name": "Selling above adjusted cost",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "20",
+        "selling_price": "200",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "100",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "100",
+        "base_cost": "100",
+        "labor_allowance": "20",
+        "adjusted_cost": "120",
+        "revenue": "200",
+        "profit": "80",
+        "margin": "40",
+        "markup": "66.6666666666666666666666666666666666666666666667",
+        "saleable_yield": "1",
+        "unit_base": "100",
+        "unit_adjusted": "120",
+        "unit_revenue": "200",
+        "unit_profit": "80"
+      }
+    },
+    {
+      "id": "P",
+      "name": "Six saleable units",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "600",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "180",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "600",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "600",
+        "base_cost": "600",
+        "labor_allowance": "0",
+        "adjusted_cost": "600",
+        "revenue": "1080",
+        "profit": "480",
+        "margin": "44.4444444444444444444444444444444444444444444444",
+        "markup": "80",
+        "saleable_yield": "6",
+        "unit_base": "100",
+        "unit_adjusted": "100",
+        "unit_revenue": "180",
+        "unit_profit": "80"
+      }
+    },
+    {
+      "id": "Q",
+      "name": "Explicit batch selling price",
+      "ingredients": [
+        {
+          "name": "Ingredient",
+          "quantity": "600",
+          "unit": "g",
+          "price": {
+            "amount": "100",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "1080",
+        "price_basis": "batch",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "600",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "600",
+        "base_cost": "600",
+        "labor_allowance": "0",
+        "adjusted_cost": "600",
+        "revenue": "1080",
+        "profit": "480",
+        "margin": "44.4444444444444444444444444444444444444444444444",
+        "markup": "80",
+        "saleable_yield": "6",
+        "unit_base": "100",
+        "unit_adjusted": "100",
+        "unit_revenue": "180",
+        "unit_profit": "80"
+      }
+    },
+    {
+      "id": "R",
+      "name": "Zero selling price",
+      "ingredients": [
+        {
+          "name": "Cream cheese",
+          "quantity": "424",
+          "unit": "g",
+          "price": {
+            "amount": "750",
+            "quantity": "1.5",
+            "unit": "kg",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "6",
+        "labor_percent": "0",
+        "selling_price": "0",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "212",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "212",
+        "base_cost": "212",
+        "labor_allowance": "0",
+        "adjusted_cost": "212",
+        "revenue": "0",
+        "profit": "-212",
+        "margin": null,
+        "markup": "-100",
+        "saleable_yield": "6",
+        "unit_base": "35.3333333333333333333333333333333333333333333333",
+        "unit_adjusted": "35.3333333333333333333333333333333333333333333333",
+        "unit_revenue": "0",
+        "unit_profit": "-35.3333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "id": "S",
+      "name": "Confirmed zero cost",
+      "ingredients": [
+        {
+          "name": "Free ingredient",
+          "quantity": "100",
+          "unit": "g",
+          "price": {
+            "amount": "0",
+            "quantity": "100",
+            "unit": "g",
+            "currency": "PHP"
+          }
+        }
+      ],
+      "packaging": [],
+      "other_direct": "0",
+      "factor": "1",
+      "component": null,
+      "costing": {
+        "mode": "saleable",
+        "saleable_yield": "1",
+        "labor_percent": "0",
+        "selling_price": "200",
+        "price_basis": "unit",
+        "sale_unit": "each"
+      },
+      "complete": true,
+      "expected": {
+        "ingredient_cost": "0",
+        "packaging_cost": "0",
+        "other_direct_cost": "0",
+        "known_total": "0",
+        "base_cost": "0",
+        "labor_allowance": "0",
+        "adjusted_cost": "0",
+        "revenue": "200",
+        "profit": "200",
+        "margin": "100",
+        "markup": null,
+        "saleable_yield": "1",
+        "unit_base": "0",
+        "unit_adjusted": "0",
+        "unit_revenue": "200",
+        "unit_profit": "200"
+      }
+    }
+  ]
+}

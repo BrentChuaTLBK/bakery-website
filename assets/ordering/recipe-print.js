@@ -1,7 +1,7 @@
-import {recipeStatusLabel} from './recipe-status.js?v=workflow-1';
-import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=packaging-photos-1';
-import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js';
-import {productionPlan,recipeSections} from './recipe-model.js?v=packaging-photos-1';
+import {recipeStatusLabel} from './recipe-status.js?v=production-audit-1';
+import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=production-audit-1';
+import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=production-audit-1';
+import {productionPlan,recipeSections} from './recipe-model.js?v=production-audit-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,settings,api,fileUrl,dialog}) {
  let defaults={layout:'kitchen',paper:'A4',font_size:'10',spacing:'1.45',packaging:true,process:true,notes:false};

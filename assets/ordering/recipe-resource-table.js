@@ -1,4 +1,4 @@
-import {quantity,unitInfo,ingredientCost,compare} from './recipe-math.js';
+import {quantity,unitInfo,ingredientCost,compare} from './recipe-math.js?v=production-audit-1';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nameOrder=(a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.data?.brand||'').localeCompare(String(b.data?.brand||''));

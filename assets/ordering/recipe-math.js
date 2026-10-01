@@ -32,6 +32,8 @@ export const add=(a,b)=>rational(a.n*b.d+b.n*a.d,a.d*b.d);
 export const multiply=(a,b)=>rational(a.n*b.n,a.d*b.d);
 export function divide(a,b) { if(!b.n) throw Error('The base quantity must be greater than zero.'); return rational(a.n*b.d,a.d*b.n); }
 export const compare=(a,b)=>a.n*b.d===b.n*a.d?0:a.n*b.d>b.n*a.d?1:-1;
+// Match the database limit for entered values, without rounding computed values.
+export function inputQuantity(value){const q=quantity(value);if(q.n>1000000000000n*q.d)throw Error('Quantity is too large.');return q;}
 export const serialize=q=>({n:q.n.toString(),d:q.d.toString()});
 export function exact(value) {
   const q=quantity(value); let d=q.d;
@@ -51,9 +53,9 @@ export function displayQuantity(value,{mode='exact',step='1'}={}) {
   return {text:exact(rounded),exact:serialize(q),rounded:compare(rounded,q)!==0};
 }
 export function scaleFactor(yieldInfo,mode,target) {
-  const wanted=quantity(target); if(!wanted.n)throw Error('Production quantity must be greater than zero.');
+  const wanted=inputQuantity(target); if(!wanted.n)throw Error('Production quantity must be greater than zero.');
   if(mode==='multiplier')return wanted;
-  const fields={yield:'quantity',pieces:'portions',portion:'portion_weight',weight:'batch_weight',pans:'pans'};
+  const fields={yield:'quantity',pieces:yieldInfo?.unit&&unitInfo(yieldInfo.unit).dimension==='count'?'quantity':'portions',portions:'portions',portion:'portion_weight',weight:'batch_weight',pans:'pans'};
   if(!fields[mode])throw Error('Unknown scaling method.');
   if(!yieldInfo?.[fields[mode]])throw Error(`Add a base ${fields[mode].replaceAll('_',' ')} before using this scaling method.`);
   return divide(wanted,quantity(yieldInfo[fields[mode]]));
