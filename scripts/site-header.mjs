@@ -9,7 +9,7 @@ export function renderSiteHeader(html,filename){
  const prefix=relative(dirname(filename),'.').split(sep).join('/'),base=prefix?prefix+'/':'';
  const eol=html.includes('\r\n')?'\r\n':'\n';
  const nav=[start,template.replaceAll('__ROOT__',base),end].join('\n').replaceAll('\n',eol);
- const assets=[assetStart,`<link rel="stylesheet" href="${base}assets/ordering/site-header.css?v=shared-20261002-1">`,`<script defer src="${base}assets/ordering/site-header.js?v=shared-20261002-1"></script>`,assetEnd].join(eol);
+ const assets=[assetStart,`<link rel="stylesheet" href="${base}assets/ordering/site-header.css?v=shared-20261002-2">`,`<script defer src="${base}assets/ordering/site-header.js?v=shared-20261002-1"></script>`,assetEnd].join(eol);
  if(!html.includes(start)||!html.includes(assetStart))throw Error('Missing shared header markers in '+filename);
  return html.replace(new RegExp(start+'[\\s\\S]*?'+end),nav).replace(new RegExp(assetStart+'[\\s\\S]*?'+assetEnd),assets);
 }
