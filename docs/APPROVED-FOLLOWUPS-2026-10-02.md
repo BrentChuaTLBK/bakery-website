@@ -7,6 +7,7 @@ Comparisons 1–3, 5–6, 8, 10–11, 13–14, 16 and 18 remain declined. Compar
 ## Additional requested behavior
 
 - Orders includes Needs review, Due today and All orders views, a selected-order next-action panel, and overview shortcuts. Payment review and fulfillment use the existing authorized API and fresh order revisions. POS orders retain their existing payment workflow. Date filters use the site's branded calendar picker, including keyboard navigation and clearing the selected date.
+- Orders starts with no highlighted row and the quick-action panel hidden. Clicking a row's ordinary content or empty space opens its actions; the larger Quick actions button also works with Enter or Space. Printing checkboxes and order links retain their own actions. Closing the panel, switching views or filtering the chosen order out clears the highlight without selecting another order.
 - Newsletter drafts can be deleted from the list after a branded confirmation naming the subject. Queued and sent campaigns have no delete action. The existing owner-only backend checks draft status and revision again before removal.
 - The Accounting save confirmation has a separate 12 px gap below its button on desktop and mobile.
 - The Analytics explanation has space above and below it so it no longer touches the outcome table or capacity heading.
