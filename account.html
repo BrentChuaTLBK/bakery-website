@@ -14,12 +14,42 @@
   <link rel="stylesheet" href="assets/ordering/vouchers.css?v=vouchers-1">
   <link rel="stylesheet" href="assets/ordering/account.css?v=vouchers-1">
 <link rel="stylesheet" href="assets/ordering/site-maintenance.css?v=maintenance-1"><script type="module" src="assets/ordering/site-maintenance.js?v=approved-20261002-1"></script><link rel="stylesheet" href="assets/css/form-controls.css?v=refinement-20261002-1">
+<!-- tlb-site-header-assets:start -->
+<link rel="stylesheet" href="assets/ordering/site-header.css?v=shared-20261002-1">
+<script defer src="assets/ordering/site-header.js?v=shared-20261002-1"></script>
+<!-- tlb-site-header-assets:end -->
 </head>
 <body data-account-page="account">
-  <header class="topbar">
-    <a class="brand" href="index.html"><img src="assets/img/brands/Hat.png" width="40" height="40" alt=""><span>TLB Kitchen</span></a>
-    <nav class="nav-links" aria-label="Main navigation"><a href="index.html">Home</a><a href="shop.html">Order online</a><a href="account.html" aria-current="page">My account</a></nav>
-  </header>
+  <!-- tlb-site-header:start -->
+<header id="mainNav" class="tlb-site-header" data-site-header>
+  <div class="tlb-site-header-inner">
+    <a class="tlb-site-brand" href="index.html"><img src="assets/img/brands/Hat.png" width="40" height="40" alt=""><span>TLB Kitchen</span></a>
+    <button class="tlb-site-menu-toggle" type="button" aria-controls="tlb-site-menu" aria-expanded="false" aria-label="Toggle navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <nav class="tlb-site-menu" id="tlb-site-menu" aria-label="Main navigation">
+      <div class="tlb-site-links">
+        <a href="index.html" data-site-page="home">Home</a>
+        <details class="tlb-site-specialties">
+          <summary>Specialties</summary>
+          <div class="tlb-site-dropdown">
+            <a href="customorders.html">Custom Orders</a>
+            <a href="pastries.html">Pastries</a>
+            <span class="tlb-site-dropdown-label">Events</span>
+            <a href="partycarts.html">Party Carts</a>
+            <a href="dessertbar.html">Dessert Bar</a>
+          </div>
+        </details>
+        <a href="faq.html" data-site-page="faq">FAQ</a>
+        <a href="academy.html" data-site-page="academy">TLB Academy</a>
+      </div>
+      <a class="tlb-site-order" href="shop.html">Order Online</a>
+    </nav>
+    <nav class="home-nav-icons tlb-site-icons" aria-label="Account and basket">
+      <a href="account.html" aria-label="My account" title="My account"><svg viewBox="0 0 28 30" aria-hidden="true"><circle cx="14" cy="8" r="4.5"/><path d="M5.5 27v-4a8.5 8.5 0 0 1 17 0v4"/></svg></a>
+      <a href="shop.html#cart" aria-label="Your basket" title="Your basket"><svg viewBox="0 0 28 30" aria-hidden="true"><path d="M6 10h16l2 17H4zM10 12V7a4 4 0 0 1 8 0v5"/></svg></a>
+    </nav>
+  </div>
+</header>
+<!-- tlb-site-header:end -->
   <main class="page-shell" id="account-root" aria-busy="true">
     <p class="eyebrow">A little easier, every time</p><h1>Your TLB Kitchen account</h1><p class="muted">Loading your account…</p>
   </main>

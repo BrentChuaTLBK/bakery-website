@@ -1,5 +1,6 @@
 import {cp,mkdir,rm,readdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
+import {syncSiteHeaders} from './site-header.mjs';
 const root=resolve(import.meta.dirname,'..');
 const output=join(root,'dist');
 const preview=process.argv.includes('--preview');
@@ -13,6 +14,7 @@ for(const filename of pages){
   if(preview)html=html.replace('</head>','<meta name="robots" content="noindex,nofollow"></head>');
   await writeFile(join(output,filename),html);
 }
+await syncSiteHeaders(output);
 for(const filename of ['robots.txt','sitemap.xml','_headers','pos.webmanifest','.nojekyll']){
  try{await cp(join(root,filename),join(output,filename))}catch(e){if(e.code!=='ENOENT')throw e}
 }

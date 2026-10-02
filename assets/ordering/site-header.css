@@ -1,0 +1,65 @@
+@font-face{font-family:TLBHeader;src:url('../fonts/ChelseaMarket-Regular.woff2') format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
+:root{--tlb-site-header-height:80px}
+/* Keep the shared header independent of Bootstrap and individual app styles. */
+#mainNav.tlb-site-header{position:sticky;top:0;z-index:30;margin:0;padding:16px 0;border:0;background:#2f2624;color:#fff;font:14px/1.6 TLBHeader,'Chelsea Market',serif;text-align:left;letter-spacing:normal}
+#mainNav.tlb-site-header *{box-sizing:border-box}
+#mainNav .tlb-site-header-inner{display:flex;align-items:center;gap:0;min-height:48px;width:100%;max-width:1140px;margin:0 auto;padding:0 12px}
+#mainNav a,#mainNav summary{font:inherit;letter-spacing:normal;text-decoration:none;color:#fff}
+#mainNav a:focus-visible,#mainNav summary:focus-visible,#mainNav button:focus-visible{outline:2px solid #f8d5ca;outline-offset:3px}
+#mainNav .tlb-site-brand{display:inline-flex;align-items:center;gap:13px;flex-shrink:0;margin-right:16px;font-size:20px;font-weight:700;white-space:nowrap}
+#mainNav .tlb-site-brand img{display:block;width:40px;height:40px;object-fit:contain}
+#mainNav .tlb-site-menu{display:flex;align-items:center;flex:1;min-width:0}
+#mainNav .tlb-site-links{display:flex;align-items:center;justify-content:center;gap:20px;flex:1;margin:0 24px}
+#mainNav .tlb-site-links>a,#mainNav .tlb-site-specialties>summary{display:flex;align-items:center;min-height:44px;padding:0;white-space:nowrap}
+#mainNav a[aria-current=page]{font-weight:700}
+#mainNav .tlb-site-specialties{position:relative;margin:0;border:0;padding:0}
+#mainNav .tlb-site-specialties>summary{list-style:none;cursor:pointer;gap:5px}
+#mainNav .tlb-site-specialties>summary::-webkit-details-marker{display:none}
+#mainNav .tlb-site-specialties>summary:after{content:'';border:4px solid transparent;border-bottom:0;border-top-color:currentColor;margin-top:4px}
+#mainNav .tlb-site-dropdown{position:absolute;top:100%;left:-16px;min-width:190px;padding:8px 0;border:1px solid #5c4b44;border-radius:12px;background:#2f2624;box-shadow:0 10px 25px #0003}
+#mainNav .tlb-site-dropdown a{display:block;padding:10px 16px}
+#mainNav .tlb-site-dropdown a:hover,#mainNav .tlb-site-dropdown a:focus-visible{background:#493831}
+#mainNav .tlb-site-dropdown-label{display:block;margin:6px 0 0;padding:12px 16px 4px;border-top:1px solid #66524a;color:#c9c9c9;font-size:12px}
+#mainNav .tlb-site-order{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-height:46px;padding:10px 32px;border:1px solid #764b25;border-radius:32px;background:#764b25;color:#fff;font-weight:700;white-space:nowrap;box-shadow:0 8px 16px #3763f426}
+#mainNav .tlb-site-order:hover{background:#64401f;border-color:#64401f}
+#mainNav .tlb-site-icons{display:flex;align-items:center;gap:4px;margin-left:14px}
+#mainNav .tlb-site-icons a{display:inline-flex;align-items:center;justify-content:center;width:42px;height:44px;border-radius:10px}
+#mainNav .tlb-site-icons a:hover{background:#ffffff1a}
+#mainNav .tlb-site-icons svg{width:27px;height:29px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+#mainNav .tlb-site-menu-toggle{display:none;border:1px solid #ffffff30;border-radius:8px;padding:8px;background:transparent;color:#fff;min-width:44px;min-height:44px;cursor:pointer}
+#mainNav .tlb-site-menu-toggle svg{display:block;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+/* Academy keeps its workspace navigation below the shared site navigation. */
+body:has(> .tlb-site-header) .ap-sidebar{top:var(--tlb-site-header-height)}
+body:has(> .tlb-site-header) .ap-route-progress,body:has(> .tlb-site-header) .ap-new-reply{top:calc(var(--tlb-site-header-height) + 12px)}
+body:has(> .tlb-site-header) .ap-recipe-jumps{top:var(--tlb-site-header-height)}
+body:has(> .tlb-site-header) .ap-ingredients-panel{top:calc(var(--tlb-site-header-height) + 88px);max-height:calc(100vh - var(--tlb-site-header-height) - 110px)}
+body:has(> .tlb-site-header) .cart-panel{top:calc(var(--tlb-site-header-height) + 22px)}
+body:has(> .tlb-site-header) .ap-email-live{top:calc(var(--tlb-site-header-height) + 24px)}
+@media(min-width:1200px){body:has(> .tlb-site-header) .ap-assignment-panel{top:calc(var(--tlb-site-header-height) + 20px)}}
+body:has(> .tlb-site-header) .staff-selector{top:calc(var(--tlb-site-header-height) + 20px)}
+body:has(> .tlb-site-header) .recipe-live-cost{top:calc(var(--tlb-site-header-height) + 24px)}
+body:has(> .tlb-site-header) :target{scroll-margin-top:calc(var(--tlb-site-header-height) + 16px)}
+body:has(> .tlb-site-header) .ap-skip:focus,body:has(> .tlb-site-header)>.skip-link:focus{z-index:40}
+@media(min-width:1400px){#mainNav .tlb-site-header-inner{max-width:1320px}}
+@media(min-width:992px) and (max-width:1199.98px){#mainNav .tlb-site-header-inner{max-width:960px}#mainNav .tlb-site-links{gap:16px;margin:0 16px}}
+@media(max-width:991.98px){
+ #mainNav.tlb-site-header{padding:12px 0}
+ #mainNav .tlb-site-header-inner{flex-wrap:wrap;gap:0;padding:0 20px}
+ #mainNav .tlb-site-brand{order:0;margin-right:auto}
+ #mainNav .tlb-site-icons{order:1;margin-left:0;margin-right:4px;gap:0}
+ #mainNav .tlb-site-menu-toggle{display:inline-flex;align-items:center;justify-content:center;order:2}
+ #mainNav .tlb-site-menu{order:3;flex-basis:100%;flex-direction:column;align-items:stretch;padding:12px 0 4px;gap:12px;max-height:calc(100dvh - 80px);overflow-y:auto}
+ #mainNav[data-ready] .tlb-site-menu:not(.is-open){display:none}
+ #mainNav:not([data-ready]) .tlb-site-menu-toggle{display:none}
+ #mainNav .tlb-site-links{flex-direction:column;align-items:stretch;margin:0;gap:0}
+ #mainNav .tlb-site-links>a,#mainNav .tlb-site-specialties>summary{justify-content:center}
+ #mainNav .tlb-site-dropdown{position:static;margin:0 auto;max-width:360px;text-align:center;box-shadow:none}
+ #mainNav .tlb-site-order{align-self:center}
+}
+@media(max-width:380px){
+ #mainNav .tlb-site-header-inner{padding:0 12px}
+ #mainNav .tlb-site-brand{font-size:17px;gap:6px;margin-right:auto}
+ #mainNav .tlb-site-brand img{width:32px;height:32px}
+ #mainNav .tlb-site-icons a{width:36px}
+}
+@media print{#mainNav.tlb-site-header{display:none!important}}
