@@ -19,7 +19,9 @@ export function createRecipeDrive({getEnv=env,request=fetch,now=()=>Date.now()}=
   cached={token:data.access_token,expires:now()+(Math.min(3600,data.expires_in)-60)*1000};return cached.token;
  }
  function fail(response:Response){if(response.status===401)cached=null;throw new RecipeBackupError(response.status===429?'quota':[401,403,404].includes(response.status)?'access':'network');}
- async function call(url:string,init:RequestInit={}){return request(url,{...init,redirect:'error',headers:{...Object.fromEntries(new Headers(init.headers)),Authorization:`Bearer ${await token()}`},signal:init.signal||AbortSignal.timeout(30000)});}
+ // Drive uses HTTP 308 for chunk acknowledgments. Expose it to the resumable
+ // uploader; never follow a redirect carrying the service-account credential.
+ async function call(url:string,init:RequestInit={}){return request(url,{...init,redirect:'manual',headers:{...Object.fromEntries(new Headers(init.headers)),Authorization:`Bearer ${await token()}`},signal:init.signal||AbortSignal.timeout(30000)});}
  async function metadata(id:string){const response=await call(`https://www.googleapis.com/drive/v3/files/${driveId(id)}?fields=id,name,size,mimeType,sha256Checksum,trashed,parents,capabilities(canEdit),permissions(type,role,emailAddress)`);if(!response.ok)fail(response);return response.json();}
  function privateFile(meta:any){if(meta.trashed||meta.mimeType!=='application/zip'||meta.capabilities?.canEdit!==true||!Array.isArray(meta.permissions)||meta.permissions.some((p:any)=>['anyone','domain'].includes(p.type)))throw new RecipeBackupError('access');}
  return {

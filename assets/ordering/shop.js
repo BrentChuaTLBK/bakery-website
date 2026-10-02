@@ -71,6 +71,7 @@ function renderShop(){
   document.querySelectorAll('[data-method]').forEach(b=>b.onclick=()=>{state.method=b.dataset.method;quote=null;persist();renderShop()});
   document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{category=b.dataset.category;document.querySelectorAll('[data-category]').forEach(x=>x.classList.toggle('active',x===b));renderProducts()});
   $('#menu-search').oninput=e=>{query=e.target.value;renderProducts()};
+  if(location.hash==='#cart')requestAnimationFrame(()=>$('#cart')?.scrollIntoView({block:'start'}));
 }
 function renderProducts(){
   const products=catalog.products.filter(p=>p.active&&(category==='all'||productCategoryIds(p,catalog.categories).includes(category))&&`${p.name} ${p.description}`.toLowerCase().includes(query.toLowerCase()));
