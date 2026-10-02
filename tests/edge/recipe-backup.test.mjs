@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {generateKeyPairSync,createHash} from 'node:crypto';
 import {createRecipeDrive} from '../../supabase/functions/recipe-backup/google.ts';
 import {handle} from '../../supabase/functions/recipe-backup/handler.ts';
+import {createServer} from 'node:http';
 const key=generateKeyPairSync('rsa',{modulusLength:2048}),secret=JSON.stringify({type:'service_account',client_email:'test@fixture.iam.gserviceaccount.com',private_key:key.privateKey.export({type:'pkcs8',format:'pem'})});
 const fileId='fixture_archive_1234567890';
 function driveFixture({mismatch=false,publicFile=false,interrupt=false,partial=false,badLocation=false}={}){
@@ -20,7 +21,7 @@ function driveFixture({mismatch=false,publicFile=false,interrupt=false,partial=f
   if(match[3]!=='*'&&received.length===Number(match[3]))return Response.json({id:fileId,size:received.length,sha256Checksum:mismatch?'bad':createHash('sha256').update(received).digest('hex')});
   return new Response(null,{status:308,headers:{Range:`bytes=0-${received.length-1}`}});
  };
- return {client:createRecipeDrive({getEnv:()=>secret,request}),result:()=>({received,tokens,renamed})};
+ return {request,client:createRecipeDrive({getEnv:()=>secret,request}),result:()=>({received,tokens,renamed})};
 }
 async function* bytesSource(size){for(let offset=0;offset<size;offset+=333333)yield Uint8Array.from({length:Math.min(333333,size-offset)},(_,i)=>(offset+i)%251);}
 test('Drive streaming upload handles chunk boundaries, partial acknowledgments and network retry',async()=>{
@@ -33,6 +34,13 @@ test('Drive success requires matching checksum and a private editable archive',a
  await assert.rejects(()=>driveFixture({mismatch:true}).client.upload(fileId,bytesSource(100),'x.zip'),/checksum/);
  await assert.rejects(()=>driveFixture({publicFile:true}).client.upload(fileId,bytesSource(100),'x.zip'),/access/);
  await assert.rejects(()=>driveFixture({badLocation:true}).client.upload(fileId,bytesSource(100),'x.zip'),/network/);
+});
+test('real HTTP 308 with a Location header remains an upload acknowledgment',async()=>{
+ const server=createServer((req,res)=>{res.writeHead(308,{Range:req.headers['x-fixture-range'],Location:'https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?upload_id=fixture'});res.end();});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const fixture=driveFixture({partial:true});let acknowledgments=0;
+ const request=async(url,options)=>{const response=await fixture.request(url,options);if(response.status!==308)return response;acknowledgments++;return fetch(`http://127.0.0.1:${server.address().port}`,{method:'POST',redirect:options.redirect,headers:{'x-fixture-range':response.headers.get('range')||''}});};
+ try{const result=await createRecipeDrive({getEnv:()=>secret,request}).upload(fileId,bytesSource(8*1024*1024+37),'fixture.zip');assert.equal(result.drive_verified,true);assert(acknowledgments>=2);assert(fixture.result().renamed);}finally{await new Promise(resolve=>server.close(resolve));}
 });
 test('backup worker rejects missing and malformed authorization before doing work',async()=>{
  globalThis.Deno={env:{get:()=>''}};

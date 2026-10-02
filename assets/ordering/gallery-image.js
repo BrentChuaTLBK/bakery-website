@@ -12,7 +12,7 @@ async function decode(blob) {
   } finally { URL.revokeObjectURL(url); }
 }
 
-async function convertGalleryImage(file, { format = 'webp' } = {}) {
+async function convertGalleryImage(file, { format = 'webp', maxDimension = 1600, maxBytes = 5 * 1024 * 1024, quality = format === 'jpeg' ? 0.86 : 0.82 } = {}) {
   if (!['webp', 'jpeg'].includes(format)) throw new Error('Choose a supported image format.');
   if (!file?.size) throw new Error('Choose an image.');
   if (file.size > 25 * 1024 * 1024) throw new Error('Choose an image up to 25 MB.');
@@ -34,7 +34,7 @@ async function convertGalleryImage(file, { format = 'webp' } = {}) {
   try {
     const width = image.naturalWidth ?? image.width, height = image.naturalHeight ?? image.height;
     if (!width || !height || width * height > 60_000_000) throw new Error('Choose an image under 60 megapixels.');
-    const scale = Math.min(1, 1600 / Math.max(width, height));
+    const scale = Math.min(1, maxDimension / Math.max(width, height));
     canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(width * scale));
     canvas.height = Math.max(1, Math.round(height * scale));
@@ -46,9 +46,18 @@ async function convertGalleryImage(file, { format = 'webp' } = {}) {
     }
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const mime = `image/${format}`, extension = format === 'jpeg' ? 'jpg' : 'webp';
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, format === 'jpeg' ? 0.86 : 0.82));
-    if (!blob || blob.type !== mime) throw new Error(`Your browser cannot create ${format === 'jpeg' ? 'JPEG' : 'WebP'} images. Try a current Chrome, Edge, or Firefox browser.`);
-    if (blob.size > 5 * 1024 * 1024) throw new Error('The converted image is still too large. Choose a smaller image.');
+    let blob;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      blob = await new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+      if (!blob || blob.type !== mime) throw new Error(`Your browser cannot create ${format === 'jpeg' ? 'JPEG' : 'WebP'} images. Try a current Chrome, Edge, or Firefox browser.`);
+      if (blob.size <= maxBytes) break;
+      canvas.width = Math.max(1, Math.round(canvas.width * .8));
+      canvas.height = Math.max(1, Math.round(canvas.height * .8));
+      if (format === 'jpeg') { context.fillStyle = '#fffaf0'; context.fillRect(0, 0, canvas.width, canvas.height); }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      quality = Math.max(.6, quality - .05);
+    }
+    if (blob.size > maxBytes) throw new Error('This photo could not be prepared. Try a JPG or PNG copy.');
     const converted = new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'photo'}.${extension}`, { type: mime });
     return { file: converted, width: canvas.width, height: canvas.height, originalSize: file.size, converted: true };
   } finally {
@@ -66,6 +75,7 @@ export async function prepareGalleryImage(file, options = {}) {
     preparedImageFiles.add(result.file); return result;
   }
   catch (conversionError) {
+    if (options.allowOriginal === false) throw conversionError;
     // Preserve a valid original when its encoder/decoder is unavailable. Never
     // relabel PNG bytes as WebP or accept a renamed non-image.
     let original;

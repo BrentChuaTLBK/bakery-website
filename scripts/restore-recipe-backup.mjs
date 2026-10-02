@@ -13,7 +13,7 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
  if(Number(count)!==0)throw Error('Restore rehearsal requires an empty recipe database.');
  // Old backups predate account-wide R&D access. Preserve least privilege.
  const researchRecipes=new Set(backup.tables.recipe_versions.filter(row=>row.status==='testing').map(row=>row.recipe_id));
- const tables={...backup.tables,recipe_access:backup.tables.recipe_access.map(row=>({can_view_rd:false,...row})),recipe_drafts:backup.tables.recipe_drafts.map(row=>({requires_rd:researchRecipes.has(row.recipe_id),...row}))};
+ const tables={...backup.tables,recipe_access:(backup.tables.recipe_access||[]).map(row=>({can_view_rd:false,...row})),recipe_drafts:(backup.tables.recipe_drafts||[]).map(row=>({requires_rd:researchRecipes.has(row.recipe_id),...row}))};
  await db.exec('begin; set constraints all deferred; delete from tlb.recipe_categories; delete from tlb.recipe_settings;');
  try{
   if(tables.recipe_staff_defaults)await db.exec('delete from tlb.recipe_staff_defaults');
@@ -28,7 +28,7 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
   for(const table of order){
    const columns=(await db.query("select column_name from information_schema.columns where table_schema='tlb' and table_name=$1 and is_generated='NEVER' order by ordinal_position",[table])).rows.map(r=>r.column_name);
    const names=columns.map(c=>`"${c}"`).join(',');
-   let rows=tables[table];
+   let rows=tables[table]||[];
    if(table==='recipe_categories'){
     const pending=[...rows],sorted=[],done=new Set();while(pending.length){const index=pending.findIndex(r=>!r.parent_id||done.has(r.parent_id));if(index<0)throw Error('Category hierarchy has a cycle.');const [row]=pending.splice(index,1);sorted.push(row);done.add(row.id);}rows=sorted;
    }
@@ -47,7 +47,7 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
    // Use the database types for both sides. A timestamptz can serialize in UTC
    // or the recovery machine's timezone while retaining the same microseconds.
    // Nested JSON and user-entered date strings remain untouched.
-   const expected=(await db.query(`select to_jsonb(t)${exclude} row from jsonb_populate_recordset(null::tlb.${table},$1::jsonb) t`,[JSON.stringify(tables[table])])).rows.map(r=>r.row);
+   const expected=(await db.query(`select to_jsonb(t)${exclude} row from jsonb_populate_recordset(null::tlb.${table},$1::jsonb) t`,[JSON.stringify(tables[table]||[])])).rows.map(r=>r.row);
    const sorted=value=>Array.isArray(value)?value.map(sorted):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,sorted(value[k])])):value;
    const canonical=value=>JSON.stringify(sorted(value));const before=expected.map(canonical).sort(),after=restored.map(canonical).sort();if(JSON.stringify(before)!==JSON.stringify(after))throw Error(`Restored values differ: ${table}`);
   }

@@ -1,4 +1,4 @@
-import {safeArchivePath,validateRecipeManifest,newDigest,finishDigest} from './recipe-archive.js?v=staff-security-1';
+import {safeArchivePath,validateRecipeManifest,newDigest,finishDigest} from './recipe-archive.js?v=essentials-20261002-1';
 const decoder=new TextDecoder('utf-8',{fatal:true});
 async function view(blob,offset,length){if(offset<0||offset+length>blob.size)throw Error('Archive is truncated.');return new DataView(await blob.slice(offset,offset+length).arrayBuffer());}
 async function zipDirectory(blob){
@@ -46,11 +46,11 @@ export function validateRecipeRelationships(tables,manifest){
  for(const r of tables.recipe_ingredient_links){ref('recipe_versions',r.version_id);if(ref('recipe_resources',r.resource_id).kind!=='ingredient')throw Error('Ingredient link has the wrong resource type.');}
  for(const r of tables.recipe_prices){ref('recipe_resources',r.resource_id);if(r.supplier_id&&ref('recipe_resources',r.supplier_id).kind!=='supplier')throw Error('Price supplier has the wrong resource type.');}
  for(const r of tables.recipe_supplier_items){ref('recipe_resources',r.resource_id);if(ref('recipe_resources',r.supplier_id).kind!=='supplier')throw Error('Supplier link has the wrong type.');}
- for(const r of tables.recipe_tests){ref('recipes',r.recipe_id);if(ref('recipe_versions',r.version_id).recipe_id!==r.recipe_id)throw Error('Testing log points to another recipe.');ref('recipe_versions',r.promoted_version_id,true);}
+ for(const r of tables.recipe_tests||[]){ref('recipes',r.recipe_id);if(ref('recipe_versions',r.version_id).recipe_id!==r.recipe_id)throw Error('Testing log points to another recipe.');ref('recipe_versions',r.promoted_version_id,true);}
  for(const r of tables.recipe_runs||[]){if(ref('recipe_versions',r.version_id).recipe_id!==r.recipe_id)throw Error('Production log points to another recipe.');}
  for(const r of tables.recipe_file_links){ref('recipe_files',r.file_id);ref('recipe_versions',r.version_id,true);ref('recipe_tests',r.test_id,true);}
- for(const r of tables.recipe_user_state)ref('recipes',r.recipe_id);
- for(const r of tables.recipe_drafts)ref('recipes',r.recipe_id,true);
+ for(const r of tables.recipe_user_state||[])ref('recipes',r.recipe_id);
+ for(const r of tables.recipe_drafts||[])ref('recipes',r.recipe_id,true);
  for(const name of ['recipe_staff_defaults','recipe_staff_controls','recipe_staff_dates','recipe_staff_overrides','recipe_staff_batches','recipe_staff_events'])for(const row of tables[name]||[]){
   for(const key of ['user_id','actor','updated_by','created_by','revoked_by'])ref('actors',row[key],true);
   if(name==='recipe_staff_events')ref('recipes',row.recipe_id,true);

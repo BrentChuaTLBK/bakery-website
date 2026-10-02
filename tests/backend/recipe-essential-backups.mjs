@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {join,resolve} from 'node:path';
+import {makeHarness} from './helpers.mjs';
+import {unwrapRecipeResult} from './recipe-staff-fixture.mjs';
+import {buildRecipeArchive} from '../../supabase/functions/recipe-backup/archive.ts';
+import {digestBytes,RECIPE_BACKUP_TABLES} from '../../assets/ordering/recipe-archive.js';
+import {readRecipeArchive} from '../../assets/ordering/recipe-recovery.js';
+import {rehearseRecipeRestore} from '../../scripts/restore-recipe-backup.mjs';
+export default async function({db,check}){
+ const h=await makeHarness(db),owner=h.ids.owner;
+ const api=(a,p={})=>h.as(owner,async()=>(await db.query('select public.recipe_api($1,$2::jsonb) result',[a,JSON.stringify(p)])).rows[0].result).then(unwrapRecipeResult);
+ const service=(a,p={})=>h.as(null,async()=>(await db.query('select public.recipe_backup_service($1,$2::jsonb) result',[a,JSON.stringify(p)])).rows[0].result,'service_role');
+ const backup=(a,p={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[a,JSON.stringify(p)])).rows[0].result);
+ const supplier=await api('save_resource',{kind:'supplier',name:'Essential supplier',data:{}});
+ const ingredient=await api('save_resource',{kind:'ingredient',name:'Sugar',data:{default_unit:'g'},price:{amount:'100',quantity:'1',unit:'kg',supplier_id:supplier.id}});
+ const packaging=await api('save_resource',{kind:'packaging',name:'Box',data:{},price:{amount:'10',quantity:'1',unit:'pcs',supplier_id:supplier.id}});
+ await api('save_resource',{kind:'equipment',name:'Excluded oven',data:{}});
+ const bytes=new TextEncoder().encode('Essential linked file'),sha=digestBytes(bytes);
+ async function file(name){const f=await api('reserve_file',{filename:name,mime_type:'text/plain',size_bytes:bytes.length,sha256:sha});await db.query("insert into storage.objects(bucket_id,name,metadata) values('recipe-files',$1,$2::jsonb)",[f.path,JSON.stringify({size:bytes.length,mimetype:f.mime_type})]);await api('confirm_file',{id:f.id});return f;}
+ const oldFile=await file('old-source.txt'),latestFile=await file('latest-source.txt');
+ const document={name:'Latest cake',files:[{id:oldFile.id,visibility:'private'}],variants:[{id:'base',name:'8-inch',yield:{quantity:'1',unit:'cake',portions:'8'},groups:[{id:'batter',name:'Batter',ingredients:[{id:'sugar',ingredient_id:ingredient.id,name:'Sugar',quantity:'500',unit:'g'}]}],methods:[{name:'Bake',steps:[{id:'bake',instruction:'Bake gently.'}]}],additional_costs:[],costing:{mode:'saleable',saleable_yield:'1',sale_unit:'whole_cake',price_basis:'unit',selling_price:'200',labor_percent:'0'}}]};
+ let recipe=await api('create',{document,status:'production'});const historical=recipe.version_id;
+ await api('save_test',{recipe_id:recipe.id,version_id:recipe.version_id,data:{observations:'Exclude this log'},proposed_document:document});
+ await api('record_run',{version_id:recipe.version_id,variant_id:'base',multiplier:'1',actual_yield:'1',produced_on:'2026-10-01',notes:'Exclude production history'});
+ const latest=structuredClone(document);latest.files=[{id:latestFile.id,visibility:'private'}];latest.variants[0].groups[0].ingredients[0].quantity='600';
+ recipe=await api('save',{id:recipe.id,revision:recipe.revision,document:latest,status:'draft'});
+ await api('autosave',{draft_id:randomUUID(),id:recipe.id,revision:recipe.revision,status:'testing',document:latest});
+ await api('save_resource',{id:ingredient.id,revision:ingredient.revision,kind:'ingredient',name:ingredient.name,data:ingredient.data,price:{amount:'150',quantity:'1',unit:'kg',supplier_id:supplier.id}});
+ const slots=[];for(const [kind,count] of [['daily',30],['monthly',12],['manual',2]])for(let slot=1;slot<=count;slot++)slots.push({kind,slot,drive_file_id:`QA_${kind}_${String(slot).padStart(20,'0')}`});await service('connect',{folder_id:'1rRxDTqAVqliCdx0OTRJK0XuLC4iHQyeg',slots});
+ let start,archive,recovered;
+ await check('essential backups retain owner-only worker access and verified completion',async()=>{await assert.rejects(()=>backup('status',{},h.ids.staff),/Authorized recipe/);await assert.rejects(()=>h.as(owner,()=>db.query("select public.recipe_backup_service('begin','{}')")),/permission denied/);await assert.rejects(()=>h.as(owner,()=>db.query('select * from tlb.recipe_backup_essential_rows()')),/permission denied/);start=await service('begin');assert.equal(start.scope,'essentials');assert.equal((await service('begin')).skipped,'busy');await assert.rejects(()=>service('finish',{job_id:start.job_id,lease_token:start.lease_token,sha256:sha,size_bytes:1000}),/Drive must confirm/);})();
+ await check('only latest recipes, catalog essentials, current prices and linked files enter the snapshot',async()=>{
+  // The live formula changes after capture; the in-flight backup must stay fixed.
+  const changed=structuredClone(latest);changed.name='Changed after snapshot';await api('save',{id:recipe.id,revision:recipe.revision,document:changed,status:'draft'});
+  const parts=[];for await(const chunk of buildRecipeArchive(start,service,async f=>{assert.equal(f.id,latestFile.id);return bytes;}))parts.push(chunk);archive=new Blob(parts);recovered=await readRecipeArchive(archive);
+  assert.equal(recovered.manifest.schema_version,4);assert.equal(recovered.manifest.scope,'essentials');assert.equal(recovered.tables.recipe_versions.length,1);assert.equal(recovered.tables.recipe_versions[0].id,recipe.version_id);assert.notEqual(recovered.tables.recipe_versions[0].id,historical);assert.equal(recovered.tables.recipes[0].name,'Latest cake');assert.equal(recovered.tables.recipes[0].production_version_id,null);assert.equal(recovered.files.length,1);assert.equal(recovered.files[0].id,latestFile.id);
+  assert.equal(recovered.tables.recipe_resources.some(r=>r.kind==='equipment'),false);assert.equal(recovered.tables.recipe_prices.filter(p=>p.resource_id===ingredient.id).length,1);assert.equal(Number(recovered.tables.recipe_versions[0].cost_snapshot.variants[0].total),90);assert.equal(recovered.tables.recipe_versions[0].cost_snapshot.price_source,'current');
+  for(const key of ['recipe_tests','recipe_runs','recipe_audit','recipe_drafts','recipe_access','recipe_invitations','recipe_staff_events'])assert.equal(recovered.tables[key],undefined,key+' excluded');
+  const live=(await db.query('select cost_snapshot from tlb.recipe_versions where id=$1',[recipe.version_id])).rows[0];assert.equal(Number(live.cost_snapshot.variants[0].total),60,'Backup does not mutate historical snapshots');
+ })();
+ const require=createRequire(join(resolve(process.env.PGLITE_PACKAGE_ROOT),'package.json')),{PGlite}=require('@electric-sql/pglite'),{pgcrypto}=require('@electric-sql/pglite/contrib/pgcrypto');
+ await check('essential archive restores to an isolated database with matching formulas and costs',async()=>{const isolated=new PGlite({extensions:{pgcrypto}});try{const report=await rehearseRecipeRestore(archive,{db:isolated});assert.equal(report.relationships,true);assert.equal(report.files,1);const version=(await isolated.query('select document,cost_snapshot from tlb.recipe_versions')).rows[0];assert.equal(version.document.variants[0].groups[0].ingredients[0].quantity,'600');assert.equal(Number(version.cost_snapshot.variants[0].total),90);assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_audit')).rows[0].n,0);assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_tests')).rows[0].n,0);}finally{await isolated.close();}})();
+ await check('older complete archives still verify and restore without changing staff access defaults',async()=>{
+  const tables=Object.fromEntries(RECIPE_BACKUP_TABLES.map(t=>[t,recovered.tables[t]||[]])),legacyStart={...start,scope:'full',tables:RECIPE_BACKUP_TABLES,file_count:1,record_count:Object.values(tables).reduce((n,r)=>n+r.length,0)};
+  const dispatch=async(action,p)=>action==='progress'?{}:{rows:p.after?[]:tables[p.table].map((data,i)=>({sequence:i+1,data}))};const chunks=[];for await(const chunk of buildRecipeArchive(legacyStart,dispatch,async()=>bytes))chunks.push(chunk);const legacy=new Blob(chunks);assert.equal((await readRecipeArchive(legacy)).manifest.schema_version,1);const isolated=new PGlite({extensions:{pgcrypto}});try{assert.equal((await rehearseRecipeRestore(legacy,{db:isolated})).relationships,true);assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_staff_controls')).rows[0].n,0);}finally{await isolated.close();}
+ })();
+ await check('tampered essential archives cannot pass verification',async()=>{const content=new Uint8Array(await archive.arrayBuffer());const needle=Buffer.from(bytes),position=Buffer.from(content).indexOf(needle);assert(position>0);content[position]^=1;await assert.rejects(()=>readRecipeArchive(new Blob([content])),/Checksum/);})();
+ await check('verified daily and monthly essentials preserve previous copies on a failed retry',async()=>{const checksum=digestBytes(new Uint8Array(await archive.arrayBuffer()));await service('finish',{job_id:start.job_id,lease_token:start.lease_token,sha256:checksum,size_bytes:archive.size,drive_verified:true});const monthly=await service('begin');assert.equal(monthly.kind,'monthly');assert.equal(monthly.scope,'essentials');assert.equal(monthly.source_sha256,checksum);await service('finish',{job_id:monthly.job_id,lease_token:monthly.lease_token,sha256:checksum,size_bytes:archive.size,drive_verified:true});const before=await backup('status'),manual=await service('begin',{kind:'manual'});await service('finish',{job_id:manual.job_id,lease_token:manual.lease_token,error:'network'});const failed=await backup('status');assert.equal(failed.last_success_at,before.last_success_at);assert.equal(failed.slots.filter(s=>s.valid).length,2);assert.equal(failed.consecutive_failures,1);})();
+ await check('pinned component dependencies survive without including unrelated version history',async()=>{
+  const componentDoc=structuredClone(latest);componentDoc.name='Linked icing';componentDoc.files=[];componentDoc.variants[0].yield.unit='batch';let component=await api('create',{document:componentDoc,status:'production'});const pinned=component.version_id;componentDoc.variants[0].groups[0].ingredients[0].quantity='700';component=await api('save',{id:component.id,revision:component.revision,document:componentDoc,status:'production'});
+  const parent=structuredClone(latest);parent.name='Linked parent';parent.files=[];parent.variants[0].components=[{id:'icing',version_id:pinned,variant_id:'base',quantity:'1',unit:'batch'}];await api('create',{document:parent,status:'production'});
+  const next=await service('begin',{kind:'manual'}),parts=[];for await(const chunk of buildRecipeArchive(next,service,async()=>bytes))parts.push(chunk);const saved=await readRecipeArchive(new Blob(parts));assert(saved.tables.recipe_versions.some(v=>v.id===pinned));assert(saved.tables.recipe_versions.some(v=>v.id===component.version_id));assert.equal(saved.tables.recipe_versions.filter(v=>v.recipe_id===recipe.id).length,1);assert.equal(saved.tables.recipe_links[0].target_version_id,pinned);await service('finish',{job_id:next.job_id,lease_token:next.lease_token,error:'network'});
+ })();
+}

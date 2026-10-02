@@ -1,0 +1,19 @@
+#mainNav .home-nav-icons{display:flex;align-items:center;gap:4px;margin-left:14px}
+#mainNav .home-nav-icons a{display:inline-flex;align-items:center;justify-content:center;width:42px;height:44px;border-radius:10px;color:#fff;text-decoration:none}
+#mainNav .home-nav-icons a:hover{background:rgba(255,255,255,.1)}
+#mainNav .home-nav-icons a:focus-visible{outline:2px solid #f8d5ca;outline-offset:2px}
+#mainNav .home-nav-icons svg{width:27px;height:29px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:991.98px){
+ #mainNav>.container{column-gap:4px}
+ #mainNav .navbar-brand{order:0;margin-right:auto}
+ #mainNav .home-nav-icons{order:1;margin-left:0;gap:0}
+ #mainNav .navbar-toggler{order:2;padding:4px 6px}
+ #mainNav .navbar-collapse{order:3;flex-basis:100%}
+ #mainNav .navbar-collapse>.btn{margin-top:10px}
+}
+@media(max-width:359.98px){
+ #mainNav .navbar-brand{font-size:17px}
+ #mainNav .navbar-brand .bs-icon{width:30px;height:32px;margin-right:0!important}
+ #mainNav .navbar-brand img{width:30px;height:30px}
+ #mainNav .home-nav-icons a{width:36px}
+}
