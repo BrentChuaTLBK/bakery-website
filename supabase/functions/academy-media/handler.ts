@@ -21,25 +21,36 @@ export function validateWebP(bytes:Uint8Array){
 export function validatePhoto(bytes:Uint8Array,mime='image/webp'){
  if(mime==='image/webp')return validateWebP(bytes);
  if(!['image/png','image/jpeg','image/heic'].includes(mime))throw new HttpError(415,'Choose a PNG, JPEG, HEIC or WebP photo.');
- try{const info=inspectImage(bytes);if(info.mime!==mime)throw new Error('The photo contents do not match its upload format.');return {width:info.width,height:info.height};}
+ try{const info=inspectImage(bytes);if(info.mime!==mime)throw new Error('The photo contents do not match its upload format.');
+  if(mime==='image/png'){
+   // A bounded container is not enough: impossible IHDR fields can otherwise
+   // be saved successfully even though browsers cannot display the photo.
+   const depths:Record<number,number[]>={0:[1,2,4,8,16],2:[8,16],3:[1,2,4,8],4:[8,16],6:[8,16]};
+   if(!depths[bytes[25]]?.includes(bytes[24])||bytes[26]!==0||bytes[27]!==0||bytes[28]>1)throw new Error('Choose a PNG photo with a valid image format.');
+  }
+  return {width:info.width,height:info.height};}
  catch(error){throw new HttpError(415,(error as Error).message);}
 }
 async function rpc(name:string,body:any,authorization?:string){const {url,key}=credentials();const response=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:authorization||`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});const data=await response.json().catch(()=>null);if(!response.ok)throw new HttpError(403,'This upload is not available to your account.');return data;}
 export const handle=endpoint(async(request,headers)=>{
  const user=await verifiedUser(request,true),id=uuid(new URL(request.url).searchParams.get('id'),'Photo ID');
  const record=await rpc('academy_portal_upload_check',{p_id:id},request.headers.get('authorization')!);
+ const bucket=record.bucket||'academy-student-media';
+ if(!['academy-student-media','academy-welcome'].includes(bucket))throw new HttpError(403,'This upload destination is not available.');
  const mime=record.mime_type||'image/webp',limit=mime==='image/webp'?5242880:originalPhotoLimit;
+ if(bucket==='academy-welcome'&&mime!=='image/webp')throw new HttpError(415,'The public welcome picture must be prepared as WebP without camera metadata.');
  if(request.headers.get('content-type')!==mime)throw new HttpError(400,'The photo format does not match the reserved upload.');
  const bytes=await readBody(request,limit),dimensions=validatePhoto(bytes,mime);
  if(bytes.length!==record.size_bytes||dimensions.width!==record.width||dimensions.height!==record.height)throw new HttpError(400,'Photo dimensions or size do not match the upload.');
  const sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
  if(record.uploaded){if(record.sha256!==sha256)throw new HttpError(409,'This photo is already uploaded.');return json({id,uploaded:true},200,headers);}
  const {url,key}=credentials();
- const response=await fetch(`${url}/storage/v1/object/academy-student-media/${record.path}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':mime,'Cache-Control':'no-store','x-upsert':'false'},body:bytes,signal:AbortSignal.timeout(30000)});
+ const objectPath=`${bucket}/${record.path.split('/').map(encodeURIComponent).join('/')}`;
+ const response=await fetch(`${url}/storage/v1/object/${objectPath}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':mime,'Cache-Control':'no-store','x-upsert':'false'},body:bytes,signal:AbortSignal.timeout(30000)});
  if(!response.ok){
   // A response can be lost after storage accepted the immutable upload. Verify
   // the existing bytes before acknowledging a retry; never overwrite them.
-  const existing=await fetch(`${url}/storage/v1/object/authenticated/academy-student-media/${record.path}`,{headers:{apikey:key,Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(15000)});
+  const existing=await fetch(`${url}/storage/v1/object/authenticated/${objectPath}`,{headers:{apikey:key,Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(15000)});
   if(!existing.ok)throw new HttpError(502,'Photo storage is unavailable. Please retry.');
   const saved=await readBody(new Request('https://local.test',{method:'POST',body:existing.body,duplex:'half'} as any),limit);
   const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',saved))].map(b=>b.toString(16).padStart(2,'0')).join('');if(hash!==sha256)throw new HttpError(409,'This upload already contains another photo.');

@@ -30,7 +30,7 @@ export function mountRecipeEditor(host,document,{esc}){
   const target=event.target.closest('button');if(!target||target.disabled||host.dataset.editorLocked)return;
   if(target.hasAttribute('data-editor-jump')){host.querySelector('[data-editor-section="'+target.dataset.editorJump+'"]').scrollIntoView({block:'start'});return;}
   if(target.hasAttribute('data-edit-component')){active=variants[Number(target.dataset.editComponent)];render();host.querySelector('[aria-pressed="true"]').focus();return;}
-  if(target.hasAttribute('data-editor-undo')){const command=undo.pop();if(!command)return;command.restore();active=command.component;render();host.querySelector('[data-editor-status]').textContent='Undid '+command.label+'.';(host.querySelector('[data-editor-undo]:not(:disabled)')||host.querySelector('[aria-pressed="true"]')).focus();return;}
+  if(target.hasAttribute('data-editor-undo')){const command=undo.pop();if(!command)return;command.restore();active=command.component;render();host.dispatchEvent(new Event('ap:editor-change',{bubbles:true}));host.querySelector('[data-editor-status]').textContent='Undid '+command.label+'.';(host.querySelector('[data-editor-undo]:not(:disabled)')||host.querySelector('[aria-pressed="true"]')).focus();return;}
   const kind=target.dataset.editorAction;if(!kind)return;
   const list=at(target.dataset.editorList),index=Number(target.dataset.editorIndex),previous=active;
   let restore,label;
@@ -46,18 +46,18 @@ export function mountRecipeEditor(host,document,{esc}){
   }
   // Inverse commands preserve text entered after a structural change.
   undo.push({restore,label,component:previous});if(undo.length>30)undo.shift();
-  const path=target.dataset.editorList;render();
+  const path=target.dataset.editorList;render();host.dispatchEvent(new Event('ap:editor-change',{bubbles:true}));
   const focus=[...host.querySelectorAll('[data-editor-action]')].find(b=>b.dataset.editorAction===kind&&b.dataset.editorList===path&&!b.disabled)||host.querySelector('[data-editor-undo]');focus.focus();
   host.querySelector('[data-editor-status]').textContent=label==='removal'?'Removed. Undo is available before saving.':label==='move'?'Order updated. Undo is available before saving.':'Added. Complete the new fields before saving.';
  });
  render();return ()=>clone(variants);
 }
 import {prepareProductImage} from './product-image.js?v=approved-20261002-1';
-import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=approved-20261002-1';
+import {renderBakingRecipe,bindBakingRecipe} from './academy-recipe-view.js?v=academy-approved-comparisons-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
 
 export function bindRecipePreview(form,record,readVariants,ui){
- const trigger=document.createElement('button');trigger.type='button';trigger.className='ap-button secondary';trigger.textContent='Preview student recipe';form.querySelector('button[type=submit]').before(trigger);
+ const trigger=document.createElement('button');trigger.type='button';trigger.className='ap-button secondary';trigger.textContent='Preview student recipe';trigger.dataset.previewRecipe='';form.querySelector('button[type=submit]').before(trigger);
  let disposed=false,modal=null,url=null;
  const release=()=>{if(url)URL.revokeObjectURL(url);url=null;};
  ui.registerCleanup(()=>{disposed=true;modal?.close();release();});

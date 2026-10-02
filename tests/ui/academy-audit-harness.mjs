@@ -15,7 +15,7 @@ export async function auditHarness(channel=process.env.PLAYWRIGHT_CHANNEL||'chro
  const browser=await engine.launch({headless:true,...(engine===chromium?{channel,...(localPhotoFixture?{args:['--disable-features=LocalNetworkAccessChecks']}:{})}:{})});let queue=Promise.resolve();const files=new Map(),errors=[];
  const serial=fn=>{const task=queue.then(fn,fn);queue=task.catch(()=>{});return task;};
  const names=[...(await readFile(join(root,'assets/ordering/client.js'),'utf8')).matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+(\w+)/g)].map(m=>m[1]);
- async function pageFor(initialUser,width=1440,{height=1000,responseTransform,...device}={}){
+ async function pageFor(initialUser,width=1440,{height=1000,responseTransform,clientTransform,...device}={}){
   let actor=initialUser,delay=null,failure=null,uploadFailure=0,uploads=0;
   const calls=[];const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce',...device});
   await context.exposeFunction('auditActor',value=>{actor=value;});
@@ -33,13 +33,13 @@ export async function auditHarness(channel=process.env.PLAYWRIGHT_CHANNEL||'chro
    uploads++;if(uploadFailure&&uploads===uploadFailure)throw Error('Simulated connection loss');
    const data=Uint8Array.from(bytes);const m=await h.as(actor,async()=>(await db.query('select public.academy_portal_upload_check($1) r',[id])).rows[0].r),dims=validatePhoto(data,m.mime_type);
    if(dims.width!==m.width||dims.height!==m.height||data.length!==m.size_bytes)throw Error('Invalid dimensions');
-   if(!files.has(m.path))await db.query("insert into storage.objects(bucket_id,name,metadata) values('academy-student-media',$1,$2::jsonb)",[m.path,JSON.stringify({size:data.length,mimetype:m.mime_type})]);
+   if(!files.has(m.path))await db.query("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3::jsonb)",[m.bucket||'academy-student-media',m.path,JSON.stringify({size:data.length,mimetype:m.mime_type})]);
    files.set(m.path,Buffer.from(data));return service('academy_portal_confirm_upload',[id,actor,'a'.repeat(64)]);
   }));
   await context.exposeFunction('auditMedia',path=>serial(async()=>{calls.push({action:'download_media',p:{path}});if(!(await state.storage(actor,path)).length)throw Error('Private media denied');return [...(files.get(path)||Buffer.alloc(0))];}));
-  const provided=['ready','configured','initializationError','auth','academyPortalApi','academyPortalMedia','academyPortalUpload','escapeHtml','academyBackupApi','academyBackupConnection','upload'];
+  const provided=['ready','configured','initializationError','auth','academyPortalApi','academyPortalMedia','academyPortalUpload','escapeHtml','academyBackupApi','academyBackupConnection','upload','academyWelcomeImageURL','academyWelcomeDefaultPhoto','academyWelcomeDefaultAlt'];
   const session=initialUser?{access_token:'fixture-user',user:{id:initialUser,email:'fixture@example.test'}}:null;
-  const client=`export const ready=Promise.resolve(),configured=true,initializationError=null;let session=${JSON.stringify(session)},listeners=[];
+  const client=`export {academyWelcomeImageURL,academyWelcomeDefaultPhoto,academyWelcomeDefaultAlt} from '/assets/ordering/academy-welcome-image.js';export const ready=Promise.resolve(),configured=true,initializationError=null;let session=${JSON.stringify(session)},listeners=[];
    window.auditChangeSession=async(id)=>{await window.auditActor(id);session=id?{access_token:'fixture-user',user:{id,email:'fixture@example.test'}}:null;listeners.forEach(fn=>fn(id?'SIGNED_IN':'SIGNED_OUT',session));};
    export const auth={getSession:async()=>({data:{session}}),onAuthStateChange:fn=>{listeners.push(fn);return {data:{subscription:{unsubscribe(){}}}};},signOut:async()=>window.auditChangeSession(null)};
    export const academyPortalApi=async(action,p={})=>{const r=await window.auditRpc(action,p);if(r.error)throw Object.assign(new Error(r.error.message),{code:r.error.code});return r.data;},academyPortalMedia=async path=>new Blob([Uint8Array.from(await window.auditMedia(path))],{type:({'png':'image/png','jpg':'image/jpeg','heic':'image/heic'})[path.split('.').at(-1)]||'image/webp'}),academyPortalUpload=async(id,file,progress)=>{progress(50);const r=await window.auditUpload({id,bytes:[...new Uint8Array(await file.arrayBuffer())]});progress(100);return r;};
@@ -52,8 +52,9 @@ export async function auditHarness(channel=process.env.PLAYWRIGHT_CHANNEL||'chro
    // WebKit routes local blob loads through interception; let its image decoder
    // read the actual selected bytes instead of treating the blob as a repo file.
    if(u.protocol==='blob:')return route.continue();
+   if(u.origin==='https://aulhqofjjckwwjmdvqgi.supabase.co'&&u.pathname.startsWith('/storage/v1/object/public/academy-welcome/')){const photoPath=decodeURIComponent(u.pathname.split('/academy-welcome/')[1]);const bytes=files.get(photoPath);return route.fulfill({status:bytes?200:404,contentType:'image/webp',body:bytes||'Missing public welcome image'});}
    if(u.origin!==origin)return route.abort();
-   if(u.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:client});
+   if(u.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:clientTransform?clientTransform(client):client});
    if(u.pathname==='/assets/ordering/newsletter-client.js')return route.fulfill({contentType:'text/javascript',body:"let status='unsubscribed';export async function newsletterRequest(action){if(action==='subscribe')status='subscribed';if(action==='unsubscribe')status='unsubscribed';return {status};}"});
    let p=u.pathname;if(/^\/academy\/(dashboard|admin|unsubscribe)\/?$/.test(p))p=p.replace(/\/$/,'')+'/index.html';
    const file=resolve(root,'.'+decodeURIComponent(p));if(!file.startsWith(root+sep))return route.abort();
