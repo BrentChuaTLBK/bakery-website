@@ -32,7 +32,7 @@ export function buildAccountingWorkbook(report, ExcelJS) {
     sheet.mergeCells(1, 1, 1, columns.length); sheet.getCell('A1').value = title;
     sheet.getCell('A1').font = {name: 'Calibri', size: 20, bold: true, color: {argb: 'FF764B25'}};
     sheet.getRow(1).height = 36;
-    sheet.mergeCells(2, 1, 2, columns.length); sheet.getCell('A2').value = `${report.start} to ${report.end} · PHP · Asia/Manila`;
+    sheet.mergeCells(2, 1, 2, columns.length); sheet.getCell('A2').value = `${report.mode==='all'?'All time · ':''}${report.mode==='all'&&!report.first_entry?'No entries recorded yet':report.start+' to '+report.end} · PHP · Asia/Manila`;
     sheet.mergeCells(3, 1, 3, columns.length);
     sheet.getCell('A3').value = 'Paid confirmed / fulfilled orders only. Cancelled and refunded orders are excluded in full, including their discounts and courier costs.';
     sheet.getCell('A3').alignment = {wrapText: true, vertical: 'middle'}; sheet.getRow(3).height = 32;

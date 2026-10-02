@@ -1,29 +1,67 @@
 import {allRecipeSuppliers} from './recipe-catalog.js?v=approved-20261002-1';
-import {unitOptionsMarkup,setUnitSelection} from './recipe-units.js?v=approved-20261002-1';
+import {unitOptionsMarkup,setUnitSelection} from './recipe-units.js?v=refinement-20261002-1';
+import {unitInfo} from './recipe-math.js?v=approved-20261002-1';
+import {costMoney} from './recipe-costing.js?v=refinement-20261002-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export async function openItemPrice({api,dialog,body,close,record,onSaved}){
- const request_id=crypto.randomUUID(),suppliers=(await allRecipeSuppliers(api)).filter(s=>s.active!==false&&!s.deleted_at),price=record.price||{};
- dialog('Record price',`<form id="recipe-item-price-form"><p class="recipe-eyebrow">${esc(record.kind)} · append purchase price</p><h3>${esc(record.name)}</h3><p class="recipe-muted">${record.data?.brand?`Brand: ${esc(record.data.brand)} · `:''}${esc(record.data?.dimensions||'')}Saved recipe cost snapshots stay unchanged.</p><div class="recipe-fields two"><label class="wide">Supplier<select name="supplier_id" required><option value="">Choose a supplier</option>${suppliers.map(s=>`<option value="${esc(s.id)}" ${price.supplier_id===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label><label>Total price paid · PHP<input name="amount" inputmode="decimal" required placeholder="Enter total amount"></label><label>Total quantity bought<input name="quantity" inputmode="decimal" value="${esc(price.quantity||'')}" required></label><label>Purchase unit<select name="unit" required>${unitOptionsMarkup(price.unit||record.data?.default_unit||'')}</select></label><label>Purchase date<input name="purchased_on" type="date" value="${new Date().toLocaleDateString('en-CA')}" required></label><label class="wide">Notes · optional<textarea name="notes"></textarea></label></div><p class="recipe-muted">Enter the total amount and total quantity together, for example ₱600 for 2 kg. Supplier and pack size are prefilled from the active quote when available.</p><label class="recipe-inline-check"><input name="preferred" type="checkbox">Use this as my preferred supplier for this item</label><p data-price-entry-status role="status"></p><button type="submit" class="primary">Save price</button></form>`);
- const form=body.querySelector('form'),field=name=>form.elements.namedItem(name),status=form.querySelector('[data-price-entry-status]');
- field('supplier_id').addEventListener('change',()=>{const quote=record.suppliers?.find(s=>s.supplier_id===field('supplier_id').value)?.price;if(quote){field('quantity').value=quote.quantity;field('unit').value=quote.unit;}});
- form.addEventListener('submit',async event=>{event.preventDefault();const submit=form.querySelector('[type=submit]');if(submit.disabled)return;submit.disabled=true;status.textContent='Saving price…';try{
-  const selected=suppliers.find(s=>s.id===field('supplier_id').value);if(!selected)throw Error('Choose a supplier.');
-  if(suppliers.filter(s=>s.name.trim().replace(/\s+/g,' ').toLowerCase()===selected.name.trim().replace(/\s+/g,' ').toLowerCase()).length!==1)throw Error('Two suppliers have this name. Give them distinct names in Suppliers before recording a price.');
-  const data=Object.fromEntries(new FormData(form));await api('record_purchase',{request_id,resource_id:record.id,kind:record.kind,name:record.name,brand:record.data?.brand||'',supplier_name:selected.name,amount:data.amount,quantity:data.quantity,unit:data.unit,preferred:field('preferred').checked,notes:[`Purchased ${data.purchased_on}`,data.notes].filter(Boolean).join(' · ')});close();await onSaved();
+const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const key=user=>user?'tlb-recipe-purchase-v1:'+user:null;
+const draftEpochs=new Map();
+export const purchaseDraft={
+ read(user){try{const value=key(user)&&JSON.parse(sessionStorage.getItem(key(user)));return value?.request_id&&value?.data?value:null;}catch{return null;}},
+ write(user,value){try{if(key(user))sessionStorage.setItem(key(user),JSON.stringify(value));}catch{}},
+ clear(user){draftEpochs.set(user,(draftEpochs.get(user)||0)+1);try{if(key(user))sessionStorage.removeItem(key(user));}catch{}}
+};
+export async function openItemPrice(options){return openPurchase({...options,kind:options.record.kind});}
+export async function openPurchase({api,dialog,body,close,onSaved,kind='ingredient',userId,record=null}){
+ const draftEpoch=draftEpochs.get(userId)||0;
+ const draft=record?null:purchaseDraft.read(userId),request_id=draft?.request_id||crypto.randomUUID();
+ const suppliers=(await allRecipeSuppliers(api)).filter(s=>s.active!==false&&!s.deleted_at),price=record?.price||{};
+ const saved=draft?.data||{kind,name:record?.name||'',brand:record?.data?.brand||'',supplier_id:price.supplier_id||'',unit:price.unit||record?.data?.default_unit||'',quantity:record?price.quantity||'':'',purchased_on:today()};
+ let selected=record||draft?.selected||null,items=[],searchTimer,previewTimer,sequence=0,previewSequence=0;
+ const option=(value,label,current)=>'<option value="'+esc(value)+'" '+(value===current?'selected':'')+'>'+esc(label)+'</option>';
+ const input=(name,label,{attrs='',value=saved[name]||''}={})=>'<label>'+label+'<input name="'+name+'" value="'+esc(value)+'" '+attrs+'></label>';
+ dialog(record?'Record price':'Record purchase','<form id="'+(record?'recipe-item-price-form':'recipe-purchase-form')+'"><p class="recipe-muted">'+(draft?'Your unfinished purchase has been restored.':'Choose a saved supplier and record the total paid.')+' '+(record?'Saved recipe snapshots stay unchanged.':'Your unfinished purchase is kept in this browser tab until you save or discard it.')+'</p><div class="recipe-fields two">'+
+ '<label>Purchase type<select name="kind" '+(record?'disabled':'')+'>'+option('ingredient','Ingredient',saved.kind)+option('packaging','Packaging',saved.kind)+'</select></label>'+
+ input('name','Ingredient or packaging name',{attrs:'list="purchase-items" required maxlength="200" autocomplete="off" '+(record?'readonly':'')})+'<datalist id="purchase-items"></datalist>'+
+ input('brand','Brand · optional',{attrs:'maxlength="200" '+(record?'readonly':'')})+
+ '<label>Supplier<select name="supplier_id" required>'+option('','Choose a supplier',saved.supplier_id)+suppliers.map(s=>option(s.id,s.name,saved.supplier_id)).join('')+'</select></label>'+
+ input('amount','Total price paid · PHP',{attrs:'inputmode="decimal" required'})+input('quantity','Total quantity bought',{attrs:'inputmode="decimal" required'})+
+ '<label>Purchase unit<select name="unit" required>'+unitOptionsMarkup(saved.unit)+'</select></label>'+input('purchased_on','Purchase date',{attrs:'type="date" required',value:saved.purchased_on||today()})+
+ '<div class="wide recipe-fields two" data-pack-contents hidden>'+input('contents_quantity','Contents of one <span data-pack-label>pack</span>',{attrs:'inputmode="decimal" placeholder="e.g. 1000"'})+'<label>Contents unit<select name="contents_unit">'+unitOptionsMarkup(saved.contents_unit||selected?.data?.default_unit||'g')+'</select></label><p class="recipe-muted wide">For example, one bag contains 1000 g. Use the quantity printed on this item’s pack.</p></div>'+
+ '<label class="wide">Notes · optional<textarea name="notes">'+esc(saved.notes)+'</textarea></label></div>'+
+ (suppliers.length?'':'<p class="recipe-notice">Add a supplier in Manage → Suppliers before recording a purchase.</p>')+
+ '<label class="recipe-inline-check"><input name="preferred" type="checkbox" '+(saved.preferred?'checked':'')+'>Use this as my preferred supplier for this item</label>'+
+ '<div class="recipe-purchase-preview" data-purchase-preview aria-live="polite">Enter the amount, quantity and unit to preview the cost.</div><p role="status" data-purchase-status data-price-entry-status></p>'+
+ '<div class="recipe-actions"><button type="submit" class="primary">'+(record?'Save price':'Save purchase')+'</button><button type="button" data-keep-purchase>'+(record?'Close':'Keep draft & close')+'</button>'+(record?'':'<button type="button" data-discard-purchase>Discard draft</button>')+'</div></form>');
+ const form=body.querySelector('form'),field=name=>form.elements.namedItem(name),status=form.querySelector('[data-purchase-status]');
+ if(record){const heading=document.createElement('h3');heading.textContent=record.name;form.prepend(heading);if(record.data?.brand){const brand=document.createElement('p');brand.className='recipe-muted';brand.textContent='Brand: '+record.data.brand;heading.after(brand);}}
+ function data(){return {...Object.fromEntries(new FormData(form)),kind:field('kind').value,preferred:field('preferred').checked};}
+ function persist(){if(!record&&draftEpoch===(draftEpochs.get(userId)||0))purchaseDraft.write(userId,{request_id,data:data(),selected});}
+ function contents({prefill=false}={}){
+  const unit=field('unit').value,custom=unit&&unitInfo(unit).dimension.startsWith('custom:');
+  const panel=form.querySelector('[data-pack-contents]');panel.hidden=!custom;form.querySelector('[data-pack-label]').textContent=unit||'pack';
+  if(prefill&&custom){const conversion=selected?.data?.unit_conversions?.[unit];field('contents_quantity').value=conversion?.quantity||'';setUnitSelection(field('contents_unit'),conversion?.unit||selected?.data?.default_unit||'g');}
+  field('contents_quantity').required=Boolean(custom&&selected&&unitInfo(selected.data?.default_unit||unit).dimension!==unitInfo(unit).dimension);
+ }
+ function payload(){const values=data(),supplier=suppliers.find(s=>s.id===values.supplier_id);if(!supplier)throw Error('Choose a saved supplier.');return {...values,request_id,resource_id:selected?.id||null,supplier_name:supplier.name,
+  ...(form.querySelector('[data-pack-contents]').hidden?{contents_quantity:'',contents_unit:''}:{}),notes:[values.purchased_on?'Purchased '+values.purchased_on:'',values.notes].filter(Boolean).join(' · ')};}
+ async function preview(){
+  const ticket=++previewSequence,host=form.querySelector('[data-purchase-preview]');
+  try{const result=await api('purchase_preview',payload());if(ticket!==previewSequence||!form.isConnected)return;
+   host.innerHTML='<strong>'+esc(costMoney(result.proposed_unit_cost))+' / '+esc(result.unit)+'</strong><p>'+esc(result.quantity)+' '+esc(result.unit)+' bought in total.'+(result.current_unit_cost==null?'':' Current cost: '+esc(costMoney(result.current_unit_cost))+' / '+esc(result.unit)+'.')+'</p><p>'+(result.effective_unit_cost==null?'':'Cost after saving: '+esc(costMoney(result.effective_unit_cost))+' / '+esc(result.unit)+'. ')+result.affected_recipes+' saved recipe'+(result.affected_recipes===1?'':'s')+' linked to this item.</p><small>Saved historical snapshots stay unchanged.</small>';
+  }catch(error){if(ticket===previewSequence&&form.isConnected)host.textContent=error.message;}
+ }
+ const schedule=()=>{++previewSequence;clearTimeout(previewTimer);previewTimer=setTimeout(()=>{if(form.isConnected)preview();},300);persist();};
+ const search=async()=>{const ticket=++sequence,result=await api('resources',{kind:field('kind').value,query:field('name').value,limit:50,include_inactive:true});if(ticket!==sequence||!form.isConnected)return;items=result.rows;form.querySelector('#purchase-items').innerHTML=items.map(r=>'<option value="'+esc(r.name)+'">'+esc(r.data.brand||'')+'</option>').join('');};
+ function selectMatch(){if(record)return;const matches=items.filter(r=>r.name.toLowerCase()===field('name').value.trim().toLowerCase()&&(!field('brand').value||String(r.data.brand||'').toLowerCase()===field('brand').value.trim().toLowerCase()));selected=matches.length===1?matches[0]:null;if(selected){field('brand').value=selected.data.brand||'';if(!field('unit').value)setUnitSelection(field('unit'),selected.data.default_unit||'');}contents({prefill:true});schedule();}
+ field('name').addEventListener('input',()=>{if(record)return;selected=null;clearTimeout(searchTimer);searchTimer=setTimeout(()=>search().catch(error=>status.textContent=error.message),200);});
+ field('name').addEventListener('change',selectMatch);field('brand').addEventListener('change',selectMatch);
+ field('kind').addEventListener('change',()=>{selected=null;search().catch(error=>status.textContent=error.message);});field('unit').addEventListener('change',()=>contents({prefill:true}));
+ field('supplier_id').addEventListener('change',()=>{if(!record)return;const quote=record.suppliers?.find(s=>s.supplier_id===field('supplier_id').value)?.price;if(quote){field('quantity').value=quote.quantity;setUnitSelection(field('unit'),quote.unit);contents({prefill:true});}});
+ form.addEventListener('input',schedule);form.addEventListener('change',schedule);form.querySelector('[data-keep-purchase]').onclick=()=>{persist();close();};
+ if(!record)form.querySelector('[data-discard-purchase]').onclick=()=>{purchaseDraft.clear(userId);close();};
+ form.addEventListener('submit',async event=>{event.preventDefault();if(!form.reportValidity())return;const submit=form.querySelector('[type=submit]');if(submit.disabled)return;submit.disabled=true;status.textContent='Saving purchase…';persist();try{
+  const values=payload();await api('record_purchase',values);if(!record)purchaseDraft.clear(userId);close();await onSaved(values.kind);
  }catch(error){status.textContent=error.message;}finally{if(submit.isConnected)submit.disabled=false;}});
-}
-export async function openPurchase({api,dialog,body,close,onSaved,kind='ingredient'}){
- const request_id=crypto.randomUUID();let items=[];
- const suppliers=(await allRecipeSuppliers(api));
- dialog('Record purchase',`<form id="recipe-purchase-form"><p class="recipe-muted">Enter everything here. Existing items and suppliers are reused; missing records are created together.</p><div class="recipe-fields two"><label>Purchase type<select name="kind"><option value="ingredient" ${kind==='ingredient'?'selected':''}>Ingredient</option><option value="packaging" ${kind==='packaging'?'selected':''}>Packaging</option></select></label><label>Ingredient or packaging name<input name="name" list="purchase-items" required maxlength="200" autocomplete="off"><datalist id="purchase-items"></datalist></label><label>Brand · optional<input name="brand" maxlength="200"></label><label>Supplier<input name="supplier_name" list="purchase-suppliers" required maxlength="200" autocomplete="off"><datalist id="purchase-suppliers">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join('')}</datalist></label><label>Total price paid · PHP<input name="amount" inputmode="decimal" required></label><label>Total quantity bought<input name="quantity" inputmode="decimal" required></label><label>Unit<select name="unit" required>${unitOptionsMarkup()}</select></label><label>Purchase date<input name="purchased_on" type="date" value="${new Date().toLocaleDateString('en-CA')}"></label><label class="wide">Notes · optional<textarea name="notes"></textarea></label></div><p class="recipe-muted">Example: ₱600 paid for 2 kg. New costing compares the equivalent unit price with your other suppliers.</p><label class="recipe-inline-check"><input name="preferred" type="checkbox">Use this as my preferred supplier for this item</label><p role="status" data-purchase-status></p><button type="submit" class="primary">Save purchase</button></form>`);
- const form=body.querySelector('#recipe-purchase-form'),field=name=>form.elements.namedItem(name),status=form.querySelector('[data-purchase-status]');let selected=null,searchTimer,sequence=0;
- const search=async()=>{const ticket=++sequence,result=await api('resources',{kind:field('kind').value,query:field('name').value,limit:50,include_inactive:true});if(ticket!==sequence||!form.isConnected)return;items=result.rows;form.querySelector('#purchase-items').innerHTML=items.map(r=>`<option value="${esc(r.name)}">${esc(r.data.brand||'')}</option>`).join('');};
- field('name').addEventListener('input',()=>{selected=null;clearTimeout(searchTimer);searchTimer=setTimeout(()=>search().catch(error=>status.textContent=error.message),200);});
- field('name').addEventListener('change',()=>{const matches=items.filter(r=>r.name.toLowerCase()===field('name').value.trim().toLowerCase());selected=matches.length===1?matches[0]:null;if(selected){field('brand').value=selected.data.brand||'';setUnitSelection(field('unit'),selected.data.default_unit||'');}});
- field('kind').addEventListener('change',()=>{selected=null;search().catch(error=>status.textContent=error.message);});
- form.addEventListener('submit',async event=>{event.preventDefault();const submit=form.querySelector('[type=submit]');submit.disabled=true;status.textContent='Saving purchase…';try{
-  const data=Object.fromEntries(new FormData(form));data.preferred=field('preferred').checked;data.request_id=request_id;data.resource_id=selected?.id||null;data.notes=[data.purchased_on?`Purchased ${data.purchased_on}`:'',data.notes].filter(Boolean).join(' · ');
-  await api('record_purchase',data);close();await onSaved(data.kind);
- }catch(error){status.textContent=error.message;}finally{if(submit.isConnected)submit.disabled=false;}});
- await search();
+ contents();if(!record)await search();if(saved.amount&&saved.quantity)schedule();
 }

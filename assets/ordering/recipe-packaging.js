@@ -1,6 +1,6 @@
 import {id} from './recipe-model.js?v=approved-20261002-1';
 import {exact,multiply,quantity,unitInfo} from './recipe-math.js?v=approved-20261002-1';
-import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=approved-20261002-1';
+import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=refinement-20261002-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // Saved costs remain the source of truth. Kitchen payloads contain only the

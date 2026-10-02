@@ -1,5 +1,5 @@
 import {accountingTotals, monthRange, parseAccountingAmount, accountingPaymentMethods} from './accounting.js?v=shared-categories-1';
-import {exportAccounting} from './accounting-export.js?v=brand-20261001';
+import {exportAccounting} from './accounting-export.js?v=refinement-20261002-1';
 import {accountingDatePicker, bindAccountingDates, setAccountingDate} from './accounting-date-picker.js?v=branded-calendars-1';
 import {isCalendarDate} from './date-calendar.js?v=daily-quantities-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
@@ -8,14 +8,15 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
   if (!root) return;
   if (!connected || role !== 'owner') {root.innerHTML='<p class="notice">Sign in as the owner to use accounting.</p>';return;}
   const $ = selector => root.querySelector(selector);
-  let report = null, loadId = 0, page = 0, draft = null, categoryDraft = null;
+  let report = null, loadId = 0, page = 0, draft = null, categoryDraft = null, pendingMode='month';
+  Object.assign(filters,monthRange(today.slice(0,7)),{mode:'month'});
   const opt = (value,text,selected) => `<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(text)}</option>`;
-  const field = (name,label,value='',type='text',attrs='') => ['date','month'].includes(type) ? accountingDatePicker(name,label,value,today,{mode:type}) : `<label class="field">${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
+  const field = (name,label,value='',type='text',attrs='') => ['date','month'].includes(type) ? accountingDatePicker(name,label,value,today,{mode:type,optional:['month','start','end'].includes(name)}) : `<label class="field">${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
   const selection = (name,label,options) => `<label class="field">${label}<select name="${name}">${options}</select></label>`;
   const error = '<p class="form-error" role="alert"></p>';
   root.innerHTML=`<div class="view-heading"><div><span class="eyebrow">TLB Kitchen</span><h1>Accounting</h1><p>Sales, expenses and delivery costs, together in one place.</p></div><div class="row-actions"><button class="button button-secondary" data-accounting="refresh">Refresh</button><button class="button button-secondary" data-accounting="export" disabled>Export to Excel</button><button class="button" data-accounting="add" disabled>Add entry</button></div></div>
-    <form class="panel accounting-filters">${field('month','Choose a month',filters.start.slice(0,7),'month')}${field('start','From date',filters.start,'date','required')}${field('end','Through date',filters.end,'date','required')}<button class="button" type="submit">Apply timeframe</button>${error}</form>
-    <p class="help-text">Only paid, confirmed orders and orders being prepared or already fulfilled are included. Cancelled and refunded orders are excluded entirely, including discounts and delivery costs. All dates use Manila time.</p>
+    <form class="panel accounting-filters">${field('month','Choose a month',filters.start.slice(0,7),'month')}${field('start','From date',filters.start,'date','required')}${field('end','Through date',filters.end,'date','required')}<button class="button button-secondary" type="button" data-accounting="all-time" aria-pressed="false">All time</button><button class="button" type="submit">Apply timeframe</button>${error}</form>
+    <p class="accounting-period-caption" role="status">Current month · Loading entries…</p><p class="help-text">Only paid, confirmed orders and orders being prepared or already fulfilled are included. Cancelled and refunded orders are excluded entirely, including discounts and delivery costs. All dates use Manila time.</p>
     <p class="notice accounting-message" role="status" hidden></p><section class="panel accounting-editor" hidden></section>
     <div class="accounting-report"><p>Loading accounting…</p></div>
     <section class="panel accounting-categories"><details><summary>Manage categories</summary><p class="help-text">Use the same category for sales and expenses. Choose the type when you add an entry. Automatic website categories are managed by the system.</p><div class="accounting-category-form"></div></details></section>`;
@@ -25,10 +26,13 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     return `<section class="panel"><h2>${title}</h2><dl class="accounting-breakdown">${rows.map(c=>`<div><dt>${esc(c.name)}</dt><dd>${money(c[key])}</dd></div>`).join('')||'<p class="muted">No entries in this timeframe.</p>'}<div class="accounting-subtotal"><dt>Total ${kind==='sale'?'sales / income':'expenses'}</dt><dd>${money(sum)}</dd></div></dl></section>`;
   }
   function renderReport() {
+    $('[data-accounting=all-time]').setAttribute('aria-pressed',String(report.mode==='all'));
+    const caption=report.mode==='all'?(report.first_entry?`All time · ${report.first_entry} to ${report.latest_entry}`:'All time · No entries recorded yet'):`${report.start} to ${report.end}`;
+    $('.accounting-period-caption').textContent=caption+(report.mode==='all'&&report.first_entry?' · Earliest through latest eligible entry.':'');
     const t=accountingTotals(report),rows=report.entries.slice().reverse(),cats=new Map(report.categories.map(c=>[c.id,c]));
     page=Math.min(page,Math.max(0,Math.ceil(rows.length/50)-1));
     $('.accounting-report').innerHTML=`<div class="accounting-summary">${summarySection('sale','Sales & income')}${summarySection('expense','Expenses')}</div>
-      <section class="panel accounting-net"><div><span class="eyebrow">Overall total</span><h2>Income less expenses</h2><p>Based on the entries recorded for ${esc(report.start)} to ${esc(report.end)}.</p></div><strong>${money(t.net)}</strong></section>
+      <section class="panel accounting-net"><div><span class="eyebrow">Overall total</span><h2>Income less expenses</h2><p>${esc(caption)}.</p></div><strong>${money(t.net)}</strong></section>
       ${t.missingCosts?`<p class="notice">${t.missingCosts} delivery order${t.missingCosts===1?' needs':'s need'} an actual cost. The overall total will change when these expenses are recorded.</p>`:''}
       ${report.legacy_count?'<p class="notice">Some older orders had no detailed change history. Their current saved amounts were imported on the payment approval date.</p>':''}
       <section class="panel accounting-records"><div class="section-heading"><h2>Accounting entries</h2><span class="badge">${rows.length} entries</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Category / details</th><th>Source</th><th>Sales / income</th><th>Expense</th><th>Actions</th></tr></thead><tbody>${rows.slice(page*50,(page+1)*50).map(e=>{const c=cats.get(e.category_id);return `<tr><td>${esc(e.entry_date)}</td><td><strong>${esc(c?.name)}</strong><small class="accounting-note">${esc(e.note)}</small>${e.client_name?`<small class="accounting-note">${e.kind==='expense'?'Supplier':'Client'}: ${esc(e.client_name)}</small>`:''}${e.source==='Manual'?`<small>Payment: ${esc(accountingPaymentMethods[e.payment_method]||'Not recorded')}</small>`:''}${e.reference?`<button class="button button-quiet" data-accounting="order" data-id="${esc(e.order_id)}">${esc(e.reference)}</button>`:''}</td><td>${esc(e.source)}</td><td>${e.kind==='sale'?money(e.amount_cents):'—'}</td><td>${e.kind==='expense'?money(e.amount_cents):'—'}</td><td>${e.source==='Manual'?`<button class="button button-quiet" data-accounting="edit" data-id="${esc(e.id)}">Edit</button><button class="button button-quiet" data-accounting="delete" data-id="${esc(e.id)}">Remove</button><button class="button button-quiet" data-accounting="history" data-id="${esc(e.id)}">History</button>`:e.source==='Delivery cost'?'<span class="muted">Edit in order</span>':'<span class="muted">Automatic</span>'}</td></tr>`;}).join('')||'<tr><td colspan="6">No entries in this timeframe.</td></tr>'}</tbody></table></div>
@@ -60,12 +64,13 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       const result=await api('accounting_report',{...range,report_version:2});
       if(result.report_version!==2)throw Error('The shared-category database update is still being installed. Please try again shortly.');
       if(request!==loadId||!root.isConnected)return;
-      report=result;renderReport();renderCategories();
+      report=result;renderReport();renderCategories();if(report.mode==='all'){setAccountingDate($('.accounting-filters'),'start',report.first_entry||'');setAccountingDate($('.accounting-filters'),'end',report.latest_entry||'');setAccountingDate($('.accounting-filters'),'month','');}
       $('[data-accounting=export]').disabled=false;$('[data-accounting=add]').disabled=false;
     } catch(e) {if(request===loadId&&root.isConnected){report=null;$('.accounting-report').innerHTML='<p class="notice">Accounting could not load. Please refresh to try again.</p>';message(e.message,true);}}
   }
   root.addEventListener('change',e=>{
-    if(e.target.name==='month'){try{const range=monthRange(e.target.value);setAccountingDate($('.accounting-filters'),'start',range.start);setAccountingDate($('.accounting-filters'),'end',range.end);}catch(error){message(error.message,true);}}
+    if(e.target.closest('.accounting-filters')&&['start','end'].includes(e.target.name))pendingMode='custom';
+    if(e.target.name==='month'){try{pendingMode='month';const range=monthRange(e.target.value);setAccountingDate($('.accounting-filters'),'start',range.start);setAccountingDate($('.accounting-filters'),'end',range.end);}catch(error){message(error.message,true);}}
     if(e.target.closest('.accounting-entry-form')&&e.target.name==='category_id')syncNewCategory();
     if(e.target.closest('.accounting-entry-form')&&e.target.name==='kind')updateNameLabel();
     if(e.target.name==='existing')renderCategories(e.target.value);
@@ -81,7 +86,7 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
       const f=new FormData(form);
       if(form.classList.contains('accounting-filters')) {
         if(!isCalendarDate(f.get('start'))||!isCalendarDate(f.get('end'))||f.get('start')>f.get('end'))throw Error('The end date must be on or after the start date.');
-        filters.start=f.get('start');filters.end=f.get('end');page=0;message('');await load();
+        filters.mode=pendingMode;filters.start=f.get('start');filters.end=f.get('end');page=0;message('');await load();
       } else if(form.classList.contains('accounting-category-editor')) {
         await api('accounting_save_category',{id:categoryDraft.id,revision:categoryDraft.revision,name:f.get('name'),archived:f.has('archived')});
         root.dataset.dirty='false';await load();message('Category saved.');if(draft)updateCategoryOptions(draft.category_id);
@@ -120,11 +125,12 @@ export function mountAccounting(root, {api, role, connected, money, escapeHtml: 
     if(action==='previous'||action==='next'){page+=action==='next'?1:-1;renderReport();return;}
     root.dataset.busy='true';button.disabled=true;
     try{
+      if(action==='all-time'){filters.mode='all';pendingMode='custom';page=0;message('');await load();}
       if(action==='refresh'){message('');await load();}
       if(action==='export'&&report){
         // Recheck order eligibility immediately before export, using the loaded
         // timeframe rather than any unapplied date-picker edits.
-        const fresh=await api('accounting_report',{start:report.start,end:report.end,report_version:2});
+        const fresh=await api('accounting_report',{start:report.start,end:report.end,mode:report.mode,report_version:2});
         if(fresh.report_version!==2)throw Error('The shared-category database update is still being installed. Please try again shortly.');
         if(!root.isConnected)return;
         report=fresh;renderReport();await exportAccounting(structuredClone(fresh));message('Excel file downloaded.');

@@ -33,13 +33,13 @@ try {
   const migrations = (await readdir(migrationDir)).filter(name => name.endsWith('.sql')).sort();
   if (!migrations.length) throw new Error('No backend migration files found.');
   for (const name of migrations) {
-    await db.exec(await readFile(join(migrationDir, name), 'utf8'));
+    await db.exec((await readFile(join(migrationDir, name), 'utf8')).replace(/\r\n/g,'\n'));
     process.stdout.write(`APPLIED ${name}\n`);
   }
   if (!process.argv.includes('--migrations-only')) {
     // Historical upgrade fixtures deliberately restore older functions. Run
     // voucher contracts in a fresh database with the installed schema intact.
-    const suites = process.argv.includes('--maintenance') ? ['maintenance.mjs'] : process.argv.includes('--recipe-staff') ? ['recipe-staff.mjs'] : process.argv.includes('--recipe-rd') ? ['recipe-rd.mjs'] : process.argv.includes('--recipe-catalog') ? ['recipe-catalog.mjs'] : process.argv.includes('--recipe-access') ? ['recipe-access.mjs'] : process.argv.includes('--recipe-backups') ? ['recipe-essential-backups.mjs'] : process.argv.includes('--recipes') ? ['recipes.mjs','recipe-sections.mjs','recipe-packaging.mjs','recipe-workflow.mjs','recipe-audit.mjs','recipe-profitability.mjs','recipe-rd.mjs'] : process.argv.includes('--vouchers')
+    const suites = process.argv.includes('--recipe-refinement') ? ['recipe-refinement.mjs'] : process.argv.includes('--maintenance') ? ['maintenance.mjs'] : process.argv.includes('--recipe-staff') ? ['recipe-staff.mjs'] : process.argv.includes('--recipe-rd') ? ['recipe-rd.mjs'] : process.argv.includes('--recipe-catalog') ? ['recipe-catalog.mjs'] : process.argv.includes('--recipe-access') ? ['recipe-access.mjs'] : process.argv.includes('--recipe-backups') ? ['recipe-essential-backups.mjs'] : process.argv.includes('--recipes') ? ['recipes.mjs','recipe-sections.mjs','recipe-packaging.mjs','recipe-workflow.mjs','recipe-audit.mjs','recipe-profitability.mjs','recipe-rd.mjs','recipe-refinement.mjs'] : process.argv.includes('--vouchers')
       ? ['02-order-contract.test.mjs', 'vouchers.mjs']
       : process.argv.includes('--operations') ? ['02-order-contract.test.mjs','operation-alerts.mjs']
       : (await readdir(here)).filter(name => name.endsWith('.test.mjs')).sort();
