@@ -31,4 +31,5 @@
 .accounting-summary .accounting-breakdown dd{font-variant-numeric:tabular-nums;text-align:right}
 .accounting-summary .accounting-breakdown>.muted{display:flex;align-items:center;justify-content:center;min-height:64px;margin:0;padding:16px;text-align:center;line-height:1.6}
 .accounting-summary .accounting-subtotal{background:#f4eddf;border:0!important}
+.accounting-entry-form>[data-entry-status]{margin:12px 0 0}
 @media(max-width:600px){.accounting-report .data-table :is(th,td){padding:12px}.accounting-report .data-table{min-width:720px}}
