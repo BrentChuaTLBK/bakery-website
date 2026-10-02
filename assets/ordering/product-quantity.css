@@ -1,0 +1,20 @@
+/* Keep the purchase controls outside the scrollable product details. */
+#product-dialog[open]{display:flex;flex-direction:column;overflow:hidden;max-height:calc(100dvh - 28px)}
+#product-dialog>.modal-head{flex:0 0 auto}
+#product-dialog>.modal-content{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#product-dialog>.product-dialog-bottom{position:static;flex:0 0 auto;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;gap:24px;margin:0;padding:16px 26px max(16px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--paper)}
+#product-dialog .product-quantity-field{display:grid;gap:6px;min-width:0}
+#product-dialog .product-quantity-field>label{margin:0;font-size:12px;font-weight:700}
+#product-dialog .product-quantity-stepper{display:grid;grid-template-columns:44px 52px 44px;align-items:center;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+#product-dialog .product-quantity-stepper button{display:flex;align-items:center;justify-content:center;width:44px;min-height:46px;padding:0;border:0;border-radius:0;background:transparent;color:var(--brown);font-size:24px;line-height:1;cursor:pointer;touch-action:manipulation}
+#product-dialog .product-quantity-stepper svg{display:block;flex:none;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;pointer-events:none}
+#product-dialog .product-quantity-stepper button:hover:not(:disabled){background:var(--rose-light)}
+#product-dialog .product-quantity-stepper button:disabled{color:var(--muted);background:#f3eee7;opacity:.45;cursor:default}
+#product-dialog .product-quantity-stepper input{width:52px;min-width:0;height:46px;padding:0 3px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);border-radius:0;background:#fff;color:var(--ink);font-size:16px;line-height:1.5;text-align:center}
+#product-dialog .product-quantity-stepper :focus-visible{outline:2px solid var(--brown);outline-offset:-3px}
+#product-dialog #add-to-cart{justify-self:end;min-height:48px;min-width:220px;max-width:100%;white-space:normal}
+@media(max-width:520px){
+ #product-dialog>.product-dialog-bottom{grid-template-columns:minmax(0,1fr);gap:12px;padding:14px 20px max(16px,env(safe-area-inset-bottom))}
+ #product-dialog .product-quantity-field{display:flex;align-items:center;justify-content:space-between;gap:12px}
+ #product-dialog #add-to-cart{justify-self:stretch;width:100%;min-width:0}
+}

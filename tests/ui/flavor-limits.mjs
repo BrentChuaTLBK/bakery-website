@@ -96,13 +96,24 @@ try{
     assert.equal(await input('classic').inputValue(),'0');
     await input('classic').fill('10');
     await assertFull();
-    await page.locator('#product-quantity').fill('2');
+    const quantity=page.locator('#product-quantity'),increase=page.getByRole('button',{name:'Increase product quantity',exact:true}),decrease=page.getByRole('button',{name:'Decrease product quantity',exact:true});
+    assert(await decrease.isDisabled());
+    await activate(increase);assert.equal(await quantity.inputValue(),'2');
+    await activate(decrease);assert.equal(await quantity.inputValue(),'1');assert(await decrease.isDisabled());
+    await quantity.fill('999');assert(await increase.isDisabled());
+    for(const invalid of ['0','1000','1.5','']){await quantity.fill(invalid);assert(await page.locator('#add-to-cart').isDisabled());}
+    await quantity.fill('1');await activate(increase);
     await assertFull();
     assert.match(await page.locator('#detail-price').textContent(),/580\.00/);
     assert.match(await page.locator('#add-to-cart').textContent(),/1,160\.00/);
     assert.equal(await page.locator('#product-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'No horizontal overflow');
     const overlaps=await page.locator('.option-choice').evaluateAll(rows=>rows.filter(row=>row.querySelector('label').getBoundingClientRect().right>row.querySelector('.option-choice-controls').getBoundingClientRect().left).length);
     assert.equal(overlaps,0,'Labels and quantity controls must not overlap');
+    const footer=page.locator('.product-dialog-bottom'),before=await footer.boundingBox();
+    await page.locator('#product-dialog>.modal-content').evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    const after=await footer.boundingBox(),dialogBounds=await page.locator('#product-dialog').boundingBox();
+    assert.ok(Math.abs(before.y-after.y)<1,'Product details scroll independently of the purchase controls');
+    assert.ok(after.y+after.height<=dialogBounds.y+dialogBounds.height,'Purchase controls stay inside the dialog');
     if(process.env.UI_SCREENSHOT_DIR){
       await mkdir(process.env.UI_SCREENSHOT_DIR,{recursive:true});
       await page.locator('#product-title').scrollIntoViewIfNeeded();
@@ -118,6 +129,8 @@ try{
     // Existing exact-count validation still protects incomplete selections.
     await activate(page.locator('#add-to-cart'));
     assert.match(await page.locator('#product-error').textContent(),/Choose exactly 4/);
+    const errorBounds=await page.locator('#product-error').boundingBox(),contentBounds=await page.locator('#product-dialog>.modal-content').boundingBox();
+    assert.ok(errorBounds.y>=contentBounds.y&&errorBounds.y+errorBounds.height<=contentBounds.y+contentBounds.height+1,'Required-option errors are scrolled into view');
     assert.deepEqual(errors,[]);
     await context.close();
     console.log('PASS '+viewport.width+'px: shared caps, disabled controls, decrement/re-enable, manual entry, independent groups, pricing and cart.');
