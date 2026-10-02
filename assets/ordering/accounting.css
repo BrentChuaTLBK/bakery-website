@@ -32,4 +32,7 @@
 .accounting-summary .accounting-breakdown>.muted{display:flex;align-items:center;justify-content:center;min-height:64px;margin:0;padding:16px;text-align:center;line-height:1.6}
 .accounting-summary .accounting-subtotal{background:#f4eddf;border:0!important}
 .accounting-entry-form>[data-entry-status]{margin:12px 0 0}
+.accounting-filters{grid-template-columns:repeat(3,minmax(0,1fr)) auto auto;gap:16px 12px}.accounting-filters>.form-error:empty{display:none}.accounting-filters>.button{height:44px;white-space:nowrap}.accounting-filters [data-accounting=all-time][aria-pressed=true]{background:#896445;border-color:#784d29;color:#fff}.accounting-period-caption{margin:12px 0 5px;font-size:11px;line-height:1.7;color:var(--muted)}
+@media(max-width:1100px){.accounting-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.accounting-filters>[data-accounting=all-time]{grid-column:2}.accounting-filters>[type=submit]{grid-column:3}}
+@media(max-width:700px){.accounting-filters{grid-template-columns:1fr 1fr}.accounting-filters>.accounting-date-field{grid-column:1/-1}.accounting-filters>[data-accounting=all-time]{grid-column:1}.accounting-filters>[type=submit]{grid-column:2}}
 @media(max-width:600px){.accounting-report .data-table :is(th,td){padding:12px}.accounting-report .data-table{min-width:720px}}

@@ -9,7 +9,7 @@ export async function recipeBrowserHarness({engine='chromium'}={}){
  const {PGlite}=dbRequire('@electric-sql/pglite'),{pgcrypto}=dbRequire('@electric-sql/pglite/contrib/pgcrypto');
  const root=resolve(import.meta.dirname,'../..'),origin='https://recipe-audit.test',out=join(root,'tests/artifacts/recipe-audit');await mkdir(out,{recursive:true});
  const db=new PGlite({extensions:{pgcrypto}});await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));
- for(const name of(await readdir(join(root,'supabase/migrations'))).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile(join(root,'supabase/migrations',name),'utf8'));
+ for(const name of(await readdir(join(root,'supabase/migrations'))).filter(n=>n.endsWith('.sql')).sort())await db.exec((await readFile(join(root,'supabase/migrations',name),'utf8')).replace(/\r\n/g,'\n'));
  await db.exec("create or replace function tlb.recipe_staff_now() returns timestamptz language sql volatile security invoker set search_path='' as $$ select '2026-10-01T06:00:00Z'::timestamptz $$");
  const h=await makeHarness(db),timings=[],errors=[],requests=[];let queue=Promise.resolve(),failAction=null;
  function api(user,action,payload={},raw=false){

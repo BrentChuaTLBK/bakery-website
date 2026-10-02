@@ -17,7 +17,7 @@ try{
  const day=date=>page.locator(`[data-staff-date="${date}"]`);
  async function calendarReady(){await page.locator('[data-staff-date="2026-10-05"]').waitFor();}
  async function settleMutation(action,run){const response=page.waitForResponse(r=>r.url().includes('/rpc/recipe_api')&&r.request().postDataJSON()?.p_action===action);await run();await response;await page.locator('.staff-access').waitFor();}
- await page.goto(`${t.origin}/recipes.html`);await page.locator('[data-tab="staff-access"]').waitFor();
+ await page.goto(`${t.origin}/recipes.html`);await page.locator('[data-tab="manage"]').click();await page.locator('[data-tab="staff-access"]').waitFor();
  await check('Staff Access opens on a complete Monday–Sunday calendar with centralized staff selection',async()=>{
   await page.locator('[data-tab="staff-access"]').click();await calendarReady();assert.equal(await page.locator('.staff-calendar-day').count(),42);assert.equal(await page.locator('.staff-calendar-weekdays span').count(),7);
   assert.equal(await page.locator('.staff-calendar-weekdays').innerText(),'Mon\nTue\nWed\nThu\nFri\nSat\nSun');await choose(f.angie).check();await choose(f.edna).check();assert.match(await page.locator('.staff-selection-summary').innerText(),/2 Staff Selected/);
@@ -108,7 +108,7 @@ try{
   assert.ok(network.filter(n=>n.user==='owner'&&n.body?.allowed&&n.body?.role==='owner').length>=4);
  });
  await check('role promotion and demotion clear elevated views without refreshing the staff JWT',async()=>{
-  activePage=kp;await t.run(()=>t.db.query("insert into tlb.staff(user_id,role) values($1,'owner') on conflict(user_id) do update set role='owner'",[f.angie]));await kp.evaluate(()=>window.dispatchEvent(new Event('focus')));await kp.locator('[data-tab="staff-access"]').waitFor();await open('Vanilla Basque');assert.equal(await kp.getByRole('button',{name:'Print / PDF',exact:true}).count(),1);
+  activePage=kp;await t.run(()=>t.db.query("insert into tlb.staff(user_id,role) values($1,'owner') on conflict(user_id) do update set role='owner'",[f.angie]));await kp.evaluate(()=>window.dispatchEvent(new Event('focus')));await kp.locator('[data-tab="manage"]').click();await kp.locator('[data-tab="staff-access"]').waitFor();await kp.locator('[data-tab="library"]').click();await open('Vanilla Basque');assert.equal(await kp.getByRole('button',{name:'Print / PDF',exact:true}).count(),1);
   await t.run(()=>t.db.query("update tlb.staff set role='staff' where user_id=$1",[f.angie]));await kp.evaluate(()=>window.dispatchEvent(new Event('focus')));await kp.locator('.recipe-library .recipe-card').first().waitFor();assert.equal(await kp.locator('[data-tab="staff-access"]').count(),0);await open('Vanilla Basque');assert.equal(await kp.getByRole('button',{name:'Print / PDF',exact:true}).count(),0);assert.equal(await kp.locator('.recipe-print-root').count(),0);
  });
  await check('revoking one recipe clears it and reauthorization returns to the remaining permitted library',async()=>{

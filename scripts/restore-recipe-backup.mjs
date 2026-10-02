@@ -8,7 +8,7 @@ const root=resolve(import.meta.dirname,'..');
 export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
  const backup=archive instanceof Blob?await readRecipeArchive(archive):archive;
  if(!db)throw Error('Supply a new isolated database for restoration.');
- if(applySchema){await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));for(const name of(await readdir(join(root,'supabase/migrations'))).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile(join(root,'supabase/migrations',name),'utf8'));}
+ if(applySchema){await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));for(const name of(await readdir(join(root,'supabase/migrations'))).filter(n=>n.endsWith('.sql')).sort())await db.exec((await readFile(join(root,'supabase/migrations',name),'utf8')).replace(/\r\n/g,'\n'));}
  const count=(await db.query('select (select count(*) from tlb.recipes)+(select count(*) from tlb.recipe_resources)+(select count(*) from tlb.recipe_versions) n')).rows[0].n;
  if(Number(count)!==0)throw Error('Restore rehearsal requires an empty recipe database.');
  // Old backups predate account-wide R&D access. Preserve least privilege.

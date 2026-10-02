@@ -16,7 +16,7 @@ try{
  const research=await api(h.ids.owner,'create',{document:fixture('QA R&D secret formula'),status:'testing'});
  const second=await api(h.ids.owner,'create',{document:fixture('QA R&D second formula'),status:'testing'});
  const owner=await pageFor(h.ids.owner),chef=await pageFor(h.ids.staff),kitchen=await pageFor(h.ids.customer,390,{network:true});
- await owner.page.goto(origin+'/recipes.html');await owner.page.getByRole('button',{name:'Staff Access',exact:true}).click();await owner.page.locator('[data-staff-tab=staff]').click();await owner.page.getByRole('button',{name:'Accounts & invitations',exact:true}).click();await owner.page.getByRole('heading',{name:'Accounts & permissions'}).waitFor();
+ await owner.page.goto(origin+'/recipes.html');await owner.page.locator('[data-tab=manage]').click();await owner.page.locator('[data-tab=staff-access]').click();await owner.page.locator('[data-staff-tab=staff]').click();await owner.page.getByRole('button',{name:'Accounts & invitations',exact:true}).click();await owner.page.getByRole('heading',{name:'Accounts & permissions'}).waitFor();
  const chefAccess=owner.page.locator(`[data-access-rd="${h.ids.staff}"]`),kitchenAccess=owner.page.locator(`[data-access-rd="${h.ids.customer}"]`);
  assert.equal(await chefAccess.isChecked(),false);assert.equal(await kitchenAccess.isChecked(),false);assert.equal(await owner.page.getByRole('checkbox',{name:'Can view R&D',exact:true}).count(),2);
  assert.equal(await owner.page.locator(`[data-access-rd="${h.ids.owner}"]`).count(),0);
