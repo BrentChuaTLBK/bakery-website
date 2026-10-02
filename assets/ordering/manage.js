@@ -307,7 +307,7 @@ function filteredOrders() {
 }
 function orderTable(orders, compact = false) {
   if (!orders.length) return empty('No orders to show', 'Orders matching your filters will appear here.');
-  return `<div class="table-wrap"><table class="data-table"><thead><tr>${compact ? '' : '<th class="order-select-cell"><input type="checkbox" id="select-print-orders" aria-label="Select all shown orders for printing"></th>'}<th>Order / customer</th><th>Fulfillment</th><th>Payment</th>${compact ? '' : '<th>Next step</th>'}<th>Total</th></tr></thead><tbody>${orders.map(order => `<tr ${!compact?`data-order-row="${esc(order.id)}" class="${order.id===state.selectedOrderId?'order-selected':''}"`:''}>${compact ? '' : `<td class="order-select-cell"><input type="checkbox" data-print-order="${esc(order.id)}" aria-label="Select ${esc(order.reference)} for printing" ${state.printSelection.has(order.id) ? 'checked' : ''}></td>`}<td><button class="table-link" data-action="open-order" data-id="${esc(order.id)}">${esc(order.reference)}</button><small>${esc(order.buyer?.name || 'Client not recorded')} · ${esc(salesSource(order))}${order.refund_label ? ' · Refund label' : ''}</small></td><td>${esc(humanDate(order.fulfillment_date))}<small>${esc(order.source==='popup'?'In-person sale':label(order.method))}</small></td><td>${badge(order.payment_status)}${order.deferred_delivery?`<small>${esc(deliveryStatusText(order))}</small>`:''}</td>${compact ? '' : `<td><span class="order-next-heading">${esc(orderNextStep(order).title)}</span>${badge(fulfillmentStatus(order))}<button type="button" class="table-link order-select-action" data-action="select-order" data-id="${esc(order.id)}" aria-label="Quick actions for ${esc(order.reference)}">Quick actions →</button></td>`}<td>${money(order.total_cents)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="data-table"><thead><tr>${compact ? '' : '<th class="order-select-cell"><input type="checkbox" id="select-print-orders" aria-label="Select all shown orders for printing"></th>'}<th>Order / customer</th><th>Fulfillment</th><th>Payment</th>${compact ? '' : '<th>Next step</th>'}<th>Total</th></tr></thead><tbody>${orders.map(order => `<tr ${!compact?`data-order-row="${esc(order.id)}" class="${order.id===state.selectedOrderId?'order-selected':''}"`:''}>${compact ? '' : `<td class="order-select-cell"><input type="checkbox" data-print-order="${esc(order.id)}" aria-label="Select ${esc(order.reference)} for printing" ${state.printSelection.has(order.id) ? 'checked' : ''}></td>`}<td><button class="table-link" data-action="open-order" data-id="${esc(order.id)}">${esc(order.reference)}</button><small>${esc(order.buyer?.name || 'Client not recorded')} · ${esc(salesSource(order))}${order.refund_label ? ' · Refund label' : ''}</small></td><td>${esc(humanDate(order.fulfillment_date))}<small>${esc(order.source==='popup'?'In-person sale':label(order.method))}</small></td><td>${badge(order.payment_status)}${order.deferred_delivery?`<small>${esc(deliveryStatusText(order))}</small>`:''}</td>${compact ? '' : `<td><span class="order-next-heading">${esc(orderNextStep(order).title)}</span>${badge(fulfillmentStatus(order))}<button type="button" class="table-link order-select-action" data-action="select-order" data-id="${esc(order.id)}" aria-label="Quick actions for ${esc(order.reference)}" aria-controls="order-quick-panel" aria-expanded="${order.id===state.selectedOrderId}">Quick actions →</button></td>`}<td>${money(order.total_cents)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function syncOrderPrintSelection() {
   if (state.view !== 'orders') return;
@@ -337,21 +337,29 @@ async function loadPrintOrders(ids) {
 }
 function ordersView() {
   const f = state.filters,shown=filteredOrders();
-  if(!shown.some(o=>o.id===state.selectedOrderId))state.selectedOrderId=shown[0]?.id||null;
-  return heading('Orders', 'From the first checkout to the final handoff.', `<button class="button button-secondary" data-action="export-orders" ${locked()}>Export CSV</button><button class="button" data-action="refresh" ${locked()}>Refresh orders</button>`) + orderViewTabs() + `<div class="orders-dashboard"><section class="panel"><div class="filters"><label>Search<input type="search" id="order-search" data-filter="search" placeholder="Reference, name, email, or phone" value="${esc(f.search)}"></label><label>Payment<select data-filter="payment">${options(PAYMENT, f.payment, 'All payment statuses')}</select></label><label>Fulfillment<select data-filter="fulfillment">${options(FULFILLMENT, f.fulfillment, 'All fulfillment statuses')}</select></label><label>Method<select data-filter="method">${options(['pickup', 'delivery'], f.method, 'Pickup & delivery')}</select></label></div><div class="filter-secondary">${input('filter-date', 'Fulfillment date', f.date, 'date', 'data-filter="date"')}${select('filter-refund', 'Refund label', option('', 'All orders', f.refund) + option('yes', 'With Refund label', f.refund) + option('no', 'Without Refund label', f.refund), 'data-filter="refund"')}<label class="check-field no-margin"><input type="checkbox" data-filter="upcoming" ${f.upcoming ? 'checked' : ''}>Upcoming, grouped by date</label><button class="button button-quiet" data-action="clear-filters">Clear filters</button></div><div class="section-heading"><h2 class="order-view-title">${orderViewTitle()}</h2><p class="muted no-margin" id="order-count">${filteredOrders().length} orders</p></div><div class="order-print-actions"><p id="print-selection-count" aria-live="polite">0 selected</p><button class="button button-secondary" data-action="print-selected-orders" disabled>Print selected</button><button class="button button-quiet" data-action="clear-print-selection" disabled>Clear selection</button></div><div id="order-table">${orderTable(shown)}</div></section><aside class="panel order-quick-panel" id="order-quick-panel" aria-label="Selected order">${currentOrderPanel()}</aside></div>`;
+  if(!shown.some(o=>o.id===state.selectedOrderId))state.selectedOrderId=null;
+  return heading('Orders', 'From the first checkout to the final handoff.', `<button class="button button-secondary" data-action="export-orders" ${locked()}>Export CSV</button><button class="button" data-action="refresh" ${locked()}>Refresh orders</button>`) + orderViewTabs() + `<div class="orders-dashboard${state.selectedOrderId?' has-order-selection':''}"><section class="panel"><div class="filters"><label>Search<input type="search" id="order-search" data-filter="search" placeholder="Reference, name, email, or phone" value="${esc(f.search)}"></label><label>Payment<select data-filter="payment">${options(PAYMENT, f.payment, 'All payment statuses')}</select></label><label>Fulfillment<select data-filter="fulfillment">${options(FULFILLMENT, f.fulfillment, 'All fulfillment statuses')}</select></label><label>Method<select data-filter="method">${options(['pickup', 'delivery'], f.method, 'Pickup & delivery')}</select></label></div><div class="filter-secondary">${input('filter-date', 'Fulfillment date', f.date, 'date', 'data-filter="date"')}${select('filter-refund', 'Refund label', option('', 'All orders', f.refund) + option('yes', 'With Refund label', f.refund) + option('no', 'Without Refund label', f.refund), 'data-filter="refund"')}<label class="check-field no-margin"><input type="checkbox" data-filter="upcoming" ${f.upcoming ? 'checked' : ''}>Upcoming, grouped by date</label><button class="button button-quiet" data-action="clear-filters">Clear filters</button></div><div class="section-heading"><h2 class="order-view-title">${orderViewTitle()}</h2><p class="muted no-margin" id="order-count">${filteredOrders().length} orders</p></div><div class="order-print-actions"><p id="print-selection-count" aria-live="polite">0 selected</p><button class="button button-secondary" data-action="print-selected-orders" disabled>Print selected</button><button class="button button-quiet" data-action="clear-print-selection" disabled>Clear selection</button></div><div id="order-table">${orderTable(shown)}</div></section><aside class="panel order-quick-panel" id="order-quick-panel" aria-label="Selected order" ${state.selectedOrderId?'':'hidden'}>${currentOrderPanel()}</aside></div>`;
 }
 function orderViewTitle(){return {all:'All orders',review:'Needs review',today:'Due today'}[state.orderView]||'All orders';}
 function orderViewTabs(){return `<div class="order-view-tabs" role="group" aria-label="Order views">${[['review','Needs review'],['today','Due today'],['all','All orders']].map(([id,title])=>`<button type="button" class="button" data-action="order-view" data-order-view="${id}" aria-pressed="${state.orderView===id}">${title}<span>${state.orders.filter(o=>matchesOrderView(o,id,manilaDate())).length}</span></button>`).join('')}</div>`;}
-function currentOrderPanel(){return orderQuickPanel(state.orders.find(o=>o.id===state.selectedOrderId),{escapeHtml:esc,money,formatDate:humanDate,locked:!state.connected});}
+function currentOrderPanel(){const order=state.orders.find(o=>o.id===state.selectedOrderId);return order?`<button type="button" class="order-quick-close" data-action="close-quick-order" aria-label="Close quick actions">×</button>${orderQuickPanel(order,{escapeHtml:esc,money,formatDate:humanDate,locked:!state.connected})}`:'';}
+function syncOrderQuickPanel(){
+ const panel=$('#order-quick-panel');panel.hidden=!state.selectedOrderId;panel.innerHTML=currentOrderPanel();
+ panel.closest('.orders-dashboard').classList.toggle('has-order-selection',!!state.selectedOrderId);
+ $$('#order-table [data-order-row]').forEach(row=>{const selected=row.dataset.orderRow===state.selectedOrderId;row.classList.toggle('order-selected',selected);row.querySelector('[data-action="select-order"]').setAttribute('aria-expanded',String(selected));});
+}
+function closeQuickOrder(){
+ const trigger=$(`#order-table [data-action="select-order"][data-id="${CSS.escape(state.selectedOrderId||'')}"]`);
+ state.selectedOrderId=null;syncOrderQuickPanel();trigger?.focus({preventScroll:true});
+}
 function updateOrderResults(){
- const orders=filteredOrders();if(!orders.some(o=>o.id===state.selectedOrderId))state.selectedOrderId=orders[0]?.id||null;
+ const orders=filteredOrders();if(!orders.some(o=>o.id===state.selectedOrderId))state.selectedOrderId=null;
  $('#order-table').innerHTML=orderTable(orders);$('#order-count').textContent=`${orders.length} orders`;
- $('#order-quick-panel').innerHTML=currentOrderPanel();syncOrderPrintSelection();
+ syncOrderQuickPanel();syncOrderPrintSelection();
 }
 function selectQuickOrder(id){
  if(!filteredOrders().some(o=>o.id===id))return;state.selectedOrderId=id;
- $$('#order-table [data-order-row]').forEach(row=>row.classList.toggle('order-selected',row.dataset.orderRow===id));
- $('#order-quick-panel').innerHTML=currentOrderPanel();
+ syncOrderQuickPanel();
  if(innerWidth<=1250)$('#order-quick-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function quickOrderAction(id,intent){
@@ -851,7 +859,7 @@ async function onAction(button) {
     case 'reset-quantities': state.inventoryDrafts = {}; updateInventoryProducts(); break;
     case 'close-dialog': await closeDialog(); break;
     case 'refresh': await Promise.all([refresh(), visitorPoller.refresh()]); toast('Dashboard refreshed.'); break;
-    case 'upcoming': state.orderView='all';state.filters.upcoming = true; state.view = 'orders'; render(); break;
+    case 'upcoming': state.selectedOrderId=null;state.orderView='all';state.filters.upcoming = true; state.view = 'orders'; render(); break;
     case 'clear-filters': state.filters = { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }; state.printSelection.clear(); render(); break;
     case 'clear-print-selection': state.printSelection.clear(); syncOrderPrintSelection(); break;
     case 'print-selected-orders': {
@@ -888,10 +896,11 @@ state.productFilters = { search: '', status: '', category: '' };
     case 'edit-promo': promoDialog(id); break;
     case 'delete-promo': deletePromoDialog(id); break;
     case 'load-team': await loadTeam(); break;
-    case 'order-view': state.orderView=button.dataset.orderView;state.filters={search:'',payment:'',fulfillment:'',date:'',method:'',refund:'',upcoming:false};state.printSelection.clear();state.view='orders';render();break;
+    case 'order-view': state.selectedOrderId=null;state.orderView=button.dataset.orderView;state.filters={search:'',payment:'',fulfillment:'',date:'',method:'',refund:'',upcoming:false};state.printSelection.clear();state.view='orders';render();break;
     case 'select-order': selectQuickOrder(id);break;
+    case 'close-quick-order': closeQuickOrder();break;
     case 'quick-order': await quickOrderAction(id,button.dataset.intent);break;
-    case 'open-order': if(state.view==='orders')selectQuickOrder(id);await openOrder(id); break;
+    case 'open-order': await openOrder(id); break;
     case 'back-order': renderOrderDialog(); break;
     case 'send-pickup-reminder': {
       const orderId = activeOrder.id;
@@ -981,9 +990,13 @@ document.addEventListener('click', async event => {
   if (view && $('#party-cart-photo-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved photo changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
   if (view && $('#party-package-manager')?.dataset.busy === 'true') { toast('Please wait for the package operation to finish.'); return; }
   if (view && $('#party-package-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved package changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
-  if (view) { state.view = view.dataset.view; render(); if (state.view === 'analytics' && state.connected) { try { await refresh(); } catch (error) { toast('Analytics could not refresh. The last loaded figures are shown. ' + error.message, 'error'); } } if (state.view === 'team' && state.connected && state.role === 'owner') { try { await loadTeam(); } catch (error) { toast(error.message, 'error'); } } return; }
+  if (view) { if(view.dataset.view==='orders')state.selectedOrderId=null;state.view = view.dataset.view; render(); if (state.view === 'analytics' && state.connected) { try { await refresh(); } catch (error) { toast('Analytics could not refresh. The last loaded figures are shown. ' + error.message, 'error'); } } if (state.view === 'team' && state.connected && state.role === 'owner') { try { await loadTeam(); } catch (error) { toast(error.message, 'error'); } } return; }
   const button = event.target.closest('[data-action]');
-  if (!button) return;
+  if (!button) {
+    const row=event.target.closest('#order-table [data-order-row]');
+    if(row&&!event.target.closest('a,button,input,select,textarea,label,[contenteditable]')&&!window.getSelection()?.toString())selectQuickOrder(row.dataset.orderRow);
+    return;
+  }
   event.preventDefault();
   if (button.dataset.busy === 'true') return;
   button.dataset.busy = 'true';
