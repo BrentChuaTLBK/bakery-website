@@ -14,6 +14,27 @@ test('Original formats are determined from bounded PNG/JPEG/HEIC structures',asy
  if(process.env.HEIC_TEST_FILE){const real=await readFile(process.env.HEIC_TEST_FILE);assert.equal(inspectOriginalPhoto(real).mime_type,'image/heic');assert.ok(validatePhoto(real,'image/heic').width>0);}
 });
 
+test('Academy original PNG rejects impossible IHDR formats before storing bytes',async()=>{
+ assert.deepEqual(validatePhoto(png,'image/png'),{width:4,height:3});
+ for(const patch of [[24,0],[25,7],[24,1],[26,1],[27,1],[28,2]]){
+  const invalid=Buffer.from(png);invalid[patch[0]]=patch[1];
+  assert.throws(()=>validatePhoto(invalid,'image/png'),error=>error.status===415);
+ }
+ const fetchBefore=globalThis.fetch,denoBefore=globalThis.Deno;
+ const id='11111111-1111-4111-8111-111111111111',user='22222222-2222-4222-8222-222222222222';
+ const invalid=Buffer.from(png);invalid[24]=0;invalid[25]=7;let storageRequests=0;
+ globalThis.Deno={env:{get:n=>({SUPABASE_URL:'https://local.test',SUPABASE_SERVICE_ROLE_KEY:'fixture-service',ALLOWED_ORIGINS:'https://academy.test'}[n]||'')}};
+ globalThis.fetch=async(url)=>{
+  if(url.endsWith('/auth/v1/user'))return Response.json({id:user});
+  if(url.includes('upload_check'))return Response.json({path:id+'.png',mime_type:'image/png',size_bytes:invalid.length,width:4,height:3});
+  storageRequests++;throw new Error('Invalid PNG must never reach storage or confirmation.');
+ };
+ try{
+  const response=await handle(new Request('https://local.test?id='+id,{method:'POST',headers:{authorization:'Bearer fixture-user','content-type':'image/png'},body:invalid}));
+  assert.equal(response.status,415);assert.equal(storageRequests,0);
+ }finally{globalThis.fetch=fetchBefore;globalThis.Deno=denoBefore;}
+});
+
 test('Original upload service preserves bytes and MIME, rejects mismatches and authorizes every retry',async()=>{
  const fetchBefore=globalThis.fetch,denoBefore=globalThis.Deno,id='11111111-1111-4111-8111-111111111111',user='22222222-2222-4222-8222-222222222222';
  globalThis.Deno={env:{get:n=>({SUPABASE_URL:'https://local.test',SUPABASE_SERVICE_ROLE_KEY:'fixture-service',ALLOWED_ORIGINS:'https://academy.test'}[n]||'')}};

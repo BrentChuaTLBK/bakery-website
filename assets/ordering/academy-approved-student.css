@@ -1,0 +1,144 @@
+/* Approved Academy student views. Content continues to come from authorized reads. */
+.ap-class-image-link{display:block;min-width:0;align-self:start}
+.ap-class-image-link .ap-photo{aspect-ratio:16/10;max-height:230px;object-fit:cover}
+.ap-class-card h3 a{color:inherit;text-decoration:none}
+.ap-class-card h3 a:hover{text-decoration:underline;text-underline-offset:4px}
+.ap-class-image-link:focus-visible,.ap-class-card h3 a:focus-visible,.ap-recipe-thumbnail:focus-visible{outline:3px solid var(--brown);outline-offset:4px}
+.ap-class-products{font-size:14px;font-weight:600;line-height:1.6;color:var(--brown);margin:8px 0}
+.ap-class-card .ap-category{font-size:11px;line-height:1.6}
+.ap-class-card .ap-small,.ap-class-card .ap-class-description{font-size:14px}
+.ap-gallery-preview .ap-grid.gallery{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ap-new-student-discovery{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:28px;align-items:start}
+.ap-new-student-discovery .ap-grid,.ap-new-student-discovery .ap-gallery-preview .ap-grid.gallery{grid-template-columns:1fr}
+.ap-new-student-discovery .ap-gallery-preview .ap-card:nth-child(n+2){display:none}
+.ap-class-identity{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px 28px;max-width:none;align-items:center}
+.ap-class-title-photo{border-radius:16px;aspect-ratio:4/3;max-height:190px}
+.ap-class-identity .ap-class-quick-actions{grid-column:1/-1;margin-top:0}
+.ap-module-primary{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start}
+.ap-module-primary:not(:has(.ap-module-product-photo)){grid-template-columns:1fr}
+.ap-module-product-photo .ap-photo{aspect-ratio:4/3;border-radius:12px}
+.ap-module-primary h2{margin:4px 0 12px;font-size:24px}
+.ap-module-primary .ap-category{margin:0}
+.ap-module-primary .ap-recipes{margin-top:14px}
+.ap-module-notes{margin-top:20px;border-top:1px solid var(--line);padding-top:8px}
+.ap-module-notes>summary,.ap-thread-context-details>summary,.ap-optional-context>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;gap:8px;color:var(--brown);font-weight:600}
+.ap-module-notes>summary::after,.ap-thread-context-details>summary::after,.ap-optional-context>summary::after{content:'⌄'}
+.ap-module-notes[open]>summary::after,.ap-thread-context-details[open]>summary::after,.ap-optional-context[open]>summary::after{content:'⌃'}
+.ap-module-notes .ap-copy{margin:12px 0;line-height:1.7}
+.ap-recipe-link{gap:15px;align-items:center;line-height:1.5}
+.ap-recipe-link>span:last-child{flex-shrink:0;font-size:14px;font-weight:600}
+.ap-baking-view .ap-recipe-cover{background:#f4e9dc;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:24px}
+.ap-baking-view .ap-recipe-cover .eyebrow{color:var(--brown)}
+.ap-recipe-cover-copy{min-width:0;flex:1}
+.ap-recipe-thumbnail{flex:0 0 156px;display:block;padding:0;border:0;border-radius:14px;overflow:hidden;background:var(--paper);cursor:zoom-in}
+.ap-recipe-thumbnail .ap-photo{aspect-ratio:4/3;object-fit:cover}
+.ap-baking-view .ap-recipe-jumps{overflow:visible;flex-wrap:nowrap;gap:10px;align-items:center}
+.ap-recipe-jumps>.ap-button,.ap-recipe-more>summary{min-height:44px;font-size:14px;padding:10px 16px}
+.ap-recipe-more{position:relative;min-width:0}
+.ap-recipe-more>summary{cursor:pointer;list-style:none;white-space:nowrap}
+.ap-recipe-more>summary::-webkit-details-marker{display:none}
+.ap-recipe-more>summary::after{content:'⌄';margin-left:8px}
+.ap-recipe-more>div{position:absolute;top:calc(100% + 8px);right:0;z-index:4;display:grid;gap:6px;width:max-content;max-width:calc(100vw - 48px);padding:10px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 22px #3d29201a}
+.ap-recipe-more>div .ap-button{justify-content:flex-start;min-height:44px;font-size:14px}
+.ap-cooking-layout{display:none;justify-content:flex-end;gap:8px;margin:0 0 16px}
+.ap-cooking-layout [aria-pressed=true]{background:var(--rose-light);border-color:var(--brown)}
+.ap-recipe.ap-baking-view .ap-ingredients-panel{position:static;max-height:none;overflow:visible}
+.ap-ingredient-brand{font-size:14px;line-height:1.55}
+.ap-ingredients-panel h4{font-size:15px}
+.ap-method-steps{list-style:none;counter-reset:academy-step;padding:0}
+.ap-method-steps li{counter-increment:academy-step;position:relative;padding:0 0 22px 42px!important;margin:0 0 20px;border-bottom:1px solid var(--line)}
+.ap-method-steps li:last-child{margin-bottom:0;border-bottom:0}
+.ap-method-steps li::before{content:counter(academy-step);position:absolute;left:0;top:0;display:grid;place-content:center;width:29px;height:29px;border-radius:50%;background:var(--rose-light);color:var(--brown);font-weight:700;font-size:15px}
+.ap-step-details{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 0;color:var(--ink)}
+.ap-step-chip{display:inline-block;padding:6px 9px;border:1px solid #d9c9b5;border-radius:8px;background:#f5e9d9;color:#493421;font-size:14px;font-weight:600;line-height:1.45}
+.ap-baking-setting dl{font-size:15px;gap:9px}
+.ap-baking-setting dd{font-weight:600}
+.ap-recipe-details#recipe-photos{scroll-margin-top:95px}
+.ap-student-compose{max-width:800px;border:1px solid var(--line);background:var(--paper);border-radius:18px;padding:24px;margin-top:22px;gap:20px}
+.ap-student-compose .ap-compose-context{margin:0;padding:0 0 16px;border-bottom:1px solid var(--line)}
+.ap-student-compose .ap-compose-context p{margin:0 0 6px}
+.ap-student-compose .ap-compose-context .ap-category{font-size:11px}
+.ap-student-compose .ap-question-context{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:16px}
+.ap-question-context-photo{aspect-ratio:1;border-radius:10px;object-fit:cover}
+.ap-context-edit{display:inline-flex;min-height:44px;align-items:center;padding:5px 0;background:none;border:0;color:var(--brown);font:inherit;font-size:14px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.ap-compose-end{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px}
+.ap-compose-end>p{flex:1 1 240px;margin:0;font-size:14px;line-height:1.6}
+.ap-student-compose .ap-optional-context{border-top:1px solid var(--line);padding-top:8px}
+.ap-student-compose .ap-optional-context[open]{display:grid;gap:16px}
+.ap-draft-status{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+.ap-thread-context-details{border-bottom:1px solid var(--line);margin-bottom:18px}
+.ap-thread-context-details .ap-context-strip{margin-top:0}
+.ap-thread-context a{display:inline-flex;align-items:center;min-height:44px}
+.ap-message .ap-single-attachment{grid-template-columns:minmax(0,340px)}
+.ap-message .ap-inspect-photo>span{position:static;display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:0 0 10px 10px;padding:8px 12px;background:var(--cream);color:var(--brown);font-size:14px;font-weight:600}
+.ap-message .ap-inspect-photo img{max-height:320px;object-fit:contain;background:var(--cream);border-radius:10px 10px 0 0}
+.ap-announcement>.ap-photo{aspect-ratio:16/7;max-height:180px;object-fit:cover}
+.ap-announcement .ap-category{font-size:11px;line-height:1.8}
+.ap-importance{display:inline-block;padding:2px 8px;border-radius:5px;background:var(--rose-light);color:var(--brown);margin-right:5px}
+.ap-announcement.is-important{border-color:#b39a7d}
+.ap-login .ap-welcome-hero{display:grid;grid-template-columns:1.2fr 1fr;padding:0;gap:0;align-items:stretch}
+.ap-login .ap-welcome-hero>div{width:auto;padding:42px;align-self:center}
+.ap-login .ap-welcome-hero h1{font-size:44px;line-height:1.15;max-width:440px}
+.ap-welcome-image{width:100%;height:100%;min-height:350px;max-height:460px;object-fit:cover}
+.ap-recovery-link{display:inline-flex;align-items:center;min-height:44px;margin-top:12px;font-size:14px}
+.ap-gate-benefits span,.ap-gate-note{font-size:14px;line-height:1.7}
+@media(min-width:700px){.ap-baking-columns{grid-template-columns:minmax(240px,.85fr) minmax(0,1.35fr);gap:24px}.ap-cooking-layout{display:flex}.ap-recipe[data-cooking-layout=stacked] .ap-baking-columns{grid-template-columns:1fr}}
+@media(min-width:761px) and (max-width:1100px){
+ #academy-app[data-workspace=student] .ap-sidebar{display:none}
+ #academy-app[data-workspace=student] .ap-main{margin-left:0;padding:24px}
+ #academy-app[data-workspace=student] .ap-mobile-header{display:block}
+ #academy-app[data-workspace=student] .ap-mobile-brand{display:flex;align-items:center;justify-content:space-between;padding:8px 24px}
+ #academy-app[data-workspace=student] .ap-mobile-brand .ap-brand img{width:90px;height:90px}
+ #academy-app[data-workspace=student] .ap-mobile-nav{display:flex;align-items:center;gap:8px;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--paper)}
+ #academy-app[data-workspace=student] .ap-mobile-nav>a,#academy-app[data-workspace=student] .ap-more>summary{display:flex;align-items:center;min-height:48px;padding:8px 14px;text-decoration:none;border-radius:10px;color:var(--brown);font-size:14px}
+ #academy-app[data-workspace=student] .ap-mobile-nav [aria-current=page]{background:var(--rose-light)}
+ #academy-app[data-workspace=student] .ap-more{position:relative}
+ #academy-app[data-workspace=student] .ap-more-links{position:absolute;z-index:12;right:0;display:grid;gap:8px;min-width:240px;background:var(--paper);padding:16px;border:1px solid var(--line);border-radius:10px}
+ #academy-app[data-workspace=student] .ap-more-links a{padding:10px;min-height:44px;text-decoration:none}
+}
+@media(max-width:760px){
+ .ap-class-card{grid-template-columns:112px minmax(0,1fr);align-items:start}
+ .ap-class-image-link{margin:14px 0 0 14px}
+ .ap-class-image-link .ap-photo{aspect-ratio:4/3;border-radius:9px;font-size:14px;min-height:74px}
+ .ap-class-card .ap-card-content{padding:14px}
+ .ap-class-card .ap-class-description{font-size:13px}
+ .ap-class-card .ap-category{font-size:10px;letter-spacing:.7px}
+ .ap-class-products{font-size:13px}
+ .ap-gallery-preview .ap-grid.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ap-gallery-preview .ap-card:nth-child(n+3){display:none}
+ .ap-new-student-discovery{grid-template-columns:1fr;gap:0}
+ .ap-new-student-discovery .ap-gallery-preview .ap-grid.gallery{grid-template-columns:1fr}
+ .ap-class-identity{grid-template-columns:minmax(0,1fr) 98px;gap:14px}
+ .ap-class-title-photo{border-radius:12px;max-height:115px;aspect-ratio:1}
+ .ap-module{padding:18px}
+ .ap-module-primary{grid-template-columns:96px minmax(0,1fr);gap:14px}
+ .ap-module-primary h2{font-size:20px}
+ .ap-module-primary .ap-recipes{grid-column:1/-1}
+ .ap-module-primary>div:last-child{display:contents}
+ .ap-module-primary>div:last-child>.ap-category{grid-column:2;grid-row:1;align-self:start}
+ .ap-module-primary>div:last-child>h2{grid-column:2;grid-row:1;margin-top:25px;align-self:start}
+ .ap-module-primary>div:last-child>p:not(.ap-category){grid-column:1/-1;margin:0}
+ .ap-module-primary .ap-module-product-photo{grid-row:1;min-height:85px}
+ .ap-module-primary:not(:has(.ap-module-product-photo))>div:last-child>*{grid-column:1;grid-row:auto;margin-top:0}
+ .ap-recipe-link{padding:13px;gap:10px}
+ .ap-recipe-link>span:last-child{font-size:12px}
+ .ap-baking-view .ap-recipe-cover{padding:20px;gap:14px}
+ .ap-baking-view .ap-recipe-cover h1{font-size:27px}
+ .ap-recipe-thumbnail{flex-basis:84px;border-radius:10px}
+ .ap-recipe-thumbnail .ap-photo{aspect-ratio:1}
+ .ap-baking-view .ap-recipe-jumps{gap:6px;padding:10px}
+ .ap-recipe-jumps>.ap-button,.ap-recipe-more>summary{font-size:13px;padding:9px 11px}
+ .ap-recipe-more>summary::after{margin-left:5px}
+ .ap-recipe-yields{font-size:13px;line-height:1.6}
+ .ap-method-steps .ap-copy{font-size:16px;line-height:1.75}
+ .ap-method-steps li{padding-left:38px!important}
+ .ap-student-compose{padding:18px;gap:18px}
+ .ap-compose-end{display:grid;grid-template-columns:1fr}
+ .ap-compose-end>p{font-size:14px}
+ .ap-login .ap-welcome-hero{grid-template-columns:1fr}
+ .ap-login .ap-welcome-hero>div{padding:26px}
+ .ap-login .ap-welcome-hero h1{font-size:36px}
+ .ap-welcome-image{min-height:0;height:210px;max-height:none}
+ .ap-login .ap-gate-benefits{grid-template-columns:1fr}
+}
+@media(max-width:699px){.ap-baking-columns{grid-template-columns:1fr}}

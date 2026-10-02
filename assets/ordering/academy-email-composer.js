@@ -1,5 +1,5 @@
 import {renderAcademyEmail} from './academy-email-render.js?v=academy-visual-email-1';
-import {mountAcademyEmailEditor} from './academy-email-editor.js?v=academy-visual-email-1';
+import {mountAcademyEmailEditor} from './academy-email-editor.js?v=academy-approved-comparisons-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
 const builtins={
  marketing:[
@@ -52,5 +52,5 @@ export async function mountEmailTemplates(form,{api,esc,dialog,formSubmit,regist
  };
  const previewButton=document.createElement('button');previewButton.type='button';previewButton.className='ap-button secondary';previewButton.textContent='Preview email';previewButton.dataset.previewEmail='';form.querySelector('button[type=submit]').before(previewButton);previewButton.onclick=()=>preview(current());
  async function load(){try{const r=await api('email_templates',{kind});if(disposed)return;saved=r.templates;address=r.address||'';visualReady=r.visual_email_templates===true;render();editor.refresh();}catch(e){if(disposed)return;host.innerHTML=`<p role="status">${esc(academyErrorMessage(e))}</p><button class="ap-button secondary" type="button">Retry templates</button>`;host.querySelector('button').onclick=load;}}
- await load();return {current:()=>{ready();return editor.validate();},preview:(target,payload)=>mountEmailPreview(target,payload,{esc,address})};
+ await load();return {current:()=>{ready();return editor.validate();},readDraft:current,preview:(target,payload)=>mountEmailPreview(target,payload,{esc,address})};
 }

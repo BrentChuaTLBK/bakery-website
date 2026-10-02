@@ -14,6 +14,7 @@ export function mountAcademyEmailEditor(form,{esc,registerCleanup,renderPreview}
  const message=form.elements.body.closest('label');message.before(before);message.after(after);
  form.elements.subject.maxLength=160;form.elements.body.maxLength=10000;form.elements.body.rows=8;
  const payload=()=>({kind,subject:form.elements.subject.value,body:form.elements.body.value,email_content:structuredClone(content)});
+ const changed=()=>form.dispatchEvent(new Event('ap:editor-change',{bubbles:true}));
  const refresh=()=>{if(disposed)return;clearTimeout(timer);renderPreview(previewHost,payload());};
  const schedule=()=>{clearTimeout(timer);timer=setTimeout(refresh,180);};
  const field=(key,label,value='',max=200,type='text')=>`<label>${label}<input data-email-field="${key}" type="${type}" value="${esc(value)}" maxlength="${max}"${type==='url'?' placeholder="https://…"':''}></label>`;
@@ -58,17 +59,18 @@ export function mountAcademyEmailEditor(form,{esc,registerCleanup,renderPreview}
   if(b.hasAttribute('data-email-up')){const i=Number(b.dataset.emailUp);if(i>0){[content.items[i-1],content.items[i]]=[content.items[i],content.items[i-1]];revision++;render();after.querySelector(`[data-email-item="${i-1}"] input`).focus();}}
   if(b.dataset.emailUpload)form.querySelector(`[data-email-file="${b.dataset.emailUpload}"]`).click();
   if(b.dataset.emailClear){const key=b.dataset.emailClear;set(key,'');form.querySelector(`[data-email-field="${key}"]`).value='';thumbnails();refresh();}
+  if(b.dataset.emailLayout||b.hasAttribute('data-email-add')||b.hasAttribute('data-email-remove')||b.hasAttribute('data-email-up')||b.dataset.emailClear)changed();
  };
  const change=async e=>{
   const input=e.target,key=input.dataset.emailFile;if(!key||busy)return;const file=input.files?.[0];input.value='';if(!file)return;
   const box=input.closest('[data-email-photo]'),status=box.querySelector('[data-photo-status]'),version=revision;status.classList.remove('ap-field-error');lock(true);
   try{const url=await uploadNewsletterImage(file,text=>{if(!disposed)status.textContent=text;});if(disposed||version!==revision||!box.isConnected)return;
-   set(key,url);box.querySelector(`[data-email-field="${key}"]`).value=url;thumbnails();refresh();status.textContent='Photo added. Add a description of what it shows.';
+   set(key,url);box.querySelector(`[data-email-field="${key}"]`).value=url;thumbnails();refresh();changed();status.textContent='Photo added. Add a description of what it shows.';
   }catch(error){if(!disposed){status.textContent=error.message;status.classList.add('ap-field-error');}}
   finally{if(!disposed){lock(false);box.querySelector('[data-email-upload]')?.focus({preventScroll:true});}}
  };
  const submit=e=>{if(busy){e.preventDefault();e.stopImmediatePropagation();}};
  form.addEventListener('input',input);form.addEventListener('click',click);form.addEventListener('change',change);form.addEventListener('submit',submit,true);
  registerCleanup(()=>{disposed=true;clearTimeout(timer);form.removeEventListener('input',input);form.removeEventListener('click',click);form.removeEventListener('change',change);form.removeEventListener('submit',submit,true);});
- render();return {current:payload,validate,refresh,isBusy:()=>busy,hasContent:()=>Boolean(content.hero_url||content.intro||content.headline||content.preheader||content.items.length),set(value){if(busy)return;revision++;content={...fresh(),...(value||{}),items:structuredClone(value?.items||[])};render();}};
+ render();return {current:payload,validate,refresh,isBusy:()=>busy,hasContent:()=>Boolean(content.hero_url||content.intro||content.headline||content.preheader||content.items.length),set(value){if(busy)return;revision++;content={...fresh(),...(value||{}),items:structuredClone(value?.items||[])};render();changed();}};
 }
