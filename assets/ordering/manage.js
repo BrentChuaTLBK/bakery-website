@@ -1,3 +1,4 @@
+import {matchesOrderView,orderNextStep,orderQuickPanel} from './order-dashboard.js?v=orders-dashboard-1';
 import {brandName} from './brand.js?v=brand-20261001';
 import {mountMaintenance} from './maintenance-admin.js?v=approved-20261002-1';
 let maintenanceController=null;
@@ -5,7 +6,7 @@ import {mountVoucherCampaigns} from './voucher-campaigns.js?v=approved-20261002-
 let voucherController=null;
 import {bindDashboardNav} from './dashboard-nav.js?v=grouped-nav-1';
 import {paymentSettingsMarkup,readPaymentSettings,bindPaymentSettings} from './payment-options-manager.js?v=brand-20261001';
-import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=approved-20261002-1';
+import {mountNewsletters,mountWelcomeOffer} from './newsletter-manager.js?v=draft-delete-20261002-1';
 import { confirmDialog } from './site-dialog.js?v=brand-20261001';
 import { deliveryTrackingUrlForSave, deliveryTrackingLink } from './delivery-tracking.js?v=delivery-tracking-1';
 import { mountAcademy } from './academy-manager.js?v=approved-20261002-1';
@@ -51,6 +52,8 @@ const PAYMENT = ['awaiting_payment', 'under_review', 'paid', 'rejected', 'cancel
 const FULFILLMENT = ['pending_confirmation', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'completed', 'refunded', 'cancelled', 'expired'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const state = { view: location.hash === '#dessert' ? 'dessert' : location.hash === '#packages' ? 'packages' : 'overview', role: null, connected: false, products: [], categories: [], inventory: [], promos: [], zones: [], orders: [], settings: {}, staff: [], filters: { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }, inventoryDates: [manilaDate()], inventoryDrafts: {} };
+state.orderView='all';state.selectedOrderId=null;
+if(location.hash==='#orders')state.view='orders';
 state.productFilters = { search: '', status: '', category: '' };
 state.accountingFilter = monthRange(manilaDate().slice(0, 7));
 if (location.hash === '#pos') state.view = 'pos';
@@ -280,7 +283,7 @@ function overviewView() {
       ['Payments to review', reviews.length, 'Proof received · quantities held'],
       ['Upcoming orders', upcoming.length, 'Scheduled today and beyond'],
       ['Active products', activeProducts, 'Availability set by product and date']
-    ].map(([title, value, note]) => `<div class="panel metric-card"><div class="metric-label">${title}<span aria-hidden="true">↗</span></div><div class="metric-value">${value}</div><div class="metric-note">${note}</div></div>`).join('')}</div>
+    ].map(([title,value,note],index)=>`${index<2?`<button type="button" class="panel metric-card" data-action="order-view" data-order-view="${index===0?'today':'review'}">`:'<div class="panel metric-card">'}<div class="metric-label">${title}<span aria-hidden="true">↗</span></div><div class="metric-value">${value}</div><div class="metric-note">${note}</div>${index<2?'</button>':'</div>'}`).join('')}</div>
     <section class="panel"><div class="section-heading"><h2>Coming out of the kitchen</h2><button class="button button-quiet" data-action="upcoming">View all →</button></div>${upcoming.length ? orderTable(upcoming.slice(0, 7), true) : empty('Your next bake starts here', 'Scheduled orders will appear here as customers check out. Set up your products and daily quantities to get started.')}</section>
     ${state.settings.paused ? '<p class="notice" style="margin-top:22px">New orders are paused. Existing order links and valid payment-proof uploads remain available.</p>' : ''}
     ${state.connected ? emailStatusCard() : ''}`;
@@ -300,11 +303,11 @@ function emailStatusCard() {
 function filteredOrders() {
   const f = state.filters;
   const query = f.search.toLowerCase();
-  return state.orders.filter(o => (!query || `${o.reference} ${o.buyer?.name || ''} ${o.buyer?.email || ''} ${o.buyer?.phone || ''}`.toLowerCase().includes(query)) && (!f.payment || (f.payment === 'under_review' ? needsPaymentReview(o) : o.payment_status === f.payment)) && matchesFulfillmentStatus(o, f.fulfillment) && (!f.date || o.fulfillment_date === f.date) && (!f.method || o.method === f.method) && (!f.refund || Boolean(o.refund_label) === (f.refund === 'yes')) && (!f.upcoming || o.fulfillment_date >= manilaDate() && isActiveFulfillment(o))).sort((a, b) => f.upcoming ? a.fulfillment_date.localeCompare(b.fulfillment_date) : b.created_at.localeCompare(a.created_at));
+  return state.orders.filter(o => matchesOrderView(o,state.orderView,manilaDate()) && (!query || `${o.reference} ${o.buyer?.name || ''} ${o.buyer?.email || ''} ${o.buyer?.phone || ''}`.toLowerCase().includes(query)) && (!f.payment || (f.payment === 'under_review' ? needsPaymentReview(o) : o.payment_status === f.payment)) && matchesFulfillmentStatus(o, f.fulfillment) && (!f.date || o.fulfillment_date === f.date) && (!f.method || o.method === f.method) && (!f.refund || Boolean(o.refund_label) === (f.refund === 'yes')) && (!f.upcoming || o.fulfillment_date >= manilaDate() && isActiveFulfillment(o))).sort((a, b) => f.upcoming ? a.fulfillment_date.localeCompare(b.fulfillment_date) : b.created_at.localeCompare(a.created_at));
 }
 function orderTable(orders, compact = false) {
   if (!orders.length) return empty('No orders to show', 'Orders matching your filters will appear here.');
-  return `<div class="table-wrap"><table class="data-table"><thead><tr>${compact ? '' : '<th class="order-select-cell"><input type="checkbox" id="select-print-orders" aria-label="Select all shown orders for printing"></th>'}<th>Order / customer</th><th>Fulfillment</th><th>Payment</th>${compact ? '' : '<th>Progress</th>'}<th>Total</th></tr></thead><tbody>${orders.map(order => `<tr>${compact ? '' : `<td class="order-select-cell"><input type="checkbox" data-print-order="${esc(order.id)}" aria-label="Select ${esc(order.reference)} for printing" ${state.printSelection.has(order.id) ? 'checked' : ''}></td>`}<td><button class="table-link" data-action="open-order" data-id="${esc(order.id)}">${esc(order.reference)}</button><small>${esc(order.buyer?.name || 'Client not recorded')} · ${esc(salesSource(order))}${order.refund_label ? ' · Refund label' : ''}</small></td><td>${esc(humanDate(order.fulfillment_date))}<small>${esc(order.source==='popup'?'In-person sale':label(order.method))}</small></td><td>${badge(order.payment_status)}${order.deferred_delivery?`<small>${esc(deliveryStatusText(order))}</small>`:''}</td>${compact ? '' : `<td>${badge(fulfillmentStatus(order))}</td>`}<td>${money(order.total_cents)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="data-table"><thead><tr>${compact ? '' : '<th class="order-select-cell"><input type="checkbox" id="select-print-orders" aria-label="Select all shown orders for printing"></th>'}<th>Order / customer</th><th>Fulfillment</th><th>Payment</th>${compact ? '' : '<th>Next step</th>'}<th>Total</th></tr></thead><tbody>${orders.map(order => `<tr ${!compact?`data-order-row="${esc(order.id)}" class="${order.id===state.selectedOrderId?'order-selected':''}"`:''}>${compact ? '' : `<td class="order-select-cell"><input type="checkbox" data-print-order="${esc(order.id)}" aria-label="Select ${esc(order.reference)} for printing" ${state.printSelection.has(order.id) ? 'checked' : ''}></td>`}<td><button class="table-link" data-action="open-order" data-id="${esc(order.id)}">${esc(order.reference)}</button><small>${esc(order.buyer?.name || 'Client not recorded')} · ${esc(salesSource(order))}${order.refund_label ? ' · Refund label' : ''}</small></td><td>${esc(humanDate(order.fulfillment_date))}<small>${esc(order.source==='popup'?'In-person sale':label(order.method))}</small></td><td>${badge(order.payment_status)}${order.deferred_delivery?`<small>${esc(deliveryStatusText(order))}</small>`:''}</td>${compact ? '' : `<td><span class="order-next-heading">${esc(orderNextStep(order).title)}</span>${badge(fulfillmentStatus(order))}<button type="button" class="table-link order-select-action" data-action="select-order" data-id="${esc(order.id)}" aria-label="Quick actions for ${esc(order.reference)}">Quick actions →</button></td>`}<td>${money(order.total_cents)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function syncOrderPrintSelection() {
   if (state.view !== 'orders') return;
@@ -333,8 +336,37 @@ async function loadPrintOrders(ids) {
   return orders;
 }
 function ordersView() {
-  const f = state.filters;
-  return heading('Orders', 'From the first checkout to the final handoff.', `<button class="button button-secondary" data-action="export-orders" ${locked()}>Export CSV</button><button class="button" data-action="refresh" ${locked()}>Refresh orders</button>`) + `<section class="panel"><div class="filters"><label>Search<input type="search" id="order-search" data-filter="search" placeholder="Reference, name, email, or phone" value="${esc(f.search)}"></label><label>Payment<select data-filter="payment">${options(PAYMENT, f.payment, 'All payment statuses')}</select></label><label>Fulfillment<select data-filter="fulfillment">${options(FULFILLMENT, f.fulfillment, 'All fulfillment statuses')}</select></label><label>Method<select data-filter="method">${options(['pickup', 'delivery'], f.method, 'Pickup & delivery')}</select></label></div><div class="filter-secondary">${input('filter-date', 'Fulfillment date', f.date, 'date', 'data-filter="date"')}${select('filter-refund', 'Refund label', option('', 'All orders', f.refund) + option('yes', 'With Refund label', f.refund) + option('no', 'Without Refund label', f.refund), 'data-filter="refund"')}<label class="check-field no-margin"><input type="checkbox" data-filter="upcoming" ${f.upcoming ? 'checked' : ''}>Upcoming, grouped by date</label><button class="button button-quiet" data-action="clear-filters">Clear filters</button></div><div class="section-heading"><p class="muted no-margin" id="order-count">${filteredOrders().length} orders</p></div><div class="order-print-actions"><p id="print-selection-count" aria-live="polite">0 selected</p><button class="button button-secondary" data-action="print-selected-orders" disabled>Print selected</button><button class="button button-quiet" data-action="clear-print-selection" disabled>Clear selection</button></div><div id="order-table">${orderTable(filteredOrders())}</div></section>`;
+  const f = state.filters,shown=filteredOrders();
+  if(!shown.some(o=>o.id===state.selectedOrderId))state.selectedOrderId=shown[0]?.id||null;
+  return heading('Orders', 'From the first checkout to the final handoff.', `<button class="button button-secondary" data-action="export-orders" ${locked()}>Export CSV</button><button class="button" data-action="refresh" ${locked()}>Refresh orders</button>`) + orderViewTabs() + `<div class="orders-dashboard"><section class="panel"><div class="filters"><label>Search<input type="search" id="order-search" data-filter="search" placeholder="Reference, name, email, or phone" value="${esc(f.search)}"></label><label>Payment<select data-filter="payment">${options(PAYMENT, f.payment, 'All payment statuses')}</select></label><label>Fulfillment<select data-filter="fulfillment">${options(FULFILLMENT, f.fulfillment, 'All fulfillment statuses')}</select></label><label>Method<select data-filter="method">${options(['pickup', 'delivery'], f.method, 'Pickup & delivery')}</select></label></div><div class="filter-secondary">${input('filter-date', 'Fulfillment date', f.date, 'date', 'data-filter="date"')}${select('filter-refund', 'Refund label', option('', 'All orders', f.refund) + option('yes', 'With Refund label', f.refund) + option('no', 'Without Refund label', f.refund), 'data-filter="refund"')}<label class="check-field no-margin"><input type="checkbox" data-filter="upcoming" ${f.upcoming ? 'checked' : ''}>Upcoming, grouped by date</label><button class="button button-quiet" data-action="clear-filters">Clear filters</button></div><div class="section-heading"><h2 class="order-view-title">${orderViewTitle()}</h2><p class="muted no-margin" id="order-count">${filteredOrders().length} orders</p></div><div class="order-print-actions"><p id="print-selection-count" aria-live="polite">0 selected</p><button class="button button-secondary" data-action="print-selected-orders" disabled>Print selected</button><button class="button button-quiet" data-action="clear-print-selection" disabled>Clear selection</button></div><div id="order-table">${orderTable(shown)}</div></section><aside class="panel order-quick-panel" id="order-quick-panel" aria-label="Selected order">${currentOrderPanel()}</aside></div>`;
+}
+function orderViewTitle(){return {all:'All orders',review:'Needs review',today:'Due today'}[state.orderView]||'All orders';}
+function orderViewTabs(){return `<div class="order-view-tabs" role="group" aria-label="Order views">${[['review','Needs review'],['today','Due today'],['all','All orders']].map(([id,title])=>`<button type="button" class="button" data-action="order-view" data-order-view="${id}" aria-pressed="${state.orderView===id}">${title}<span>${state.orders.filter(o=>matchesOrderView(o,id,manilaDate())).length}</span></button>`).join('')}</div>`;}
+function currentOrderPanel(){return orderQuickPanel(state.orders.find(o=>o.id===state.selectedOrderId),{escapeHtml:esc,money,formatDate:humanDate,locked:!state.connected});}
+function updateOrderResults(){
+ const orders=filteredOrders();if(!orders.some(o=>o.id===state.selectedOrderId))state.selectedOrderId=orders[0]?.id||null;
+ $('#order-table').innerHTML=orderTable(orders);$('#order-count').textContent=`${orders.length} orders`;
+ $('#order-quick-panel').innerHTML=currentOrderPanel();syncOrderPrintSelection();
+}
+function selectQuickOrder(id){
+ if(!filteredOrders().some(o=>o.id===id))return;state.selectedOrderId=id;
+ $$('#order-table [data-order-row]').forEach(row=>row.classList.toggle('order-selected',row.dataset.orderRow===id));
+ $('#order-quick-panel').innerHTML=currentOrderPanel();
+ if(innerWidth<=1250)$('#order-quick-panel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function quickOrderAction(id,intent){
+ if(!state.connected||!['owner','staff'].includes(state.role))return;
+ // Fetch the current record before showing any existing approval/progress flow.
+ activeOrder=null;await openOrder(id);if(activeOrder?.id!==id)return;
+ const next=orderNextStep(activeOrder);
+ if(intent==='proof'){
+  const proof=$('[data-action="view-proof"]',modal);if(proof)await onAction(proof);return;
+ }
+ if(next.action==='pos'){await onAction($('[data-action="pos-open-order"]',modal));return;}
+ if(intent==='approve'&&next.action==='approve'){orderActionDialog('approve_payment');return;}
+ if(intent==='progress'&&next.action==='progress'){
+  showDialog(next.label,`<form data-form="order-progress" data-status="${esc(next.status)}">${formError}<p class="muted">${esc(activeOrder.reference)} · ${esc(activeOrder.buyer?.name||'')}</p><p>Confirm that the order is ${esc(next.status==='preparing'?'being prepared':next.status==='ready_for_pickup'?'ready for pickup':next.status==='out_for_delivery'?'with the courier for delivery':'received by the customer')}.</p><div class="dialog-actions"><button type="button" class="button button-secondary" data-action="back-order">Back</button><button type="submit" class="button">${esc(next.label)}</button></div></form>`);
+ }
 }
 function filteredProducts() {
   const { search, status, category } = state.productFilters;
@@ -819,7 +851,7 @@ async function onAction(button) {
     case 'reset-quantities': state.inventoryDrafts = {}; updateInventoryProducts(); break;
     case 'close-dialog': await closeDialog(); break;
     case 'refresh': await Promise.all([refresh(), visitorPoller.refresh()]); toast('Dashboard refreshed.'); break;
-    case 'upcoming': state.filters.upcoming = true; state.view = 'orders'; render(); break;
+    case 'upcoming': state.orderView='all';state.filters.upcoming = true; state.view = 'orders'; render(); break;
     case 'clear-filters': state.filters = { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }; state.printSelection.clear(); render(); break;
     case 'clear-print-selection': state.printSelection.clear(); syncOrderPrintSelection(); break;
     case 'print-selected-orders': {
@@ -828,7 +860,9 @@ async function onAction(button) {
       break;
     }
     case 'clear-product-filters':
-      state.productFilters = { search: '', status: '', category: '' };
+      state.orderView='all';state.selectedOrderId=null;
+if(location.hash==='#orders')state.view='orders';
+state.productFilters = { search: '', status: '', category: '' };
       $$('[data-product-filter]').forEach(control => { control.value = ''; });
       updateProductResults(); $('#product-search').focus(); break;
     case 'new-product': openProduct(); break;
@@ -854,7 +888,10 @@ async function onAction(button) {
     case 'edit-promo': promoDialog(id); break;
     case 'delete-promo': deletePromoDialog(id); break;
     case 'load-team': await loadTeam(); break;
-    case 'open-order': await openOrder(id); break;
+    case 'order-view': state.orderView=button.dataset.orderView;state.filters={search:'',payment:'',fulfillment:'',date:'',method:'',refund:'',upcoming:false};state.printSelection.clear();state.view='orders';render();break;
+    case 'select-order': selectQuickOrder(id);break;
+    case 'quick-order': await quickOrderAction(id,button.dataset.intent);break;
+    case 'open-order': if(state.view==='orders')selectQuickOrder(id);await openOrder(id); break;
     case 'back-order': renderOrderDialog(); break;
     case 'send-pickup-reminder': {
       const orderId = activeOrder.id;
@@ -970,10 +1007,7 @@ document.addEventListener('input', event => {
   if (target.dataset.filter) {
     state.printSelection.clear();
     state.filters[target.dataset.filter] = target.type === 'checkbox' ? target.checked : target.value;
-    const orders = filteredOrders();
-    $('#order-table').innerHTML = orderTable(orders);
-    $('#order-count').textContent = `${orders.length} orders`;
-    syncOrderPrintSelection();
+    updateOrderResults();
   }
   if (target.hasAttribute('data-edit-value') && editDraft) { captureEdit(); updateEditPreview(); }
 });
@@ -1169,6 +1203,11 @@ async function submitForm(form) {
     }
     case 'staff': await api('save_staff', { email: fieldValue(form, 'email'), role: fieldValue(form, 'role') }); await loadTeam(); toast('Team access updated.'); break;
     case 'staff-note': await updateActive('add_staff_note', orderMutationPayload({ note: fieldValue(form, 'note') })); break;
+    case 'order-progress': {
+      const next=orderNextStep(activeOrder);
+      if(next.action!=='progress'||next.status!==form.dataset.status)throw Error('Order progress changed. Reopen the order and try again.');
+      await updateActive('set_fulfillment',orderMutationPayload({status:next.status}));break;
+    }
     case 'order-action': {
       const operation = form.dataset.operation;
       const payload = orderMutationPayload({ reason: fieldValue(form, 'reason') });

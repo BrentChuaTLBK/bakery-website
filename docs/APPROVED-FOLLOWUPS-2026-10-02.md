@@ -2,10 +2,13 @@
 
 This release implements the four approved comparisons from the ecosystem audit: cart editing and explicit same-day recovery (4), a Custom Cakes Contact Us inquiry form (7), an authorized recent-recipe shortcut above My Classes (9), and an enrolled-class sharing action in Student Gallery (12).
 
-Comparisons 1–3, 5–6, 8, 10–11, 13–14, 16 and 18 remain declined. Comparisons 15 (Costing) and 17 (Admin Orders) are private interactive samples, outside the published website. The separate approved Academy release is preserved when combining the branches.
+Comparisons 1–3, 5–6, 8, 10–11, 13–14, 16 and 18 remain declined. Comparison 15 (Costing layout) remains a private interactive sample. Comparison 17 (Admin Orders) was subsequently approved for implementation. The separate approved Academy release is preserved when combining the branches.
 
 ## Additional requested behavior
 
+- Orders includes Needs review, Due today and All orders views, a selected-order next-action panel, and overview shortcuts. Payment review and fulfillment use the existing authorized API and fresh order revisions. POS orders retain their existing payment workflow. Date filters use the site's branded calendar picker, including keyboard navigation and clearing the selected date.
+- Newsletter drafts can be deleted from the list after a branded confirmation naming the subject. Queued and sent campaigns have no delete action. The existing owner-only backend checks draft status and revision again before removal.
+- The Accounting save confirmation has a separate 12 px gap below its button on desktop and mobile.
 - Printed order summaries retain items, quantities, options and client/recipient details, without prices, totals or payment details.
 - Recipe catalog pages support 100-row pagination, global search/sort, and restored filters, page and scroll position. Packaging, Suppliers, Equipment and Categories have the same navigation; Library and Costing retain their list state.
 - Automatic recipe costing selects the highest eligible supplier unit price, respecting an explicit supplier preference. Recipe cards, cost details and Costing Overview use current linked ingredient, packaging and pinned component prices automatically. Overview sorting and profit filters use those current costs too. Saved snapshots remain available only as historical comparisons; no recipe review or recost approval is needed after a price update.
