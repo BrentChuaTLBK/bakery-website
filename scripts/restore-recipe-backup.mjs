@@ -11,9 +11,10 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
  if(applySchema){await db.exec(await readFile(join(root,'tests/backend/bootstrap.sql'),'utf8'));for(const name of(await readdir(join(root,'supabase/migrations'))).filter(n=>n.endsWith('.sql')).sort())await db.exec((await readFile(join(root,'supabase/migrations',name),'utf8')).replace(/\r\n/g,'\n'));}
  const count=(await db.query('select (select count(*) from tlb.recipes)+(select count(*) from tlb.recipe_resources)+(select count(*) from tlb.recipe_versions) n')).rows[0].n;
  if(Number(count)!==0)throw Error('Restore rehearsal requires an empty recipe database.');
- // Old backups predate account-wide R&D access. Preserve least privilege.
+ // Old backups predate account-wide R&D access and recipe visibility.
+ // Preserve their shared-recipe behavior without overriding saved privacy.
  const researchRecipes=new Set(backup.tables.recipe_versions.filter(row=>row.status==='testing').map(row=>row.recipe_id));
- const tables={...backup.tables,recipe_access:(backup.tables.recipe_access||[]).map(row=>({can_view_rd:false,...row})),recipe_drafts:(backup.tables.recipe_drafts||[]).map(row=>({requires_rd:researchRecipes.has(row.recipe_id),...row}))};
+ const tables={...backup.tables,recipes:(backup.tables.recipes||[]).map(row=>({visibility:'staff',...row})),recipe_access:(backup.tables.recipe_access||[]).map(row=>({can_view_rd:false,...row})),recipe_drafts:(backup.tables.recipe_drafts||[]).map(row=>({visibility:'staff',requires_rd:researchRecipes.has(row.recipe_id),...row}))};
  await db.exec('begin; set constraints all deferred; delete from tlb.recipe_categories; delete from tlb.recipe_settings;');
  try{
   if(tables.recipe_staff_defaults)await db.exec('delete from tlb.recipe_staff_defaults');

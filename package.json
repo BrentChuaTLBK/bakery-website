@@ -30,6 +30,7 @@
     "test:academy": "node tests/academy-portal.mjs && node --experimental-transform-types tests/academy-recovery.mjs && node --experimental-transform-types --test tests/edge/academy-portal.test.mjs && node --experimental-transform-types tests/ui/academy-portal.mjs && node tests/ui/academy-auth.mjs",
     "test:recipe-refinement": "node tests/backend/run.mjs --recipe-refinement && node tests/ui/recipe-refinement.mjs && node tests/ui/accounting-refinement.mjs",
     "test:recipe-performance": "node tests/ui/recipe-performance.mjs",
+    "test:recipe-privacy": "node tests/backend/run.mjs --recipe-owner-visibility && node --experimental-transform-types tests/backend/run.mjs --recipe-backups && node tests/ui/recipe-owner-visibility.mjs && node tests/ui/recipe-owner-print.mjs",
     "test:academy:ux": "node tests/academy-ux.mjs && node --experimental-transform-types tests/ui/academy-ux.mjs",
     "test:academy:audit": "node tests/academy-audit.mjs && node --experimental-transform-types tests/ui/academy-audit.mjs && node --experimental-transform-types tests/ui/academy-admin-audit.mjs && node --experimental-transform-types tests/ui/academy-reaudit.mjs && node --experimental-transform-types tests/ui/academy-reaudit-admin.mjs && node --experimental-transform-types tests/ui/academy-announcement-preview.mjs",
     "test:academy:approved-reaudit": "node tests/academy-approved-reaudit.mjs && node --experimental-transform-types tests/ui/academy-approved-reaudit.mjs",

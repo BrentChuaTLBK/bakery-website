@@ -1,0 +1,22 @@
+.recipe-visibility-badge {
+ display:inline-flex;align-items:center;margin:4px 0 4px 8px;padding:4px 9px;
+ border:1px solid #d8bca2;border-radius:6px;background:#f6eadc;color:#6b4325;
+ font-size:11px;font-weight:700;line-height:1.6;white-space:nowrap;
+}
+.recipe-visibility-editor {display:grid;gap:7px;max-width:480px;margin-top:12px}
+.recipe-visibility-editor label,.recipe-visibility-settings label {display:grid;gap:5px;font-size:12px;font-weight:700}
+.recipe-visibility-editor select,.recipe-visibility-settings select {width:100%;min-height:44px;padding:9px 12px;border:1px solid #c8b09a;border-radius:8px;background:var(--paper,#fffdf8);color:var(--ink,#2f2624);font:inherit}
+.recipe-visibility-editor label {max-width:260px}
+.recipe-visibility-editor small {font-size:12px;line-height:1.6;color:var(--muted,#786d66)}
+.recipe-visibility-settings {display:flex;align-items:center;justify-content:space-between;gap:22px}
+.recipe-visibility-settings h2 {font-size:17px;margin-bottom:6px}
+.recipe-visibility-settings p {max-width:570px;margin:0;font-size:12px}
+.recipe-visibility-settings>.recipe-actions {flex-shrink:0;align-items:flex-end}
+.recipe-visibility-editor select:focus-visible,.recipe-visibility-settings select:focus-visible {outline:3px solid var(--rose,#dda292);outline-offset:3px}
+@media(max-width:760px){
+ .recipe-visibility-settings {align-items:stretch;flex-direction:column;gap:14px}
+ .recipe-visibility-settings>.recipe-actions {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end}
+ .recipe-visibility-settings>.recipe-actions button {min-height:44px}
+ .recipe-visibility-editor {max-width:100%}
+}
+@media(max-width:380px){.recipe-visibility-settings>.recipe-actions {grid-template-columns:1fr}}
