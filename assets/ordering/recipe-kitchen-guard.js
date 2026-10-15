@@ -1,7 +1,7 @@
 // A server-issued lease limits how long sensitive DOM may remain visible.
 // Durations use performance.now(): changing a device date/timezone cannot extend
 // the lease. Every recipe/scaling/media request is independently authorized.
-export function createKitchenGuard({call,getState,onLock,onResume,onPermissionChange,notify}){
+export function createKitchenGuard({call,getState,onLock,onResume,onPermissionChange,onRecipeDenied,onCollectionChange,notify}){
  let policy=null,deadline=0,expiryTimer,pollTimer,pending=null,locked=false,stopped=false,sequence=0;
  const events=new Map();
  const isStaff=()=>getState().role==='kitchen';
@@ -9,6 +9,10 @@ export function createKitchenGuard({call,getState,onLock,onResume,onPermissionCh
   const state=getState(),r=state.record;
   return r?{id:r.id,version_id:r.version_id,root_id:r.root_id,root_version:r.root_version,rd:state.rd}:{rd:state.rd};
  };
+ function recipeDenied(){
+  clearTimers();sequence++;locked=false;deadline=0;
+  onRecipeDenied?.();schedule(15000);
+ }
  const clearTimers=()=>{clearTimeout(expiryTimer);clearTimeout(pollTimer);};
  function schedule(delay=10000){clearTimeout(pollTimer);if(!stopped&&!document.hidden)pollTimer=setTimeout(()=>check(),delay);}
  function lock(reason='verification_required',details=policy){
@@ -57,6 +61,7 @@ export function createKitchenGuard({call,getState,onLock,onResume,onPermissionCh
     return true;
    }catch(error){
     if(token!==sequence||stopped)return false;
+    if(getState().role==='chef'&&error.reason==='recipe_denied'){recipeDenied();return false;}
     if(isStaff()&&error.reason==='rd_denied'){
      lock('rd_denied',error.access||policy);
      // The protected request is denied before resolving its recipe. Recheck
@@ -72,6 +77,7 @@ export function createKitchenGuard({call,getState,onLock,onResume,onPermissionCh
   })();return pending;
  }
  function failure(error){
+  if(getState().role==='chef'&&error.reason==='recipe_denied'){recipeDenied();return;}
   if(!isStaff())return;
   if(error.access?.allowed===true&&['export_denied','action_denied','rd_denied'].includes(error.reason))return;
   lock(error.reason||'connection_required',error.access||policy);
@@ -97,7 +103,11 @@ export function createKitchenGuard({call,getState,onLock,onResume,onPermissionCh
  document.addEventListener('visibilitychange',()=>{if(document.hidden)suspend();else check();});
  window.addEventListener('focus',()=>{if(isStaff()&&deadline<=performance.now())suspend();check();});
  const channel=typeof BroadcastChannel==='function'?new BroadcastChannel('tlb-recipe-access-changed'):null;
- if(channel)channel.onmessage=event=>{if(event.data==='permissions-changed'){if(isStaff())suspend();check();}};
+ if(channel)channel.onmessage=event=>{if(event.data==='permissions-changed'){
+  const state=getState();
+  if(state.role==='chef'&&!state.record&&!state.editing){clearTimers();sequence++;Promise.resolve(onCollectionChange?.()).catch(()=>{});return;}
+  if(isStaff())suspend();check();
+ }};
  return {accept,start,check,failure,suspend,context,securityEvent,
   changed(){channel?.postMessage('permissions-changed');},
   get locked(){return locked;},get policy(){return policy;},

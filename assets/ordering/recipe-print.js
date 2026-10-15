@@ -4,7 +4,8 @@ import {exact,quantity,multiply,scaleIngredients,scaledYield} from './recipe-mat
 import {productionPlan,recipeSections} from './recipe-model.js?v=approved-20261002-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,rd=false,settings,api,fileUrl,dialog}) {
- await api('export_authorize',{kind:'print'});
+ const authorization={kind:'print',...(record?{id:record.id,version_id:record.version_id}:{})};
+ await api('export_authorize',authorization);
  let defaults={layout:'kitchen',paper:'A4',font_size:'10',spacing:'1.45',packaging:true,process:true,notes:false};
  try{defaults={...defaults,...JSON.parse(localStorage.getItem('tlb-recipe-export-preferences')||'{}')};}catch{/* Use print defaults. */}
  const field=(label,name,type,value)=>`<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${type==='number'?'min="8" max="18" step="0.25"':''}></label>`;
@@ -14,7 +15,7 @@ export async function openRecipeExport({record,production=null,selection=[],filt
  form.addEventListener('submit',async event=>{
   event.preventDefault();const button=form.querySelector('[type=submit]'),status=form.querySelector('[data-export-status]');button.disabled=true;
   try {
-   await api('export_authorize',{kind:'print'});
+   await api('export_authorize',authorization);
    const values=Object.fromEntries(new FormData(form)),options={...values,packaging:values.packaging==='on',process:values.process==='on',notes:!kitchen&&values.notes==='on'};
    options.font_size=String(Math.min(18,Math.max(8,Number(options.font_size)||10)));
    if(values.save_defaults==='on')localStorage.setItem('tlb-recipe-export-preferences',JSON.stringify(options));
@@ -36,8 +37,8 @@ export async function openRecipeExport({record,production=null,selection=[],filt
    document.head.append(style);const printable=document.createElement('div');printable.className=`recipe-print-root ${options.layout==='presentation'?'presentation':''}`;
    printable.innerHTML=printBook(records,options,urls);document.body.append(printable);
    await Promise.all([...printable.querySelectorAll('img')].map(img=>img.decode().catch(()=>{throw Error('A recipe photo could not load. Retry before printing.');})));
-   await document.fonts.ready;await api('export_authorize',{kind:'print'});status.textContent='Ready. Use the print window to print or save a PDF.';document.querySelector('#recipe-dialog').close();window.print();
-  }catch(error){status.textContent=error.message;status.className='recipe-error';}finally{button.disabled=false;}
+   await document.fonts.ready;await api('export_authorize',{kind:'print',version_ids:[...new Set(records.map(r=>r.version_id))]});status.textContent='Ready. Use the print window to print or save a PDF.';document.querySelector('#recipe-dialog').close();window.print();
+  }catch(error){document.querySelector('.recipe-print-root')?.remove();document.querySelector('#recipe-print-page-style')?.remove();status.textContent=error.message;status.className='recipe-error';}finally{button.disabled=false;}
  });
 }
 function photos(list,urls){return (list||[]).filter(p=>urls.has(p.file_id)).map(p=>`<img src="${esc(urls.get(p.file_id))}" alt="${esc(p.caption||'Recipe photo')}">`).join('');}
