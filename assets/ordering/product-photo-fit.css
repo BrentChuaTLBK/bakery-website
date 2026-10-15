@@ -1,0 +1,60 @@
+/* Fit the full photograph inside the existing product frame when tapped. */
+#product-dialog .product-photo-toggle {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line, #e8dfd3);
+  border-radius: 12px;
+  background: #f4eee4;
+  color: var(--ink, #2f2624);
+  cursor: zoom-out;
+}
+#product-dialog .product-photo-toggle:focus-visible {
+  outline: 3px solid var(--brown, #764b25);
+  outline-offset: 3px;
+}
+#product-dialog .product-photo-toggle .product-dialog-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  object-fit: cover;
+  border-radius: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#product-dialog .product-photo-toggle[data-photo-fit="contain"] { cursor: zoom-in; }
+#product-dialog .product-photo-toggle[data-photo-fit="contain"] .product-dialog-image { object-fit: contain; }
+.product-photo-hint {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid #ffffffa6;
+  border-radius: 7px;
+  background: #fffdf8ed;
+  box-shadow: 0 2px 8px #2f26241a;
+  pointer-events: none;
+}
+.product-photo-hint svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.product-photo-toggle .photo-fill-icon,
+.product-photo-toggle[data-photo-fit="contain"] .photo-fit-icon { display: none; }
+.product-photo-toggle[data-photo-fit="contain"] .photo-fill-icon { display: initial; }
+#product-dialog .photo-thumbs button[aria-pressed="true"] {
+  border-color: var(--brown, #764b25);
+  box-shadow: 0 0 0 1px var(--brown, #764b25);
+}
+@media (max-width: 720px) {
+  #product-dialog .product-photo-toggle { aspect-ratio: 1.3; max-height: 260px; }
+}
