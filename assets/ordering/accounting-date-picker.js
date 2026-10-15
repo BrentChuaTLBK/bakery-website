@@ -58,7 +58,8 @@ export function validateAccountingDates(root){
 function positionCalendar(picker){
  if(!picker.open)return;
  const panel=picker.querySelector('.accounting-calendar'),left=picker.getBoundingClientRect().left,width=panel.getBoundingClientRect().width;
- panel.style.left=`${Math.max(16-left,Math.min(0,innerWidth-16-left-width))}px`;
+ // An overflowing panel can expand innerWidth on mobile before positioning.
+ panel.style.left=`${Math.max(16-left,Math.min(0,document.documentElement.clientWidth-16-left-width))}px`;
 }
 function render(picker,focusDate,focusSelector) {
  picker.querySelector('.accounting-calendar').innerHTML=calendarView(picker,focusDate);

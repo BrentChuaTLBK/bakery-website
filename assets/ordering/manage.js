@@ -22,7 +22,7 @@ import { printOrderSlips } from './order-slips.js?v=approved-20261002-1';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { duplicateProductDraft } from './product-duplicate.js?v=approved-20261002-1';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
-import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=branded-calendars-1';
+import { accountingDatePicker, accountingDateTimePicker, bindAccountingDates } from './accounting-date-picker.js?v=production-calendar-20261015';
 import { quantitySelection, quantitySaveRows, quantityStatus } from './daily-quantities.js?v=daily-quantities-1';
 import { analyticsDateRange, buildAnalytics } from './analytics.js?v=pos-1';
 import { renderAnalytics } from './analytics-view.js?v=operations-1';
@@ -39,6 +39,7 @@ import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=brand-20261001';
 
 import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
+import {mountProduction} from './production-manager.js?v=production-summary-20261015';
 import {mountPOS} from './pos-manager.js?v=pos-single-unit-20261015';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
@@ -74,6 +75,9 @@ let modalReturnFocus = null;
 let promoStatusTimer = null;
 let clearSalesChart = () => {};
 let calendarController=null;
+let productionController=null;
+state.productionFilters={};
+if(location.hash==='#production')state.view='production';
 state.calendarFilters={};
 if(/^#calendar(?:\?|$)/.test(location.hash))state.view='calendar';
 state.analyticsFilter = { period: 'this_month', ...analyticsDateRange('this_month', manilaDate()) };
@@ -89,10 +93,10 @@ function syncVisitorPolling() { visitorPoller.setActive(state.connected && state
 document.addEventListener('visibilitychange', syncVisitorPolling);
 window.addEventListener('pagehide', () => visitorPoller.setActive(false));
 window.addEventListener('pageshow', syncVisitorPolling);
-window.addEventListener('pageshow', event => {if(event.persisted&&state.view==='calendar')render();});
+window.addEventListener('pageshow', event => {if(event.persisted&&['calendar','production'].includes(state.view))render();});
 document.addEventListener('visibilitychange', syncPromoStatuses);
 window.addEventListener('pageshow', syncPromoStatuses);
-window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();maintenanceController?.destroy();});
+window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();productionController?.destroy();maintenanceController?.destroy();});
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
   if (productUpload || catalogOrder?.dirty || catalogOrder?.busy || ['#pos-manager','#payment-options-editor','#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#voucher-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
@@ -214,6 +218,8 @@ function render() {
   const offerLink=$('[data-view=vouchers]');if(offerLink)offerLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='vouchers'&&state.role!=='owner')state.view='overview';
   calendarController?.destroy();calendarController=null;
+  productionController?.destroy();productionController=null;
+  document.body.classList.toggle('production-workspace',state.view==='production');
   document.body.classList.toggle('pos-workspace',state.view==='pos');
   clearSalesChart();
   const newsletterLink=$('[data-view=newsletters]');if(newsletterLink)newsletterLink.style.display=state.connected&&state.role==='owner'?'':'none';
@@ -231,6 +237,7 @@ function render() {
   syncDashboardNav();
   const views = { maintenance:()=>'<div id="maintenance-manager"></div>', vouchers:()=>'<div id="voucher-manager"></div>', calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   views.backups=()=>'<div id="backup-manager"></div>';
+  views.production=()=>'<div id="production-manager"></div>';
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
   if(state.view==='backups'){
     const root=$('#backup-manager');root.textContent='Opening order backups…';
@@ -256,6 +263,7 @@ function render() {
   }
   if (state.view === 'accounting') mountAccounting($('#accounting-manager'), { api, role: state.role, connected: state.connected, money, escapeHtml: esc, today: manilaDate(), filters: state.accountingFilter, openOrder });
   if(state.view==='calendar')calendarController=mountCalendar($('#order-calendar-manager'),{api,calendarConnection:async(...args)=>(await import('./client.js?v=approved-20261002-1')).calendarConnection(...args),role:state.role,connected:state.connected,openOrder,toast,esc,filters:state.calendarFilters});
+  if(state.view==='production')productionController=mountProduction($('#production-manager'),{api,role:state.role,connected:state.connected,toast,esc,filters:state.productionFilters,calendarBound:true});
   clearSalesChart = bindSalesChart($('#workspace'));
   if (state.view === 'galleries') mountGalleryManager($('#gallery-manager'), { role: state.role, connected: state.connected, api: async (...args) => (await import('./client.js?v=approved-20261002-1')).galleryApi(...args), upload });
   if (['packages', 'dessert'].includes(state.view)) {
@@ -288,7 +296,7 @@ function overviewView() {
     ${state.settings.paused ? '<p class="notice" style="margin-top:22px">New orders are paused. Existing order links and valid payment-proof uploads remain available.</p>' : ''}
     ${state.connected ? emailStatusCard() : ''}`;
 }
-function staffSignInUrl(){return 'account.html?next='+encodeURIComponent('manage.html'+(state.view==='pos'?'#pos':''))}
+function staffSignInUrl(){return 'account.html?next='+encodeURIComponent('manage.html'+(['pos','production'].includes(state.view)?'#'+state.view:''))}
 function emailStatusCard() {
   const rows = Array.isArray(state.email_status) ? state.email_status : [];
   const counts = rows.reduce((result, row) => { result[row.status] = (result[row.status] || 0) + 1; return result; }, {});
@@ -391,7 +399,12 @@ function productFiltersActive() {
 }
 function productResults(products) {
   if (!state.products.length) return `<section class="panel">${empty('Room for something delicious', 'Your ordering catalog starts empty. Add your own products, photos, and prices when you’re ready.', `<button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add your first product</button>`)}</section>`;
-  return products.length ? `<div class="product-grid">${products.map(product => `<article class="panel product-card"><div class="product-photo">${safeImage(product.photos?.[0]) ? `<img src="${esc(safeImage(product.photos[0]))}" alt="${esc(product.name)}" loading="lazy">` : '<span aria-hidden="true">♧</span>'}</div><div class="product-card-body"><h3>${esc(product.name)}</h3><p class="muted">${esc(productCategoryIds(product, state.categories).map(id => state.categories.find(c => c.id === id)?.name).join(' · ') || 'Uncategorized')}</p><div class="product-card-meta"><span>${product.lead_days} full production day${product.lead_days === 1 ? '' : 's'}</span><span>${product.allow_same_day === true ? '<span class="badge">Same-day eligible</span> ' : ''}${product.pickup_only ? '<span class="badge">Pickup only</span> ' : ''}${badge(product.active ? 'active' : 'hidden')}</span></div><div class="product-card-bottom"><strong>${money(product.price_cents)}</strong><div class="product-card-actions"><button class="button button-quiet" data-action="edit-product" data-id="${esc(product.id)}">${owner() ? 'Edit product' : 'View product'} →</button>${state.connected && state.role === 'owner' ? `<button type="button" class="button button-quiet" data-action="duplicate-product" data-id="${esc(product.id)}" aria-label="Duplicate ${esc(product.name)}">Duplicate</button><button type="button" class="button button-quiet product-delete-button" data-action="delete-product" data-id="${esc(product.id)}" aria-label="Delete ${esc(product.name)}">Delete</button>` : ''}</div></div></div></article>`).join('')}</div>` : `<section class="panel">${empty('No matching products', 'Try another product name, status, or category, or clear the filters.')}</section>`;
+  const canManage = state.connected && state.role === 'owner';
+  return products.length ? `<div class="product-grid product-management-grid">${products.map(product => {
+    const photo = safeImage(product.photos?.[0]);
+    const categories = productCategoryIds(product, state.categories).map(id => state.categories.find(c => c.id === id)?.name).filter(Boolean).join(' · ') || 'Uncategorized';
+    return `<article class="panel product-card" data-product-card="${esc(product.id)}"><div class="product-card-main"><div class="product-photo">${photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : '<span>No photo</span>'}</div><div class="product-card-body"><h3>${esc(product.name)}</h3><p class="product-card-category">${esc(categories)}</p><p class="product-card-price">${money(product.price_cents)}</p><div class="product-card-meta"><span>${product.lead_days} full production day${product.lead_days === 1 ? '' : 's'}</span><div class="product-card-badges">${badge(product.active ? 'active' : 'hidden')}${product.allow_same_day === true ? '<span class="badge">Same-day eligible</span>' : ''}${product.pickup_only ? '<span class="badge">Pickup only</span>' : ''}</div></div></div></div><div class="product-card-actions${canManage ? '' : ' product-card-actions--single'}"><button type="button" class="button" data-action="edit-product" data-id="${esc(product.id)}" aria-label="${owner() ? 'Edit' : 'View'} ${esc(product.name)}">${owner() ? 'Edit product' : 'View product'}</button>${canManage ? `<button type="button" class="button button-secondary" data-action="duplicate-product" data-id="${esc(product.id)}" aria-label="Duplicate ${esc(product.name)}">Duplicate</button><button type="button" class="button button-secondary product-delete-button" data-action="delete-product" data-id="${esc(product.id)}" aria-label="Delete ${esc(product.name)}">Delete</button>` : ''}</div></article>`;
+  }).join('')}</div>` : `<section class="panel">${empty('No matching products', 'Try another product name, status, or category, or clear the filters.')}</section>`;
 }
 function updateProductResults() {
   const products = filteredProducts();
@@ -403,9 +416,9 @@ function productsView() {
   const f = state.productFilters;
   if (f.category && f.category !== '__uncategorized__' && !state.categories.some(c => c.id === f.category)) f.category = '';
   const products = filteredProducts();
-  return heading('Your menu', 'Beautiful bakes, thoughtfully described.', `<button class="button button-secondary" data-action="categories">Arrange categories</button><button class="button button-secondary" data-action="reorder-products" ${ownerLocked()}>Arrange products</button><button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add product</button>`) + readonly() +
+  return '<section class="product-management" aria-label="Product management">' + heading('Your menu', 'Beautiful bakes, thoughtfully described.', `<button class="button button-secondary" data-action="categories">Arrange categories</button><button class="button button-secondary" data-action="reorder-products" ${ownerLocked()}>Arrange products</button><button class="button" data-action="new-product" ${owner() ? '' : 'disabled'}>+ Add product</button>`) + readonly() +
     `<div class="product-filters" role="search" aria-label="Filter products"><label class="field product-search">Search products<input id="product-search" type="search" data-product-filter="search" placeholder="Search by product name" value="${esc(f.search)}" aria-controls="product-results" autocomplete="off"></label>${select('product-status', 'Status', option('', 'All statuses', f.status) + option('active', 'Active', f.status) + option('hidden', 'Hidden', f.status), 'data-product-filter="status" aria-controls="product-results"')}${select('product-category', 'Category', option('', 'All categories', f.category) + state.categories.map(c => option(c.id, c.name, f.category)).join('') + option('__uncategorized__', 'Uncategorized', f.category), 'data-product-filter="category" aria-controls="product-results"')}</div>` +
-    `<div class="product-filter-summary"><p class="muted no-margin" id="product-count" role="status">Showing ${products.length} of ${state.products.length} product${state.products.length === 1 ? '' : 's'}</p><button type="button" class="button button-quiet" data-action="clear-product-filters" ${productFiltersActive() ? '' : 'disabled'}>Clear filters</button></div><div id="product-results">${productResults(products)}</div>`;
+    `<div class="product-filter-summary"><p class="muted no-margin" id="product-count" role="status">Showing ${products.length} of ${state.products.length} product${state.products.length === 1 ? '' : 's'}</p><button type="button" class="button button-quiet" data-action="clear-product-filters" ${productFiltersActive() ? '' : 'disabled'}>Clear filters</button></div><div id="product-results">${productResults(products)}</div></section>`;
 }
 function inventoryView() {
   return heading('Daily quantities', 'Choose your dates, then set only the limits you need.') +
