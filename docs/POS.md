@@ -2,6 +2,8 @@
 
 Open **Admin → Point of sale**. Verified staff can record sales; owners can also create/edit pop-up events and approve date overrides.
 
+Each catalog-product addition in POS adds one sellable unit. Staff can sell or edit a direct order below the product’s website minimum; pop-up sales also start at one. Product minimum quantities apply only to website orders. Required flavor selections, whole-number quantities, stock limits, prices and date rules still apply.
+
 The POS has five separate areas:
 
 - **Sell:** take a pop-up sale or direct order. Only events open today appear in the counter selector.

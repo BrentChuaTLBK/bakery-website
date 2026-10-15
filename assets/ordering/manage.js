@@ -39,7 +39,7 @@ import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=brand-20261001';
 
 import {mountCalendar} from './calendar-manager.js?v=fulfillment-calendar-1';
-import {mountPOS} from './pos-manager.js?v=approved-20261002-1';
+import {mountPOS} from './pos-manager.js?v=pos-single-unit-20261015';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
