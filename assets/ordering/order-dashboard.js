@@ -1,9 +1,18 @@
 import {isActiveFulfillment,needsPaymentReview} from './refund-status.js?v=pos-2';
 
 export function matchesOrderView(order,view,today){
+ if(view==='awaiting')return order.payment_status==='awaiting_payment'&&isActiveFulfillment(order);
  if(view==='review')return needsPaymentReview(order);
  if(view==='today')return order.fulfillment_date===today&&isActiveFulfillment(order);
  return true;
+}
+
+export function isOverdueOrder(order,today){
+ return order.payment_status==='paid'&&isActiveFulfillment(order)&&order.fulfillment_date<today;
+}
+
+export function matchesUpcomingOrder(order,today){
+ return isActiveFulfillment(order)&&(order.fulfillment_date>=today||isOverdueOrder(order,today));
 }
 
 export function orderNextStep(order){
