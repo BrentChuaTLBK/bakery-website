@@ -1,11 +1,12 @@
 import {quantity,inputQuantity,exact,multiply,scaleIngredients,ingredientTotals,componentPlan,scaledYield,unitInfo,add,compare} from './recipe-math.js?v=teaspoon-fractions-20261019-1';
+import {bakingStageGroupId,bakingSections} from './recipe-baking.js?v=component-baking-20261020-1';
 export const id=()=>crypto.randomUUID();
 export const clone=value=>structuredClone(value);
 export const ingredient=()=>({id:id(),name:'',quantity:'',unit:'g',notes:'',brand:''});
 export const group=(name='Ingredients')=>({id:id(),name,ingredients:[ingredient()]});
 export const step=()=>({id:id(),instruction:'',timer_minutes:'',temperature:'',equipment:'',warning:''});
 export const method=(groupId='')=>({id:id(),name:'Procedure',group_id:groupId,steps:[step()]});
-export const stage=()=>({id:id(),name:'Bake',top:'',bottom:'',actual_bottom:'',fan:'',minutes:'',core:'',notes:''});
+export const stage=(groupId='')=>({id:id(),name:'Bake',group_id:groupId,top:'',bottom:'',actual_bottom:'',fan:'',minutes:'',core:'',notes:''});
 export const defaultCosting=()=>({mode:'costing_only',labor_percent:'0',saleable_yield:'',sale_unit:'each',selling_price:'',price_basis:'unit'});
 export const variant=(name='Standard')=>{const g=group('Main component');return {id:id(),name,yield:{quantity:'1',unit:'batch',portions:'',portion_weight:'',batch_weight:'',finished_weight:'',pan_size:'',pans:'',loss_percent:''},groups:[g],methods:[method(g.id)],baking:[],components:[],equipment:[],packaging:{description:'',dimensions:'',notes:'',photos:[]},additional_costs:[],costing:defaultCosting(),production_notes:'',photos:[]};};
 export const blankRecipe=()=>({name:'',description:'',category_id:'',tags:[],flavor:'',product_line:'',currency:'PHP',allergens:[],private_notes:'',critical_notes:'',photos:[],files:[],variants:[variant()]});
@@ -16,10 +17,11 @@ export function normalizeRecipe(doc){
 }
 export function freshVariant(value,name) {
   const v=clone(value);v.id=id();v.name=name||`${value.name} — copy`;
-  const associations=v.methods.map(m=>methodGroupId(v,m)),groupIds=new Map();
+  const associations=v.methods.map(m=>methodGroupId(v,m)),bakingAssociations=(v.baking||[]).map(s=>bakingStageGroupId(v,s)),groupIds=new Map();
   for(const g of v.groups){const old=g.id;g.id=id();groupIds.set(old,g.id);for(const r of g.ingredients)r.id=id();}
   for(const [i,m] of v.methods.entries()){m.id=id();m.group_id=groupIds.get(associations[i])||'';for(const s of m.steps)s.id=id();}
-  for(const s of v.baking)s.id=id();for(const c of v.components)c.id=id();return v;
+  for(const [i,s] of (v.baking||[]).entries()){s.id=id();s.group_id=groupIds.get(bakingAssociations[i])||'';}
+  for(const c of v.components)c.id=id();return v;
 }
 // Legacy records remain unchanged. Only unambiguous names or a single generic
 // procedure are paired for display; assembly always stays separate.
@@ -33,10 +35,31 @@ export function methodGroupId(v,m){
 }
 export function recipeSections(v){
   const methods=(v.methods||[]).map((method,index)=>({method,index,groupId:methodGroupId(v,method)}));
-  return {components:v.groups.map((group,index)=>({group,index,methods:methods.filter(m=>m.groupId&&m.groupId===group.id)})),standalone:methods.filter(m=>!m.groupId)};
+  const baking=bakingSections(v);
+  return {components:v.groups.map((group,index)=>({group,index,methods:methods.filter(m=>m.groupId&&m.groupId===group.id),baking:baking.filter(s=>s.groupId&&s.groupId===group.id)})),standalone:methods.filter(m=>!m.groupId),unassignedBaking:baking.filter(s=>!s.groupId)};
 }
-export function addComponent(v,name=`Component ${v.groups.length+1}`){const g=group(name);v.groups.push(g);v.methods.push(method(g.id));return g;}
-export function removeComponent(v,index){const {group,methods}=recipeSections(v).components[index];const removed=new Set(methods.map(m=>m.index));v.methods=v.methods.filter((m,i)=>!removed.has(i));v.groups=v.groups.filter(g=>g!==group);}
+// Resolve compatibility associations in the working copy before adding or
+// deleting components changes whether a legacy recipe is unambiguous.
+export function pinBakingAssociations(v){
+  for(const s of v.baking||[])if(!Object.hasOwn(s,'group_id'))s.group_id=bakingStageGroupId(v,s);
+  return v;
+}
+export function addComponent(v,name=`Component ${v.groups.length+1}`){pinBakingAssociations(v);const g=group(name);v.groups.push(g);v.methods.push(method(g.id));return g;}
+export function removeComponent(v,index){
+  pinBakingAssociations(v);const {group,methods,baking}=recipeSections(v).components[index];
+  const removedMethods=new Set(methods.map(m=>m.index)),removedBaking=new Set(baking.map(s=>s.index));
+  v.methods=v.methods.filter((m,i)=>!removedMethods.has(i));v.baking=(v.baking||[]).filter((s,i)=>!removedBaking.has(i));v.groups=v.groups.filter(g=>g!==group);
+}
+export function duplicateComponent(v,index){
+  pinBakingAssociations(v);const source=recipeSections(v).components[index];if(!source)throw Error('Choose a component to duplicate.');
+  const copied=clone(source.group);copied.id=id();copied.name=`${source.group.name} — copy`;for(const row of copied.ingredients)row.id=id();
+  const copiedMethods=source.methods.map(({method})=>{const copy=clone(method);copy.id=id();copy.group_id=copied.id;for(const step of copy.steps)step.id=id();return copy;});
+  const copiedBaking=source.baking.map(({stage})=>({...clone(stage),id:id(),group_id:copied.id}));
+  v.groups.splice(index+1,0,copied);
+  v.methods.splice(source.methods.length?source.methods.at(-1).index+1:v.methods.length,0,...copiedMethods);
+  v.baking??=[];v.baking.splice(source.baking.length?source.baking.at(-1).index+1:v.baking.length,0,...copiedBaking);
+  return copied;
+}
 export function validateRecipe(doc) {
   const errors=[];if(!doc.name?.trim()||doc.name.length>200)errors.push('Add a recipe name of up to 200 characters.');
   if(!doc.variants?.length)errors.push('Add a size variant.');
@@ -74,6 +97,7 @@ export function validateRecipe(doc) {
         if(s.timer_minutes!=null&&s.timer_minutes!=='')try{inputQuantity(s.timer_minutes);}catch{errors.push(`${m.name}: enter a nonnegative timer.`);}
       }
     }
+    for(const s of v.baking||[])if(s.group_id!=null&&s.group_id!==''&&!groupIds.includes(s.group_id))errors.push(`${s.name||'Baking stage'}: choose an existing component for this baking stage.`);
     for(const c of v.additional_costs||[])try{inputQuantity(c.amount);if(c.resource_id){inputQuantity(c.quantity);if(!c.unit?.trim())throw Error();}}catch{errors.push(`${c.resource_name||c.name||'Additional cost'}: enter valid nonnegative amounts, quantities and units.`);}
     if(v.costing){const c=v.costing;
       if(!['costing_only','saleable'].includes(c.mode))errors.push(`${v.name}: choose a costing mode.`);
