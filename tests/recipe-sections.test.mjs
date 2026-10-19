@@ -54,7 +54,7 @@ test('component rename, reorder and duplication preserve procedure associations'
 });
 test('scaled copies retain component links and original fractions without overwriting the source',()=>{
  const d=parseRecipeText(source).document,before=structuredClone(d),scaled=scaledCopy(d,d.variants[0].id,'2'),v=scaled.variants[0];
- assert.equal(v.groups[0].ingredients[0].quantity,'200');assert.equal(v.groups[2].ingredients[1].quantity,'0.5');assert.equal(recipeSections(v).components[2].methods.length,1);assert.deepEqual(d,before);
+ assert.equal(v.groups[0].ingredients[0].quantity,'200');assert.equal(v.groups[2].ingredients[1].quantity,'1/2');assert.equal(recipeSections(v).components[2].methods.length,1);assert.deepEqual(d,before);
 });
 test('removing one component only removes its own ingredients and procedures',()=>{
  const v=parseRecipeText(source).document.variants[0];removeComponent(v,1);assert.deepEqual(v.groups.map(g=>g.name),['Coconut Sponge','Glaze']);assert.equal(v.methods.length,3);assert.equal(recipeSections(v).standalone[0].method.name,'Assembly');
