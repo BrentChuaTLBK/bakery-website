@@ -1,8 +1,8 @@
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const recipeUnits=['g','kg','ml','pcs'];
+export const recipeUnits=['g','kg','ml','tsp','pcs'];
 let customUnits=[];
 export function configureRecipeUnits(units=[]){
- customUnits=units.filter(u=>u&&typeof u.symbol==='string'&&typeof u.name==='string'&&!recipeUnits.includes(u.symbol));
+ customUnits=units.filter(u=>u&&typeof u.symbol==='string'&&typeof u.name==='string'&&!recipeUnits.includes(u.symbol.trim().toLowerCase()));
 }
 export function unitOptions(current=''){
  const value=String(current||'');

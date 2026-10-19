@@ -43,14 +43,20 @@ export function exact(value) {
   while(remainder) { remainder*=10n;tail+=remainder/q.d;remainder%=q.d; }
   return `${whole}${tail?`.${tail}`:''}`;
 }
-export function displayQuantity(value,{mode='exact',step='1'}={}) {
+// Teaspoon measures read as reduced mixed fractions; storage and costing stay exact.
+export function formatQuantity(value,unit='') {
+  if(String(unit).trim().toLowerCase()!=='tsp')return exact(value);
+  const q=quantity(value),whole=q.n/q.d,remainder=q.n%q.d;
+  return !remainder?String(whole):`${whole?`${whole} `:''}${remainder}/${q.d}`;
+}
+export function displayQuantity(value,{mode='exact',step='1',unit=''}={}) {
   const q=quantity(value);
-  if(mode==='exact')return {text:exact(q),exact:serialize(q),rounded:false};
+  if(mode==='exact')return {text:formatQuantity(q,unit),exact:serialize(q),rounded:false};
   if(!['whole','practical'].includes(mode))throw Error('Unknown rounding option.');
   const increment=quantity(mode==='whole'?'1':step);
   if(!increment.n)throw Error('Rounding increment must be greater than zero.');
   const units=divide(q,increment),rounded=multiply(rational((units.n*2n+units.d)/(units.d*2n)),increment);
-  return {text:exact(rounded),exact:serialize(q),rounded:compare(rounded,q)!==0};
+  return {text:formatQuantity(rounded,unit),exact:serialize(q),rounded:compare(rounded,q)!==0};
 }
 export function scaleFactor(yieldInfo,mode,target) {
   const wanted=inputQuantity(target); if(!wanted.n)throw Error('Production quantity must be greater than zero.');
@@ -69,7 +75,7 @@ export function scaleFactor(yieldInfo,mode,target) {
 export function scaleIngredients(groups,factor) {
   const f=quantity(factor); if(!f.n)throw Error('Scale must be greater than zero.');
   return groups.map(group=>({...group,ingredients:group.ingredients.map(row=>({...row,base_quantity:row.quantity,
-    scaled_quantity:serialize(multiply(quantity(row.quantity),f)),scaled_display:exact(multiply(quantity(row.quantity),f))}))}));
+    scaled_quantity:serialize(multiply(quantity(row.quantity),f)),scaled_display:formatQuantity(multiply(quantity(row.quantity),f),row.unit)}))}));
 }
 export function scaledYield(yieldInfo,factor,{mode='multiplier',target=null}={}){
  const result=structuredClone(yieldInfo),f=quantity(factor);
@@ -112,7 +118,7 @@ export function ingredientTotals(groups,factor='1') {
     const current=totals.get(key)||{ingredient_id:row.ingredient_id||null,name:row.name,brand:row.brand||'',unit:u.canonical,quantity:rational(0n)};
     current.quantity=add(current.quantity,multiply(multiply(quantity(row.quantity),u.factor),f));totals.set(key,current);
   }
-  return [...totals.values()].map(row=>({...row,quantity:serialize(row.quantity),display:exact(row.quantity)})).sort((a,b)=>a.name.localeCompare(b.name));
+  return [...totals.values()].map(row=>({...row,quantity:serialize(row.quantity),display:formatQuantity(row.quantity,row.unit)})).sort((a,b)=>a.name.localeCompare(b.name));
 }
 export function componentPlan(baseYield,needed,{wholeBatches=false}={}) {
   const base=quantity(baseYield),requested=quantity(needed),ratio=divide(requested,base);
