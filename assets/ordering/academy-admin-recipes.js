@@ -1,12 +1,21 @@
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
-import {mountRecipeEditor,bindRecipePreview} from './academy-recipe-editor.js?v=academy-approved-comparisons-1';
+import {mountRecipeEditor,bindRecipePreview} from './academy-recipe-editor.js?v=academy-recipe-management-1';
 import {protectAdminEditor} from './academy-admin-editor-state.js?v=academy-approved-comparisons-1';
 import {mountAdminPhotoManager} from './academy-admin-photo-manager.js?v=academy-approved-comparisons-1';
 import {openRecipeAssignment} from './academy-admin-curriculum.js?v=academy-approved-comparisons-1';
 
 export async function mountAdminRecipes(ui,{boot,id,draw,rows,form,refresh,saveOnce,thumbnail,photoInput}){
  const {api,root,heading,link,button,esc,field,area,date,dialog,formSubmit,notice,uploadPhotos}=ui;
- if(!id){const recipes=await api('admin_recipes');draw(`${heading('Student recipes','Independent teaching versions with clear class placements.',link('Create recipe','#recipes/new'))}<div class="ap-actions">${button('Import from Recipe System','import',true)}</div>${rows(['Recipe','Source','Used in','Version',''],recipes.map(r=>`<tr><td>${esc(r.title)}</td><td>${r.source?`${esc(r.source.name)} · v${r.source.number}`:'Created in Academy'}</td><td>${r.used_in?.length?esc(r.used_in.map(c=>c.class_name).join(', ')):'Not assigned'}</td><td>${r.revision}</td><td>${link('Edit',`#recipes/${r.id}`,true)}</td></tr>`))}`);
+ if(!id){const recipes=await api('admin_recipes');draw(`${heading('Student recipes','Independent teaching versions with clear class placements.',link('Create recipe','#recipes/new'))}<div class="ap-actions">${button('Import from Recipe System','import',true)}</div>${rows(['Recipe','Source','Used in','Version',''],recipes.map(r=>`<tr><td>${esc(r.title)}</td><td>${r.source?`${esc(r.source.name)} · v${r.source.number}`:'Created in Academy'}</td><td>${r.used_in?.length?esc(r.used_in.map(c=>c.class_name).join(', ')):'Not assigned'}</td><td>${r.revision}</td><td>${link('Edit',`#recipes/${r.id}`,true)} <button type="button" class="ap-button secondary small" data-delete-recipe="${r.id}">Delete</button></td></tr>`))}`);
+ root.querySelectorAll('[data-delete-recipe]').forEach(button=>button.onclick=async()=>{
+  button.disabled=true;
+  try{
+   const recipe=await api('admin_recipe',{id:button.dataset.deleteRecipe});
+   const d=dialog('Delete student recipe',form('<p>Delete <strong>'+esc(recipe.title)+'</strong> from the student recipe library?</p>'+(recipe.used_in?.length?'<p>It will also disappear from these classes:</p><ul>'+recipe.used_in.map(c=>'<li>'+esc(c.class_name)+'</li>').join('')+'</ul>':'')+'<p>Existing student submissions and conversations are kept. The source recipe in the Recipe System is unchanged.</p>','Delete recipe')+'<button type="button" class="ap-button secondary" data-cancel-delete>Cancel</button>');
+   d.querySelector('[data-cancel-delete]').onclick=()=>d.close();
+   formSubmit(d.querySelector('form'),async()=>{await api('delete_recipe',{id:recipe.id,revision:recipe.revision});d.close();await refresh();notice('Student recipe deleted.');});
+  }catch(error){notice(academyErrorMessage(error),true);}finally{if(button.isConnected)button.disabled=false;}
+ });
  root.querySelector('[data-action=import]').onclick=async()=>{
   const requestKeys=new Map();let searchTicket=0,importing=false;
   const d=dialog('Import from Recipe System',form(`${field('Recipe name','query','','search')}<p>Only the current Final version of each recipe is available. Teaching fields are copied into an independent student recipe; review it before assigning it.</p>`,'Search Final recipes')+'<p class="ap-field-error" data-import-error role="alert" hidden></p><div id="ap-source-recipes"></div>');
@@ -14,7 +23,7 @@ export async function mountAdminRecipes(ui,{boot,id,draw,rows,form,refresh,saveO
   const search=async query=>{
    if(importing)return;const ticket=++searchTicket;error.hidden=true;results.setAttribute('aria-busy','true');results.innerHTML='<p role="status">Searching Final recipes…</p>';
    try{
-    const recipes=await api('production_recipes',{query});if(!d.open||ticket!==searchTicket)return;
+    const recipes=await api('final_recipes',{query});if(!d.open||ticket!==searchTicket)return;
     results.innerHTML=recipes.map(r=>`<p><button type="button" class="ap-button secondary small" data-import="${r.version_id}">${esc(r.name)} · v${r.number} · Final</button></p>`).join('')||'<p>No matching Final recipes.</p><p class="ap-small">Try another recipe name, or mark the current recipe Final in the Recipe System.</p>';
     results.querySelectorAll('[data-import]').forEach(b=>b.onclick=async()=>{
      if(importing||!d.open||!b.isConnected)return;importing=true;error.hidden=true;

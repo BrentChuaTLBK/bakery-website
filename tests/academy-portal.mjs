@@ -7,10 +7,10 @@ import {resolve} from 'node:path';
 import {makeHarness} from './backend/helpers.mjs';
 const require=createRequire((process.env.PGLITE_PACKAGE_ROOT||process.cwd()+'/tests/backend')+'/package.json');
 const {PGlite}=require('@electric-sql/pglite'),{pgcrypto}=require('@electric-sql/pglite/contrib/pgcrypto');
-export async function setup({fixtures=true}={}){
+export async function setup({fixtures=true,excludeMigrations=[]}={}){
  const db=new PGlite({extensions:{pgcrypto}});
  await db.exec(await readFile('tests/backend/bootstrap.sql','utf8'));
- for(const f of(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort())await db.exec((await readFile('supabase/migrations/'+f,'utf8')).replace(/\r\n/g,'\n'));
+ for(const f of(await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')&&!excludeMigrations.some(name=>f.endsWith(name))).sort())await db.exec((await readFile('supabase/migrations/'+f,'utf8')).replace(/\r\n/g,'\n'));
  if(!fixtures)return {db};
  const h=await makeHarness(db);const api=(user,action,p={})=>h.as(user,async()=>(await db.query('select public.academy_portal_api($1,$2::jsonb) result',[action,JSON.stringify(p)])).rows[0].result);
  const service=(name,args)=>h.as(null,async()=>(await db.query(`select public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) result`,args)).rows[0].result,'service_role');

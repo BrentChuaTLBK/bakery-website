@@ -63,8 +63,8 @@ try{
  });
 
  await check('A delayed initial search cannot replace newer filtered Final results',async()=>{
-  const p=await open(),{page}=p;await page.evaluate(()=>{const rpc=window.auditRpc;window.completedFinalSearches=0;window.auditRpc=async(action,payload)=>{try{return await rpc(action,payload);}finally{if(action==='production_recipes')window.completedFinalSearches++;}};});
-  const delayed=p.delayNext('production_recipes');await page.getByRole('button',{name:'Import from Recipe System',exact:true}).click();await delayed.pending;
+  const p=await open(),{page}=p;await page.evaluate(()=>{const rpc=window.auditRpc;window.completedFinalSearches=0;window.auditRpc=async(action,payload)=>{try{return await rpc(action,payload);}finally{if(action==='final_recipes')window.completedFinalSearches++;}};});
+  const delayed=p.delayNext('final_recipes');await page.getByRole('button',{name:'Import from Recipe System',exact:true}).click();await delayed.pending;
   const dialog=page.getByRole('dialog');await search(dialog,'QA Final bread');assert.equal(await dialog.locator('[data-import]').count(),1);
   delayed.release();await page.waitForFunction(()=>window.completedFinalSearches===2);
   assert.deepEqual(await dialog.locator('[data-import]').evaluateAll(buttons=>buttons.map(button=>button.dataset.import)),[second.current]);
