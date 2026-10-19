@@ -3,7 +3,7 @@ import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPh
 import {exact,formatQuantity,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=teaspoon-fractions-20261019-1';
 import {productionPlan,recipeSections} from './recipe-model.js?v=teaspoon-fractions-20261019-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,rd=false,settings,api,fileUrl,dialog}) {
+export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,showMetadata=true,rd=false,settings,api,fileUrl,dialog}) {
  const authorization={kind:'print',...(record?{id:record.id,version_id:record.version_id}:{})};
  await api('export_authorize',authorization);
  let defaults={layout:'kitchen',paper:'A4',font_size:'10',spacing:'1.45',packaging:true,process:true,notes:false};
@@ -16,7 +16,7 @@ export async function openRecipeExport({record,production=null,selection=[],filt
   event.preventDefault();const button=form.querySelector('[type=submit]'),status=form.querySelector('[data-export-status]');button.disabled=true;
   try {
    await api('export_authorize',authorization);
-   const values=Object.fromEntries(new FormData(form)),options={...values,packaging:values.packaging==='on',process:values.process==='on',notes:!kitchen&&values.notes==='on'};
+   const values=Object.fromEntries(new FormData(form)),options={...values,showMetadata,packaging:values.packaging==='on',process:values.process==='on',notes:!kitchen&&values.notes==='on'};
    options.font_size=String(Math.min(18,Math.max(8,Number(options.font_size)||10)));
    if(values.save_defaults==='on')localStorage.setItem('tlb-recipe-export-preferences',JSON.stringify(options));
    status.textContent='Loading recipe versions and photos…';let records=[];
@@ -67,11 +67,11 @@ function printProcedure(m,options,urls,heading='h3'){
 }
 
 export function printBook(records,options,urls=new Map()) {
- const main=records.filter(r=>!r.is_component),contents=main.length>1?`<section class="recipe-print-cover"><p class="recipe-eyebrow">TLB Kitchen</p><h1>Recipe collection</h1><p>${main.length} recipe sizes · ${new Date().toLocaleDateString('en-PH')}</p><h2>Alphabetical contents</h2><ol>${main.map(r=>`<li><a href="#print-${r.print_id||r.id}">${esc(r.document.name)} · ${esc(r.print_context||'')}</a> · Version ${r.version}</li>`).join('')}</ol></section>`:'';
+ const main=records.filter(r=>!r.is_component),contents=main.length>1?`<section class="recipe-print-cover"><p class="recipe-eyebrow">TLB Kitchen</p><h1>Recipe collection</h1><p>${main.length} recipe sizes · ${new Date().toLocaleDateString('en-PH')}</p><h2>Alphabetical contents</h2><ol>${main.map(r=>`<li><a href="#print-${r.print_id||r.id}">${esc(r.document.name)} · ${esc(r.print_context||'')}</a>${options.showMetadata===false?'':` · Version ${r.version}`}</li>`).join('')}</ol></section>`:'';
  return contents+records.map(r=>{
   const d=r.document;
   const hasReference=d.variants.some(v=>packagingItems(v).length||Object.entries(v.packaging||{}).some(([key,value])=>key==='photos'?value?.length:typeof value==='string'&&value.trim())||(v.equipment||[]).length)||(options.notes&&d.private_notes);
-  return `<article id="print-${r.print_id||r.id}"><p class="recipe-eyebrow">TLB Kitchen · ${esc(r.code)} · Version ${r.version}</p><h1>${esc(d.name)}</h1><p class="recipe-muted">${esc(r.print_context||'')} · Updated ${new Date(r.updated_at).toLocaleDateString('en-PH')} · ${recipeStatusLabel(r.status)}</p><p>${esc(d.description)}</p>${photos(d.photos,urls)}${d.critical_notes?`<div class="recipe-print-note">${esc(d.critical_notes)}</div>`:''}
+  return `<article id="print-${r.print_id||r.id}"><p class="recipe-eyebrow">TLB Kitchen${options.showMetadata===false?'':` · ${esc(r.code)} · Version ${r.version}`}</p><h1>${esc(d.name)}</h1><p class="recipe-muted">${esc(r.print_context||'')} · Updated ${new Date(r.updated_at).toLocaleDateString('en-PH')} · ${recipeStatusLabel(r.status)}</p><p>${esc(d.description)}</p>${photos(d.photos,urls)}${d.critical_notes?`<div class="recipe-print-note">${esc(d.critical_notes)}</div>`:''}
   ${d.variants.map(v=>`<h2>${esc(v.name)}</h2><div class="recipe-yield"><strong>Yield: ${esc(v.yield.quantity)} ${esc(v.yield.unit)}</strong>${v.yield.portions?`<span>${esc(v.yield.portions)} portions</span>`:''}${v.yield.portion_weight?`<span>${esc(v.yield.portion_weight)} g per portion</span>`:''}${v.yield.pan_size?`<span>${esc(v.yield.pan_size)}</span>`:''}</div>
    ${recipeSections(v).components.map(({group:g,methods})=>`<section class="recipe-print-group" data-print-component="${esc(g.name)}"><h3>${esc(g.name)}</h3><table><thead><tr><th>Ingredient</th><th>Quantity</th><th>Notes</th></tr></thead><tbody>${g.ingredients.map(row=>`<tr><td>${esc(row.name)}${row.brand?` · ${esc(row.brand)}`:''}</td><td>${esc(formatQuantity(row.quantity,row.unit))} ${esc(row.unit)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table>${methods.map(({method:m})=>printProcedure(m,options,urls,'h4')).join('')}</section>`).join('')}
    ${recipeSections(v).standalone.map(({method:m})=>`<section class="recipe-print-method">${printProcedure(m,options,urls)}</section>`).join('')}
