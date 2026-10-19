@@ -18,7 +18,7 @@ try{
  const record=await api('create',{document:doc,status:'final'});
  ({page}=await t.pageFor(t.h.ids.owner));page.setDefaultTimeout(12000);await page.goto(t.origin+'/recipes.html');
  await check('library shows four main sections, current batch costs and yield',async()=>{
-  await page.locator('[data-library-cost]').filter({hasText:'54.00'}).waitFor();assert.deepEqual(await page.locator('.recipe-tabs button').allTextContents(),['Recipes','Costing','Ingredients & supplies','Manage']);assert.match(await page.locator('[data-library-cost]').innerText(),/1 cake.*Six inch/);
+  await page.locator('[data-library-cost]').filter({hasText:'54.00'}).waitFor();assert.deepEqual(await page.locator('.recipe-tabs button').allTextContents(),['Recipes','Costing','Ingredients & Packaging','Manage']);assert.match(await page.locator('[data-library-cost]').innerText(),/1 cake.*Six inch/);
  });
  await check('search retains the same focused input and caret across delayed result updates',async()=>{
   const search=page.locator('[data-filter=query]');await search.focus();await page.evaluate(()=>window.searchElement=document.activeElement);await search.pressSequentially('Coconut',{delay:120});await page.waitForFunction(()=>document.querySelector('.recipe-library h2')?.textContent.includes('Coconut')&&document.querySelector('#recipe-main')?.getAttribute('aria-busy')!=='true');
