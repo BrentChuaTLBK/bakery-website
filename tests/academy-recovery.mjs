@@ -14,6 +14,7 @@ try{
  await db.query("insert into tlb.recipe_versions(id,recipe_id,number,status,document) values($1,$2,1,'production',$3::jsonb)",[childVersion,childId,JSON.stringify(component)]);
  const main={name:'Layer Cake',variants:[{name:'Cake',yield:{quantity:'1',unit:'cake'},groups:[],methods:[],equipment:[],baking:[],components:[{name:'Filling',version_id:childVersion,variant_id:variantId,quantity:'50',unit:'g'}]}]};
  await db.query("insert into tlb.recipe_versions(id,recipe_id,number,status,document) values($1,$2,1,'production',$3::jsonb)",[version,source,JSON.stringify(main)]);
+ await db.query('update tlb.recipes set current_version_id=$2,production_version_id=$2 where id=$1',[source,version]);
  const r=await api(h.ids.owner,'import_recipe',{version_id:version});assert.equal(r.document.variants.length,2);assert.equal(r.document.variants[0].groups[0].ingredients[0].quantity,'50');assert.equal(r.document.variants[1].groups[0].ingredients[0].name,'Sugar');assert.ok(!JSON.stringify(r.document).includes('PRIVATE'));assert.ok(!JSON.stringify(r.document).includes(childVersion));
  await api(h.ids.owner,'assign_recipe',{class_id:cookie.id,recipe_id:r.id});
  const module=await api(h.ids.owner,'save_module',{class_id:cookie.id,name:'Assembling'});const media=await upload(h.ids.owner,{purpose:'module',module_id:module.id});await api(h.ids.owner,'attach_media',{id:media.id});assert.deepEqual((await api(h.ids.customer,'class',{id:cookie.id})).modules[0].photo_ids,[media.id]);
