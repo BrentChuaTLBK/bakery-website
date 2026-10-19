@@ -38,6 +38,7 @@
     "test:academy:resources": "node tests/academy-resources.mjs && node --experimental-transform-types --test tests/academy-email-preview.test.mjs && node --experimental-transform-types tests/ui/academy-live-resources.mjs",
     "test:academy:visual-email": "node tests/academy-visual-email.mjs && node --experimental-transform-types --test tests/academy-email-preview.test.mjs && node --experimental-transform-types tests/ui/academy-visual-email.mjs",
     "test:academy:repairs": "node --experimental-transform-types --test tests/edge/academy-original-photos.test.mjs && node --experimental-transform-types tests/ui/academy-audit-repairs.mjs",
+    "test:academy:final-import": "node tests/academy-final-recipe-import.mjs && node --experimental-transform-types tests/ui/academy-final-recipe-import.mjs",
     "test:academy:comparisons": "node tests/academy-comparison-management.mjs && node --experimental-transform-types --test tests/edge/academy-welcome.test.mjs tests/edge/academy-original-photos.test.mjs tests/edge/academy-portal.test.mjs && node tests/ui/academy-approved-shared.mjs && node --experimental-transform-types tests/ui/academy-approved-welcome.mjs && node --experimental-transform-types tests/ui/academy-approved-comparisons-student.mjs && node --experimental-transform-types tests/ui/academy-approved-comparisons-admin.mjs"
   },
   "devDependencies": {

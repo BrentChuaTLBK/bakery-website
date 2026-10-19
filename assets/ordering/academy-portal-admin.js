@@ -1,6 +1,6 @@
 import {mountAdminAccounts} from './academy-admin-accounts.js?v=academy-approved-comparisons-1';
 import {mountAdminCurriculum} from './academy-admin-curriculum.js?v=academy-approved-comparisons-1';
-import {mountAdminRecipes} from './academy-admin-recipes.js?v=academy-approved-comparisons-1';
+import {mountAdminRecipes} from './academy-admin-recipes.js?v=academy-final-recipes-20261020-1';
 import {mountAdminWork} from './academy-admin-work.js?v=academy-approved-comparisons-1';
 import {protectAdminEditor} from './academy-admin-editor-state.js?v=academy-approved-comparisons-1';
 import {mountRecipientPicker,recipientReviewMarkup} from './academy-admin-recipients.js?v=academy-approved-comparisons-1';
