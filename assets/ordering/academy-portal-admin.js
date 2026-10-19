@@ -1,6 +1,6 @@
 import {mountAdminAccounts} from './academy-admin-accounts.js?v=academy-approved-comparisons-1';
 import {mountAdminCurriculum} from './academy-admin-curriculum.js?v=academy-approved-comparisons-1';
-import {mountAdminRecipes} from './academy-admin-recipes.js?v=academy-final-recipes-20261020-1';
+import {mountAdminRecipes} from './academy-admin-recipes.js?v=academy-recipe-management-1';
 import {mountAdminWork} from './academy-admin-work.js?v=academy-approved-comparisons-1';
 import {protectAdminEditor} from './academy-admin-editor-state.js?v=academy-approved-comparisons-1';
 import {mountRecipientPicker,recipientReviewMarkup} from './academy-admin-recipients.js?v=academy-approved-comparisons-1';
@@ -8,7 +8,7 @@ import {mountAdminPhotoManager} from './academy-admin-photo-manager.js?v=academy
 import {mountWelcomeSettings} from './academy-welcome-admin.js?v=academy-approved-comparisons-1';
 import {mountConversationList} from './academy-conversations.js?v=academy-approved-comparisons-1';
 import {academyErrorMessage} from './academy-errors.js?v=academy-audit-1';
-import {mountRecipeEditor,bindRecipePreview} from './academy-recipe-editor.js?v=academy-approved-comparisons-1';
+import {mountRecipeEditor,bindRecipePreview} from './academy-recipe-editor.js?v=academy-recipe-management-1';
 import {bindAnnouncementPreview,bindUpcomingPreview} from './academy-announcement-view.js?v=academy-approved-comparisons-1';
 import {materialSection,mountClassMaterials} from './academy-materials.js?v=academy-resources-1';
 import {mountEmailTemplates} from './academy-email-composer.js?v=academy-approved-comparisons-1';
