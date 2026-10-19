@@ -1,5 +1,5 @@
-import {blankRecipe,group,ingredient,method,step,id} from './recipe-model.js?v=approved-20261002-1';
-import {quantity} from './recipe-math.js?v=approved-20261002-1';
+import {blankRecipe,group,ingredient,method,step,id} from './recipe-model.js?v=component-baking-20261020-1';
+import {quantity} from './recipe-math.js?v=teaspoon-fractions-20261019-1';
 const base=new URL('./vendor/recipe-imports/',import.meta.url);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const amount='[0-9¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞][0-9¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞. /+]*';
@@ -64,8 +64,15 @@ export function rebuildImportedSections(document,variantIndex=0){
  if(!target)throw Error('Choose a size to rebuild.');
  if(!parsed.recognized)throw Error('No ingredient rows were recognized. Keep the current draft and review the original text.');
  target.groups=parsed.document.variants[0].groups;target.methods=parsed.document.variants[0].methods;
- draft.import_review={...draft.import_review,warnings:parsed.warnings,reviewed:false};
- return {document:draft,recognized:parsed.recognized};
+ const warnings=[...parsed.warnings];
+ if(target.baking?.length){
+  // Rebuilding creates new component identities. Preserve all oven settings and
+  // stage order, but never guess that the newly parsed groups mean the same thing.
+  for(const stage of target.baking)stage.group_id='';
+  warnings.push('Existing baking stages were preserved as unassigned instructions. Assign each stage to the correct rebuilt component before production.');
+ }
+ draft.import_review={...draft.import_review,warnings,reviewed:false};
+ return {document:draft,recognized:parsed.recognized,warnings};
 }
 let mammothPromise;
 function mammoth(){

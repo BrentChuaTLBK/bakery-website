@@ -1,0 +1,78 @@
+/* Component baking instructions use the recipe editor's existing palette. */
+.recipe-baking-editor{margin-top:22px;padding-top:18px;border-top:1px solid #e5d8c7;min-width:0}
+.recipe-baking-editor>.recipe-section-head{margin-bottom:12px;gap:12px}
+.recipe-baking-editor>.recipe-section-head h3{margin:0;font-size:1rem}
+.recipe-baking-empty{padding-top:14px}
+.recipe-baking-legacy-note{margin:0 0 14px;line-height:1.6;font-size:.85rem}
+.recipe-baking-stage-editor{border:1px solid #e5d8c7;border-radius:8px;background:#fffefa;margin-top:10px;min-width:0}
+.recipe-baking-stage-editor>summary{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;list-style:none;cursor:pointer;padding:12px 14px;font-size:.83rem;min-height:44px;box-sizing:border-box}
+.recipe-baking-stage-editor>summary::-webkit-details-marker{display:none}
+.recipe-baking-stage-editor>summary:before{content:'▸';color:#79562f;flex:none}
+.recipe-baking-stage-editor[open]>summary:before{content:'▾'}
+.recipe-baking-stage-editor>summary strong{font-weight:600;overflow-wrap:anywhere}
+.recipe-baking-stage-editor>summary>span:not(.recipe-baking-edit-label){color:#79562f;overflow-wrap:anywhere}
+.recipe-baking-stage-editor>summary .recipe-baking-edit-label{margin-left:auto;color:#79562f;font-size:.75rem}
+.recipe-baking-stage-editor[open]>summary .recipe-baking-edit-label{display:none}
+.recipe-baking-stage-body{padding:0 14px 14px;min-width:0}
+.recipe-baking-default-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.recipe-baking-default-fields>label,.recipe-baking-extra>label,.recipe-baking-assignment>label{min-width:0}
+.recipe-baking-default-fields input,.recipe-baking-extra input,.recipe-baking-extra textarea,.recipe-baking-assignment select{min-width:0;box-sizing:border-box;width:100%}
+.recipe-baking-extra-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid #eee1cf}
+.recipe-baking-extra{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.recipe-baking-extra-wide{grid-column:1/-1}
+.recipe-baking-extra textarea{resize:vertical}
+.recipe-app .recipe-baking-remove-field{align-self:flex-end;min-height:32px;padding:4px 7px;font-size:.7rem;border-color:transparent;color:#96513e}
+.recipe-baking-stage-tools{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-top:14px;min-width:0}
+.recipe-baking-field-picker,.recipe-baking-assignment{min-width:0;max-width:100%}
+.recipe-baking-field-picker>summary,.recipe-baking-assignment>summary{cursor:pointer;border:1px solid #dbbc99;border-radius:6px;padding:9px 11px;list-style:none;font-size:.75rem;min-height:38px;box-sizing:border-box;color:#784d29;background:#fffefa}
+.recipe-baking-field-picker>summary::-webkit-details-marker,.recipe-baking-assignment>summary::-webkit-details-marker{display:none}
+.recipe-baking-field-picker[open],.recipe-baking-assignment[open]{flex:1 1 300px}
+.recipe-baking-field-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:8px;margin-top:7px;background:#fcf9f1;border:1px solid #e5d8c7;border-radius:7px}
+.recipe-app .recipe-baking-field-options button{text-align:left;white-space:normal;min-width:0;overflow-wrap:anywhere;padding:8px;font-size:.75rem;min-height:42px;border-color:transparent}
+.recipe-app .recipe-baking-field-options button:hover{background:#f2e7d7;border-color:#dfcfb8}
+.recipe-baking-assignment>label{display:flex;margin-top:9px}
+.recipe-baking-stage-actions{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.recipe-app .recipe-baking-stage-actions button{min-height:38px;padding:7px 10px;font-size:.75rem}
+.recipe-app .recipe-baking-stage-actions button[data-action=move-stage]{min-width:38px;font-size:1rem}
+.recipe-baking-details{grid-column:1/-1;border-top:1px solid #e5d8c7;margin-top:20px;padding-top:16px;min-width:0}
+.recipe-baking-details>h2,.recipe-baking-details>h3,.recipe-baking-details>h4{margin:0 0 12px;font-size:1rem}
+.recipe-baking-stage{padding:0 0 14px;min-width:0}
+.recipe-baking-stage+.recipe-baking-stage{border-top:1px solid #eee1cf;padding-top:14px}
+.recipe-baking-stage:last-child{padding-bottom:0}
+.recipe-baking-stage>h3,.recipe-baking-stage>h4,.recipe-baking-stage>h5,.recipe-baking-stage>h6{font-family:inherit;font-size:.9rem;margin:0 0 10px;line-height:1.4;overflow-wrap:anywhere}
+.recipe-baking-primary,.recipe-baking-secondary{display:flex;flex-wrap:wrap;gap:12px 30px;padding:0;margin:0}
+.recipe-baking-primary>div,.recipe-baking-secondary>div{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.recipe-baking-primary dt,.recipe-baking-secondary dt{font-size:.73rem;color:#7a634d;margin-bottom:3px}
+.recipe-baking-primary dd,.recipe-baking-secondary dd{margin:0;font-variant-numeric:tabular-nums;line-height:1.45;white-space:pre-wrap}
+.recipe-baking-primary dd{font-size:1.13rem;font-weight:650;color:#38271c}
+.recipe-baking-primary dd span{font-size:.82rem;font-weight:400}
+.recipe-baking-secondary{margin-top:13px;gap:10px 26px}
+.recipe-baking-secondary dd{font-size:.88rem}
+.recipe-baking-notes{border-left:2px solid #c6a67d;padding-left:11px;margin-top:13px;font-size:.85rem;line-height:1.6;overflow-wrap:anywhere}
+.recipe-baking-notes strong{font-size:.75rem;color:#7a634d;font-weight:600}
+.recipe-baking-notes p{white-space:pre-wrap;margin:3px 0 0}
+@media(max-width:700px){
+ .recipe-baking-default-fields,.recipe-baking-extra-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .recipe-baking-stage-editor>summary{padding:11px 10px;gap:6px 8px}
+ .recipe-baking-stage-editor>summary>span:not(.recipe-baking-edit-label){flex-basis:100%;padding-left:18px;font-size:.77rem}
+ .recipe-baking-stage-body{padding:0 10px 12px}
+ .recipe-baking-stage-tools{gap:8px}
+ .recipe-app .recipe-baking-stage-actions button,.recipe-baking-field-picker>summary,.recipe-baking-assignment>summary{min-height:44px}
+ .recipe-app .recipe-baking-remove-field{min-height:36px}
+ .recipe-baking-editor>.recipe-section-head{align-items:center;flex-wrap:wrap}
+ .recipe-baking-editor>.recipe-section-head h3{margin-top:0}
+ .recipe-baking-field-picker[open],.recipe-baking-assignment[open]{flex-basis:100%}
+ .recipe-baking-stage-actions{margin-left:0;flex-basis:100%;justify-content:flex-end}
+ .recipe-baking-primary{gap:12px 20px}
+ .recipe-baking-primary>div{flex:0 1 auto}
+ .recipe-baking-details{margin-top:18px;padding-top:15px}
+ .recipe-baking-primary dd{font-size:1.08rem}
+}
+@media print{
+ .recipe-baking-details{margin-top:12px;padding-top:10px}
+ .recipe-baking-stage{break-inside:avoid}
+ .recipe-baking-primary dd{font-size:12pt}
+ .recipe-baking-primary dd span,.recipe-baking-secondary dd{font-size:9pt}
+ .recipe-baking-primary dt,.recipe-baking-secondary dt,.recipe-baking-notes strong{font-size:8pt}
+ .recipe-baking-notes{font-size:9pt}
+}
