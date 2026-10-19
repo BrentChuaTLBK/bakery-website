@@ -4,7 +4,8 @@
 .recipe-live-cost{position:sticky;top:24px;margin:0}.recipe-live-cost h2{font-size:1.15rem}.recipe-live-total{display:block;font-size:2rem;color:var(--recipe-brown,#764b25)}
 .recipe-live-breakdown{margin:20px 0}.recipe-live-breakdown>div{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #e8ddd2}.recipe-live-breakdown dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .recipe-editor-sections,.recipe-supply-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 20px}.recipe-editor-sections button[aria-pressed=true],.recipe-supply-tabs button[aria-current=page]{background:#764b25;color:white;border-color:#764b25}
-.recipe-management-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.recipe-management-grid button{text-align:left;padding:22px;font-size:1.05rem}.recipe-management-grid small{display:block;font-weight:normal;margin-top:8px;color:inherit}
+.recipe-management-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.recipe-management-grid + .recipe-actions{margin-top:20px}.recipe-management-grid button{text-align:left;padding:22px;font-size:1.05rem}.recipe-management-grid small{display:block;font-weight:normal;margin-top:8px;color:inherit}
 .recipe-library-cost{margin:18px 0}.recipe-library-cost strong{font-size:1.4rem}.recipe-library-cost small{display:block;color:#73665b;margin-top:6px}
 .recipe-shared-allowance{display:flex;gap:24px;justify-content:space-between;align-items:start;flex-wrap:wrap}.recipe-shared-allowance>div{max-width:580px}.recipe-shared-allowance form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.recipe-shared-allowance [role=status]{width:100%;margin:0}
 .recipe-draft-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 18px;margin:12px 0;background:#f6eddf;border:1px solid #e4d4bd;border-radius:10px}
