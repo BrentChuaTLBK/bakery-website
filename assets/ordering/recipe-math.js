@@ -62,7 +62,7 @@ export function scaleFactor(yieldInfo,mode,target) {
   const wanted=inputQuantity(target); if(!wanted.n)throw Error('Production quantity must be greater than zero.');
   if(mode==='multiplier')return wanted;
   if(String(mode).startsWith('custom:')){
-    const option=yieldInfo?.scale_options?.find(item=>'custom:'+item.id===mode);
+    const option=yieldInfo?.scale_options?.find(item=>'custom:'+item?.id===mode);
     if(!option)throw Error('This scaling option is no longer available. Choose another option.');
     const base=inputQuantity(option.quantity);if(!base.n)throw Error('Set a positive base amount for this scaling option.');
     return divide(wanted,base);
@@ -86,13 +86,24 @@ export function scaledYield(yieldInfo,factor,{mode='multiplier',target=null}={})
   if(Array.isArray(result.scale_options))result.scale_options=result.scale_options.map(option=>({...option,quantity:exact(multiply(quantity(option.quantity),f))}));
   return result;
 }
-export function scalingOptions(yieldInfo){
+function availableCustomScales(yieldInfo){
  const configured=yieldInfo?.scale_options;
- if(Array.isArray(configured)&&configured.length)return [['multiplier','Multiplier'],...configured.map(option=>['custom:'+option.id,option.label])];
- return [['multiplier','Multiplier'],['yield','Desired yield'],['pieces','Number of pieces'],['portions','Number of portions'],['portion','Portion weight · g'],['weight','Batch weight · g'],['pans','Number of pans']];
+ return Array.isArray(configured)?configured.filter(option=>{
+  if(!['id','label','unit'].every(key=>typeof option?.[key]==='string'&&option[key].trim()))return false;
+  try{return inputQuantity(option.quantity).n>0n;}catch{return false;}
+ }):[];
+}
+export function scalingOptions(yieldInfo){
+ const multiplier=[['multiplier','Multiplier']],configured=yieldInfo?.scale_options;
+ if(Array.isArray(configured)&&configured.length)return [...multiplier,...availableCustomScales(yieldInfo).map(option=>['custom:'+option.id,option.label])];
+ const standard=[['yield','Desired yield'],['pieces','Number of pieces'],['portions','Number of portions'],['portion','Portion weight · g'],['weight','Batch weight · g'],['pans','Number of pans']];
+ return [...multiplier,...standard.filter(([mode])=>{
+  // Use the same saved base amount as the calculation, including legacy piece counts.
+  try{return scaleFactor(yieldInfo,mode,'1').n>0n;}catch{return false;}
+ })];
 }
 export function initialScale(yieldInfo){
- const mode=yieldInfo?.scale_default,option=yieldInfo?.scale_options?.find(item=>'custom:'+item.id===mode);
+ const mode=yieldInfo?.scale_default,option=availableCustomScales(yieldInfo).find(item=>'custom:'+item.id===mode);
  return {mode:option?mode:'multiplier',target:option?String(option.quantity):'1',rounding:'exact',step:'1'};
 }
 const units = {
