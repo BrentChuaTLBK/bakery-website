@@ -1,4 +1,5 @@
 import {inputQuantity,exact,unitInfo} from './recipe-math.js?v=kitchen-controls-20261021-1';
+import {unitOptions} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const standardUnits=['g','kg','mg','ml','l','pc'];
 
@@ -22,11 +23,12 @@ export function mountUnitConversions(container,conversions={}){
   const row=document.createElement('div');row.className='recipe-unit-equivalent';
   // Keep saved standard aliases visible until the owner chooses a replacement.
   const units=[...new Set([...standardUnits,conversion.unit||'g'])];
-  row.innerHTML=`<label>1 recipe unit<input data-conversion-from value="${esc(from)}" placeholder="e.g. tsp" maxlength="40" aria-label="Recipe unit"></label><span class="recipe-equivalent-equals" aria-hidden="true">=</span><label>Equivalent quantity<input data-conversion-quantity value="${esc(conversion.quantity||'')}" placeholder="Measured amount" aria-label="Equivalent quantity"></label><label>Equivalent unit<select data-conversion-unit aria-label="Equivalent unit">${units.map(unit=>`<option value="${esc(unit)}" ${unit===(conversion.unit||'g')?'selected':''}>${esc(unit)}</option>`).join('')}</select></label><button type="button" class="danger" data-conversion-remove aria-label="Remove equivalent unit">Remove</button>`;
+  const measures=unitOptions(from).filter(([unit])=>!unit||unitInfo(unit).dimension.startsWith('custom:')||unit===from);
+  row.innerHTML=`<label>1 recipe unit<select data-conversion-from aria-label="Recipe unit">${measures.map(([unit,label])=>`<option value="${esc(unit)}" ${unit===from?'selected':''}>${esc(label)}</option>`).join('')}</select></label><span class="recipe-equivalent-equals" aria-hidden="true">=</span><label>Equivalent quantity<input data-conversion-quantity value="${esc(conversion.quantity||'')}" placeholder="Measured amount" aria-label="Equivalent quantity"></label><label>Equivalent unit<select data-conversion-unit aria-label="Equivalent unit">${units.map(unit=>`<option value="${esc(unit)}" ${unit===(conversion.unit||'g')?'selected':''}>${esc(unit)}</option>`).join('')}</select></label><button type="button" class="danger" data-conversion-remove aria-label="Remove equivalent unit">Remove</button>`;
   list.append(row);return row;
  }
  for(const [unit,conversion]of Object.entries(conversions))add(unit,conversion);
- container.querySelector('[data-conversion-add]').addEventListener('click',()=>add().querySelector('input').focus());
+ container.querySelector('[data-conversion-add]').addEventListener('click',()=>add().querySelector('[data-conversion-from]').focus());
  list.addEventListener('click',event=>{const button=event.target.closest('[data-conversion-remove]');if(button)button.closest('.recipe-unit-equivalent').remove();});
  return {read:()=>readUnitConversions([...list.children].map(row=>({from:row.querySelector('[data-conversion-from]').value,quantity:row.querySelector('[data-conversion-quantity]').value,unit:row.querySelector('[data-conversion-unit]').value})))};
 }

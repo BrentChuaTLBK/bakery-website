@@ -24,7 +24,7 @@ try{
  await page.locator(`[data-resource-id="${salt.id}"] [data-action=edit-resource]`).click();
  const form=page.locator('#recipe-resource-form');
  await form.getByRole('button',{name:'Add equivalent unit',exact:true}).click();
- await form.locator('[data-conversion-from]').fill('tsp');
+ await form.locator('[data-conversion-from]').selectOption('tsp');
  await form.locator('[data-conversion-quantity]').fill('6');
  await form.locator('[name=default_unit]').selectOption('tsp');
  await form.locator('[data-cost-selection]').filter({hasText:'₱0.6 / tsp'}).waitFor();
