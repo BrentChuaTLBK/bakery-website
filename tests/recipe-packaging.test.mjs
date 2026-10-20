@@ -15,7 +15,7 @@ test('kitchen packaging references retain names and quantities while escaping ma
 });
 test('PDF references include linked packaging even without manual descriptions and scale it once',async()=>{
  const d=blankRecipe();d.name='Packaging export';const v=d.variants[0];v.groups=[];v.methods=[];addRecipePackaging(v,box);v.additional_costs[0].quantity='2';const record={id:'qa',version:1,updated_at:'2026-10-01',status:'production',document:d,links:[]};
- const records=await preparePrintRecords([record],{production:{variant_id:v.id,factor:'3'}}),html=printBook(records,{packaging:true});assert.match(html,/Packaging &amp; special equipment|Packaging & special equipment/);assert.match(html,/Cake box/);assert.match(html,/6 pc/);assert.doesNotMatch(html,/300|supplier/);assert.equal(v.additional_costs[0].quantity,'2');
+ const records=await preparePrintRecords([record],{production:{variant_id:v.id,factor:'3'}}),html=printBook(records,{packaging:true});assert.match(html,/Packaging &amp; Special Equipment|Packaging & Special Equipment/);assert.match(html,/Cake box/);assert.match(html,/6 pc/);assert.doesNotMatch(html,/300|supplier/);assert.equal(v.additional_costs[0].quantity,'2');
 });
 test('linked packaging supplies its own details and photos; a recipe photo replaces only the display',()=>{
  const doc=blankRecipe(),v=doc.variants[0],resource={...box,data:{type:'Box',dimensions:'10 inches',notes:'Keep flat',photos:[{file_id:'catalog',path:'owner/catalog',caption:'Empty box'}]}};

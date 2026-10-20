@@ -233,7 +233,7 @@ async function afterChecks(basic,advancedDocument){
   assert.equal(await view.locator('[data-check="flour"]').isChecked(),false);assert.equal(await view.locator('[data-check="step-1"]').isChecked(),false);
   await view.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});
   await view.screenshot({path:join(out,`after-kitchen-multiple-${width}.png`),fullPage:true});
-  if(width>700)await view.getByRole('button',{name:'Packaging & special equipment',exact:true}).click();else await view.locator('[data-kitchen-section]').selectOption('packaging');
+  if(width>700)await view.getByRole('button',{name:'Packaging & Special Equipment',exact:true}).click();else await view.locator('[data-kitchen-section]').selectOption('packaging');
   assert.match(await view.locator('[data-kitchen-panel="packaging"]').innerText(),/7-inch cake board and cake box/);
   await kitchen.context.close();
   results.push(`Kitchen ${width}px preserves stage order, unchanged bake settings at 2×, checkoffs through section switching/reload/reset, and packaging.`);
