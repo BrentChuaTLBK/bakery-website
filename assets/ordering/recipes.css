@@ -166,6 +166,7 @@
 
 /* Linked ingredient yield editor */
 .recipe-yield-search{position:relative;margin:16px 0;display:grid;gap:7px}.recipe-yield-search .recipe-ingredient-options{top:100%;max-height:240px;overflow:auto}.recipe-yield-preview{padding:12px 14px;border:1px solid #e5d7c6;border-radius:7px;background:#f7efdf;font-size:.85rem;line-height:1.6;overflow-wrap:anywhere}[data-linked-ingredient]>label{max-width:420px}[data-yield-fields]>.recipe-fields{margin:16px 0}
+.recipe-yield-source-row{border:1px solid #e5d7c6;border-radius:7px;padding:14px;margin:14px 0;min-width:0}.recipe-yield-source-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:.85rem}.recipe-yield-source-heading button{padding:7px 12px;min-height:40px}.recipe-yield-source-row .recipe-yield-search{margin:10px 0 12px}.recipe-yield-source-row .recipe-fields.two{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 
 /* Compact procedure rows keep the entire instruction readable. */
 .recipe-step-editor{display:grid;grid-template-columns:28px minmax(0,1fr) 44px;gap:8px;align-items:start;padding:7px 0;margin:0;border:0;border-bottom:1px solid #eee1cf}

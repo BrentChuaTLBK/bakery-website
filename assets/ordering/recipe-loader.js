@@ -14,7 +14,7 @@ function unavailable(){
 }
 try {
  await Promise.race([
-  import('./recipes.js?v=working-drafts-20261021-1').then(module=>module.startRecipeLibrary()),
+  import('./recipes.js?v=multi-source-20261021-1').then(module=>module.startRecipeLibrary()),
   new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Recipe startup timed out.')),20000);}),
  ]);
 }catch{unavailable();}

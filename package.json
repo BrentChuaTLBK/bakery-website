@@ -46,7 +46,8 @@
     "test:recipe-linked-ingredients": "node tests/backend/run.mjs --recipe-linked-ingredients && node tests/ui/recipe-linked-ingredients.mjs && node tests/ui/recipe-compact-steps.mjs",
     "test:recipe-unchanged-save": "node tests/backend/run.mjs --recipe-unchanged-save && node tests/ui/recipe-unchanged-save.mjs",
     "test:recipe-section-position": "node tests/ui/recipe-section-position.mjs",
-    "test:recipe-working-drafts": "node tests/backend/run.mjs --recipe-working-drafts && node tests/ui/recipe-working-drafts.mjs"
+    "test:recipe-working-drafts": "node tests/backend/run.mjs --recipe-working-drafts && node tests/ui/recipe-working-drafts.mjs",
+    "test:recipe-multiple-sources": "node tests/backend/run.mjs --recipe-multiple-sources && node tests/backend/run.mjs --recipe-linked-ingredients && node tests/ui/recipe-multiple-sources.mjs && node tests/ui/recipe-linked-ingredients.mjs"
   },
   "devDependencies": {
     "jszip": "3.10.1",
