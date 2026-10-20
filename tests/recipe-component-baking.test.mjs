@@ -93,7 +93,7 @@ test('reader omits empty stages and labels but includes zero, notes and legacy t
  assert.equal(hasBakingDetails({top:0}),true);assert.equal(hasBakingDetails({notes:'Cool overnight'}),true);assert.equal(hasBakingDetails({temperature:'175'}),true);
  const html=bakingDetailsMarkup([{name:'Bake <example>',top:0,bottom:'160',minutes:'11',fan:' ',core:'55',notes:'Keep <safe>\nCool'},{name:'Legacy',temperature:'175'}]);
  assert.match(html,/Bake &lt;example&gt;/);assert.match(html,/<dd>0 <span>°C<\/span><\/dd>/);assert.match(html,/Keep &lt;safe&gt;\nCool/);assert.match(html,/Temperature/);assert.match(html,/175/);
- assert.doesNotMatch(html,/Fan setting|Ingredient temperature|checkbox/);assert.ok(html.indexOf('Stage 1')<html.indexOf('Stage 2'));
+ assert.doesNotMatch(html,/Fan setting|Ingredient temperature|checkbox/);assert.ok(html.indexOf('Bake &lt;example&gt;')<html.indexOf('Legacy'));assert.doesNotMatch(html,/Stage [12]/);
 });
 
 test('editor starts with four essential fields and only activates requested optional fields',()=>{
