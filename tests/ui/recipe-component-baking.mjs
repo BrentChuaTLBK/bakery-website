@@ -227,7 +227,7 @@ async function afterChecks(basic,advancedDocument){
   assert.equal(await view.locator('[data-check="flour"]').isChecked(),true);assert.equal(await view.locator('[data-check="step-1"]').isChecked(),true);
   await view.reload();await view.locator('.recipe-card').filter({has:view.getByRole('heading',{name:editableDocument.name,exact:true})}).getByRole('button',{name:'Open recipe',exact:true}).click();
   assert.equal(await view.locator('[data-check="flour"]').isChecked(),true);
-  const controls=view.locator('.recipe-kitchen-production');if(!await controls.evaluate(element=>element.open))await controls.locator('summary').first().click();
+  assert.equal(await view.locator('[data-scale=target]').isVisible(),true);
   const rounding=view.locator('.recipe-kitchen-adjustments');if(!await rounding.evaluate(element=>element.open))await rounding.locator('summary').first().click();
   await view.getByRole('button',{name:'Reset checkoffs',exact:true}).click();
   assert.equal(await view.locator('[data-check="flour"]').isChecked(),false);assert.equal(await view.locator('[data-check="step-1"]').isChecked(),false);

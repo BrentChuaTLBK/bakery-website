@@ -1,7 +1,7 @@
 import {unitOptionsMarkup} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
-import {ingredientCost,displayQuantity,compare} from './recipe-math.js?v=approved-20261002-1';
+import {ingredientCost,displayQuantity,compare} from './recipe-math.js?v=kitchen-controls-20261021-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function mountSupplierQuotes(container,{record,suppliers,defaultUnit}){
+export function mountSupplierQuotes(container,{record,suppliers,defaultUnit,getConversions=()=>({})}){
  const available=id=>!id||suppliers.some(s=>s.id===id);
  let offers=structuredClone(record?.suppliers||[]).filter(o=>available(o.supplier_id)),preferred=record?.data?.preferred_supplier_id||'';
  if(!available(preferred))preferred='';
@@ -15,7 +15,7 @@ export function mountSupplierQuotes(container,{record,suppliers,defaultUnit}){
   let highest=null;
   for(const [index,offer]of rows.entries()){
    const message=container.querySelectorAll('[data-quote-comparison]')[index],supplier=suppliers.find(s=>s.id===offer.supplier_id);let cost=null;
-   try{if(offer.price.amount!=='')cost=ingredientCost({quantity:'1',unit},offer.price);}catch{}
+   try{if(offer.price.amount!=='')cost=ingredientCost({quantity:'1',unit},offer.price,getConversions());}catch{}
    message.textContent=cost?`₱${displayQuantity(cost,{mode:'practical',step:'0.0001'}).text} / ${unit}`:offer.price.amount===''?'Price not entered.':'Enter a positive pack quantity and a unit comparable with the default unit.';
    if(supplier?.active===false)message.textContent+=' · Supplier inactive';
    if(cost&&supplier?.active!==false&&(!preferred||offer.supplier_id===preferred)&&(!highest||compare(cost,highest.cost)>0))highest={index,cost,offer};
@@ -34,6 +34,9 @@ export function mountSupplierQuotes(container,{record,suppliers,defaultUnit}){
  }
  container.addEventListener('input',()=>comparePrices());container.addEventListener('change',e=>{if(e.target.name==='supplier_id')refreshPreference();comparePrices();});
  form.querySelector('[name=default_unit]')?.addEventListener('input',comparePrices);
+ form.querySelector('[data-unit-equivalents]')?.addEventListener('input',comparePrices);
+ form.querySelector('[data-unit-equivalents]')?.addEventListener('change',comparePrices);
+ form.querySelector('[data-unit-equivalents]')?.addEventListener('click',()=>queueMicrotask(comparePrices));
  container.addEventListener('click',e=>{const add=e.target.closest('[data-add-quote]'),remove=e.target.closest('[data-remove-quote]');if(!add&&!remove)return;offers=read();if(add){if(offers.length>=30)return;offers.push({supplier_id:'',price:{}});}else offers.splice(Number(remove.dataset.removeQuote),1);render();});
  render();return {read:()=>({suppliers:read(),preferred_supplier_id:container.querySelector('[name=preferred_supplier_id]').value||null})};
 }
