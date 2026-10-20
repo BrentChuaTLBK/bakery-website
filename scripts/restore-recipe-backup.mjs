@@ -33,6 +33,11 @@ export async function rehearseRecipeRestore(archive,{db,applySchema=true}={}){
    if(table==='recipe_categories'){
     const pending=[...rows],sorted=[],done=new Set();while(pending.length){const index=pending.findIndex(r=>!r.parent_id||done.has(r.parent_id));if(index<0)throw Error('Category hierarchy has a cycle.');const [row]=pending.splice(index,1);sorted.push(row);done.add(row.id);}rows=sorted;
    }
+   if(table==='recipe_resources'){
+    // Yield validation needs the source ingredient to exist before its child.
+    const pending=[...rows],sorted=[],done=new Set();
+    while(pending.length){const index=pending.findIndex(r=>!r.data?.yield_source||done.has(r.data.yield_source.ingredient_id));if(index<0)throw Error('Linked ingredient source is missing or circular.');const [row]=pending.splice(index,1);sorted.push(row);done.add(row.id);}rows=sorted;
+   }
    for(const row of rows)await db.query(`insert into tlb.${table} (${names}) overriding system value select ${names} from jsonb_populate_record(null::tlb.${table},$1::jsonb)`,[JSON.stringify(row)]);
    counts[table]=Number((await db.query(`select count(*) n from tlb.${table}`)).rows[0].n);if(counts[table]!==rows.length)throw Error(`Restored count mismatch: ${table}`);
   }

@@ -1,6 +1,6 @@
 import {setUnitSelection} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
 import {convert,exact,unitInfo} from './recipe-math.js?v=approved-20261002-1';
-import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=refinement-20261002-1';
+import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=linked-ingredients-20261021-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function selectRecipeIngredient(row,resource){
@@ -29,7 +29,7 @@ export function ingredientPickerMarkup(row,prefix){
 export function mountIngredientPicker(root,{api,getRow,onChange}){
  let input=null,choices=[],selected=-1,timer,request=0;
  const context=new Map();let contextGeneration=0;
- function update(target){const row=getRow(target),picker=target.closest('.recipe-ingredient-picker');if(!row||!picker)return;const resource=context.get(row.ingredient_id),supplier=resource?.suppliers?.find(s=>s.supplier_id===resource.price?.supplier_id),brand=picker.querySelector('[data-ingredient-brand]');brand.textContent=row.brand||resource?.data?.brand||'No brand specified';brand.title=!row.brand&&resource?.data?.brand?'Brand from the linked ingredient catalog':'';picker.querySelector('[data-ingredient-link]').textContent=resource?`Current supplier: ${supplier?.name||(resource.price?'Unassigned':'no active quote')} · ${ingredientLinkText({...row,cost_snapshot:resource.price})}`:ingredientLinkText(row);}
+ function update(target){const row=getRow(target),picker=target.closest('.recipe-ingredient-picker');if(!row||!picker)return;const resource=context.get(row.ingredient_id),supplier=resource?.suppliers?.find(s=>s.supplier_id===resource.price?.supplier_id),brand=picker.querySelector('[data-ingredient-brand]');brand.textContent=row.brand||resource?.data?.brand||'No brand specified';brand.title=!row.brand&&resource?.data?.brand?'Brand from the linked ingredient catalog':'';picker.querySelector('[data-ingredient-link]').textContent=resource?`${resource.data?.yield_source?'Linked ingredient yield':'Current supplier: '+(supplier?.name||(resource.price?'Unassigned':'no active quote'))} · ${ingredientLinkText({...row,cost_snapshot:resource.price})}`:ingredientLinkText(row);}
  async function hydrate(){
   const generation=contextGeneration,targets=[...root.querySelectorAll('[data-ingredient-search]')],pending=new Map();
   for(const target of targets){const row=getRow(target);if(row?.ingredient_id&&!context.has(row.ingredient_id))pending.set(row.ingredient_id,row.name);else update(target);}

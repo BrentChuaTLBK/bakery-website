@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {join} from 'node:path';
+import {blankRecipe,step} from '../../assets/ordering/recipe-model.js';
+import {recipeBrowserHarness} from './recipe-audit-harness.mjs';
+
+const t=await recipeBrowserHarness(),owner=t.h.ids.owner;
+const api=(action,payload={})=>t.api(owner,action,payload),out=join(t.out,'compact-steps');
+await mkdir(out,{recursive:true});
+try{
+ const d=blankRecipe();d.name='Mango cake procedure';
+ d.variants[0].groups[0].ingredients=[{id:'flour',name:'Flour',quantity:'100',unit:'g'}];
+ const instructions=['Refrigerate until the mousse is completely set.','Transfer the remaining mousse into a piping bag fitted with a plain tip. Refrigerate until firm enough to pipe.','Once the cake is set, carefully remove the mousse ring, keeping the acetate collar in place.','Arrange cubed mangoes in the center of the cake.','Pipe a border around the mangoes using the remaining thickened coconut cream cheese mousse.','Lightly brush the mangoes with the melted neutral glaze.','Decorate with pandan leaves.','Wrap a ribbon around the acetate collar to finish.'];
+ d.variants[0].methods[0].steps=instructions.map(instruction=>({...step(),instruction}));
+ const recipe=await api('create',{document:d,status:'production'}),{page}=await t.pageFor(owner);page.setDefaultTimeout(15000);
+ await page.goto(t.origin+'/recipes.html');await page.locator(`[data-action=edit-open][data-id="${recipe.id}"]`).click();
+ const procedure=page.locator('[data-method-editor="0"]'),fields=procedure.locator('[data-step-input]'),rows=procedure.locator('.recipe-step-editor');
+ await fields.first().waitFor();
+ assert.deepEqual(await fields.evaluateAll(nodes=>nodes.map(n=>n.value)),instructions);
+ assert.equal(await procedure.locator('.recipe-step-menu:visible').count(),0);
+ const normalHeight=(await rows.first().boundingBox()).height;assert.ok(normalHeight<75,`Short step is ${normalHeight}px`);
+ const long='Fold gently from the bottom of the bowl, turning it as you work. '.repeat(9)+'\nCheck the mixture before continuing.';
+ await fields.first().fill(long);
+ assert.ok((await rows.first().boundingBox()).height>normalHeight+40);
+ assert.equal(await fields.first().evaluate(el=>el.scrollHeight<=el.clientHeight+1),true);
+ await fields.first().fill(instructions[0]);
+ assert.ok((await rows.first().boundingBox()).height<75);
+ await fields.first().blur();
+ for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:1100});
+  await page.waitForFunction(()=>[...document.querySelectorAll('[data-step-input]')].every(el=>el.scrollHeight<=el.clientHeight+1));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await procedure.screenshot({style:'.recipe-sticky-save,#recipe-notice{visibility:hidden}',path:join(out,`steps-${width}.png`)});
+ }
+ await rows.first().locator('summary').click();
+ assert.equal(await rows.first().getByRole('button',{name:'Move step up',exact:true}).isDisabled(),true);
+ const menu=rows.first().locator('.recipe-step-menu'),box=await menu.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=320);
+ await page.keyboard.press('Escape');assert.equal(await menu.isVisible(),false);
+ await rows.nth(1).locator('summary').click();
+ await rows.first().locator('summary').click();
+ assert.equal(await procedure.locator('.recipe-step-options[open]').count(),1);
+ const picker=page.waitForEvent('filechooser');
+ await rows.first().getByRole('button',{name:'Add photo',exact:true}).click();
+ await (await picker).setFiles([]);
+ await rows.nth(1).locator('summary').click();
+ await rows.nth(1).getByRole('button',{name:'Move step up',exact:true}).click();
+ const reordered=[instructions[1],instructions[0],...instructions.slice(2)];
+ assert.deepEqual(await fields.evaluateAll(nodes=>nodes.map(n=>n.value)),reordered);
+ await procedure.getByRole('button',{name:'+ Step',exact:true}).click();
+ await fields.last().fill('Temporary step');
+ await rows.last().locator('summary').click();
+ await rows.last().getByRole('button',{name:/Remove step/}).click();
+ assert.deepEqual(await fields.evaluateAll(nodes=>nodes.map(n=>n.value)),reordered);
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('[data-save-status]')?.textContent.startsWith('Saved.'));
+ const saved=await api('get',{id:recipe.id});
+ assert.deepEqual(saved.document.variants[0].methods[0].steps.map(s=>s.instruction),reordered);
+ assert.deepEqual((await api('get',{id:recipe.id,version_id:recipe.version_id})).document.variants[0].methods[0].steps.map(s=>s.instruction),instructions);
+ await page.getByRole('button',{name:'View saved recipe',exact:true}).click();
+ await page.getByRole('button',{name:'Edit recipe',exact:true}).click();
+ assert.deepEqual(await fields.evaluateAll(nodes=>nodes.map(n=>n.value)),reordered);
+ assert.deepEqual(t.errors,[]);
+ console.log('PASS Compact steps auto-fit short/long instructions at desktop and two mobile widths; keyboard menus, photo chooser, reorder, add/remove and save/reopen preserve the recipe.');
+}finally{await t.close();}
