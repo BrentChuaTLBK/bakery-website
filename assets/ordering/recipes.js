@@ -1,13 +1,13 @@
-import {mountLinkedIngredient} from './recipe-linked-ingredient.js?v=multi-source-20261021-1';
+import {mountLinkedIngredient} from './recipe-linked-ingredient.js?v=piece-equivalents-20261021-1';
 import {recipeEditingDocument,recipeSaveKey} from './recipe-save-state.js?v=unchanged-save-20261021-1';
-import {mountUnitConversions} from './recipe-unit-conversions.js?v=multi-source-20261021-1';
+import {mountUnitConversions} from './recipe-unit-conversions.js?v=piece-equivalents-20261021-1';
 import {costingEditor,costSummaryMarkup,openCosting,costingOverviewMarkup,costingOverviewRows} from './recipe-costing.js?v=kitchen-controls-20261021-1';
 import {recipeStatuses,recipeStatus,recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
 import {bakingDetailsMarkup,bakingSections,hasBakingDetails,setBakingFieldVisible,bakingFieldLabel,syncBakingStageSummary,rememberBakingEditor,resetBakingEditor} from './recipe-baking.js?v=stage-names-20261021-1';
 import {mountKitchenReader} from './recipe-kitchen.js?v=section-position-20261021-1';
 import {createKitchenGuard,kitchenLockMarkup} from './recipe-kitchen-guard.js?v=owner-visibility-20261016-1';
 import {ready,auth,recipeApi as callRecipeApi,uploadRecipeFile,recipeFileUrl} from './client.js?v=approved-20261002-1';
-import {mountSupplierQuotes} from './recipe-suppliers.js?v=kitchen-controls-20261021-1';
+import {mountSupplierQuotes} from './recipe-suppliers.js?v=piece-equivalents-20261021-1';
 import {recipeUnits,configureRecipeUnits,unitOptions,unitOptionsMarkup} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
 import {allRecipeSuppliers} from './recipe-catalog.js?v=approved-20261002-1';
 import {resourceTableMarkup,sortResourceRows} from './recipe-resource-table.js?v=multi-source-20261021-1';

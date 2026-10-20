@@ -1,4 +1,4 @@
-import {inputQuantity,exact,ingredientCost,divide,add} from './recipe-math.js?v=kitchen-controls-20261021-1';
+import {inputQuantity,exact,ingredientCost,divide,add} from './recipe-math.js?v=piece-equivalents-20261021-1';
 import {unitOptionsMarkup} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
 import {resourceMoney} from './recipe-resource-table.js?v=multi-source-20261021-1';
 

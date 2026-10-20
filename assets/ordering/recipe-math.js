@@ -146,12 +146,15 @@ export function componentPlan(baseYield,needed,{wholeBatches=false}={}) {
 export function ingredientCost(row,price,conversions={}) {
   if(!price || price.amount==null || !price.quantity || !price.unit) return null;
   const basis=unit=>{
-    const base=unitInfo(unit);if(!base.dimension.startsWith('custom:'))return base;
-    const entry=Object.entries(conversions).find(([key])=>key.trim().toLowerCase()===String(unit).trim().toLowerCase())?.[1];
+    const base=unitInfo(unit);if(['mass','volume'].includes(base.dimension))return base;
+    const entry=Object.entries(conversions).find(([key])=>unitInfo(key).canonical===base.canonical)?.[1];
     if(!entry)return base;
     const target=unitInfo(entry.unit),amount=inputQuantity(entry.quantity);
     if(target.dimension.startsWith('custom:')||!amount.n)throw Error('Enter a positive equivalent in a standard unit.');
-    return {...target,factor:multiply(target.factor,amount)};
+    if(base.dimension==='count'&&target.dimension==='count')throw Error('Enter the weight or volume of one piece.');
+    // Custom packs may contain pieces with an explicit weight or volume.
+    const resolved=target.dimension==='count'?basis(entry.unit):target;
+    return {...resolved,factor:multiply(resolved.factor,amount)};
   };
   const from=basis(row.unit),to=basis(price.unit);
   if(from.dimension!==to.dimension)throw Error(`Cannot convert ${row.unit} to ${price.unit} without an explicit conversion.`);

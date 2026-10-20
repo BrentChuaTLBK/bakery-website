@@ -1,5 +1,5 @@
 import {unitOptionsMarkup} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
-import {ingredientCost,displayQuantity,compare} from './recipe-math.js?v=kitchen-controls-20261021-1';
+import {ingredientCost,displayQuantity,compare} from './recipe-math.js?v=piece-equivalents-20261021-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountSupplierQuotes(container,{record,suppliers,defaultUnit,getConversions=()=>({})}){
  const available=id=>!id||suppliers.some(s=>s.id===id);
