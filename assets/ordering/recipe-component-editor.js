@@ -1,5 +1,5 @@
 import {recipeSections,methodGroupId} from './recipe-model.js?v=component-baking-20261020-1';
-import {bakingEditor} from './recipe-baking.js?v=component-baking-20261020-1';
+import {bakingEditor} from './recipe-baking.js?v=stage-names-20261021-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function procedureEditor(v,p,index,{field,button,photoMarkup}){
  const m=v.methods[index],groupId=methodGroupId(v,m);

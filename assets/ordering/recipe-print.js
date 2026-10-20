@@ -2,7 +2,7 @@ import {recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
 import {packagingItems,scaledPackagingItems,packagingReferenceMarkup,packagingPhotos,packagingLegacyText} from './recipe-packaging.js?v=approved-20261002-1';
 import {exact,formatQuantity,quantity,multiply,scaleIngredients,scaledYield} from './recipe-math.js?v=teaspoon-fractions-20261019-1';
 import {productionPlan,recipeSections} from './recipe-model.js?v=component-baking-20261020-1';
-import {bakingDetailsMarkup} from './recipe-baking.js?v=component-baking-20261020-1';
+import {bakingDetailsMarkup} from './recipe-baking.js?v=stage-names-20261021-1';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function openRecipeExport({record,production=null,selection=[],filters={},kitchen,showMetadata=true,rd=false,settings,api,fileUrl,dialog}) {
  const authorization={kind:'print',...(record?{id:record.id,version_id:record.version_id}:{})};

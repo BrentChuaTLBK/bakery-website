@@ -208,14 +208,14 @@ async function afterChecks(basic,advancedDocument){
  const printed=editor.locator('.recipe-print-root [data-print-component="Original Batter"]');
  assert.equal(await printed.locator('.recipe-baking-stage').count(),2);
  assert.match(await printed.textContent(),/360 g/);assert.match(await printed.textContent(),/180/);assert.doesNotMatch(await printed.textContent(),/195/);
- assert.deepEqual(await printed.locator('.recipe-baking-stage h5').allTextContents(),['Stage 1 — Browning','Stage 2 — Initial Bake']);
+ assert.deepEqual(await printed.locator('.recipe-baking-stage h5').allTextContents(),['Browning','Initial Bake']);
  results.push('Printable production recipes keep baking stages with their component and leave temperatures and times unchanged at 2×.');
  await edit.context.close();
 
  for(const width of [1440,390]){
   const kitchen=await pageFor(h.ids.staff,width),view=kitchen.page;await open(view,editableDocument.name,{kitchen:true});
   const component=view.locator('[data-component-view="original-batter"]');
-  assert.deepEqual(await component.locator('.recipe-baking-stage h4').allTextContents(),['Stage 1 — Browning','Stage 2 — Initial Bake']);
+  assert.deepEqual(await component.locator('.recipe-baking-stage h4').allTextContents(),['Browning','Initial Bake']);
   const bakingText=await component.locator('.recipe-baking-details').innerText();
   assert.doesNotMatch(bakingText,/Actual bottom|Fan setting|Ingredient temperature|Resting temperature|Cooling time|Freezing time/);
   await view.locator('[data-check="flour"]').check();await view.locator('[data-check="step-1"]').check();
