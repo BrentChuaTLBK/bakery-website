@@ -14,6 +14,7 @@ try{
  await page.goto(t.origin+'/recipes.html');await page.locator('[data-tab=ingredient]').click();
  await page.locator('[data-action=add-resource]').click();
  const form=page.locator('#recipe-resource-form'),linked=form.locator('[data-linked-ingredient]');
+ assert.equal(await linked.evaluate(el=>el.nextElementSibling?.hasAttribute('data-purchase-prices')),true,'Costing source sits directly above suppliers and purchase prices');
  await form.locator('[name=name]').fill('Lemon juice');
  await linked.locator('[data-yield-mode]').selectOption('linked');
  assert.equal(await form.locator('[data-purchase-prices]').isVisible(),false);
@@ -49,6 +50,7 @@ try{
  await linked.locator('[data-yield-preview]').filter({hasText:'₱1.00 / g'}).waitFor();
  // A computed source cost must not become a fake direct purchase when switching.
  await linked.locator('[data-yield-mode]').selectOption('purchase');
+ assert.equal(await form.locator('[data-purchase-prices]').isVisible(),true);
  assert.equal(await form.locator('[name=price_amount]').inputValue(),'');
  await linked.locator('[data-yield-mode]').selectOption('linked');
  await linked.locator('[data-yield-quantity]').fill('50');
