@@ -112,10 +112,9 @@ async function confirmVisibilityChange(before,after){
 }
 const statusOptions=(value,owner=true)=>(owner?recipeStatuses:recipeStatuses.filter(([key])=>key==='draft'||(key==='testing'&&canRD()))).map(([key,label])=>`<option value="${key}" ${key===recipeStatus(value)?'selected':''}>${label}</option>`).join('');
 function updateNavigation(){
- const nav=document.querySelector('.recipe-header nav'),brand=document.querySelector('.recipe-header .brand');
+ const nav=document.querySelector('.recipe-header nav');
  if(!nav)return;
  nav.innerHTML=`${state.role&&state.role!=='kitchen'?(state.kitchen?'<a class="recipe-button primary" href="recipes.html">Back to recipe admin</a>':'<a href="recipes.html?view=kitchen">Kitchen view</a>'):''}${canRD()&&state.role==='kitchen'?`<div class="kitchen-recipe-switch" role="group" aria-label="Recipe collection">${button('Final','kitchen-scope',`data-view="final" aria-pressed="${!state.rd}"`)}${button('R&D','kitchen-scope',`data-view="rd" aria-pressed="${state.rd}"`)}</div>`:''}${state.role==='owner'?'<a href="manage.html">Admin dashboard</a>':''}<a href="account.html">Account</a>`;
- if(brand)brand.href=state.role==='owner'?'manage.html':'recipes.html';
  document.body.classList.toggle('recipe-kitchen-view',Boolean(state.kitchen||state.role==='kitchen'));
  document.body.classList.toggle('recipe-staff-protected',state.role==='kitchen');
 }
@@ -565,7 +564,7 @@ async function action(name,a={}){
  if(name==='record-item-price'){const record=state.resources.find(r=>r.id===a.id);if(!record)return;const {openItemPrice}=await import('./recipe-purchase.js?v=teaspoon-fractions-20261019-1');return openItemPrice({api,dialog:setDialog,body:dialogBody,close:closeDialog,record,onSaved:async()=>{ingredientPicker.clear();await resources(record.kind,{refresh:true});notify('Price recorded. Saved recipe costs are unchanged.');}});}
  if(name==='tab'){if(!await leaveEditor())return;persistResourceView(a.tab);const restoreScroll=tableKinds.includes(a.tab)?restoreResourceView(a.tab):null;state.staffAccessController?.dispose();state.staffAccessController=null;if(!tableKinds.includes(a.tab)){state.resourceQuery='';state.resourceDeleted=false;state.resourceOffset=0;}state.resourceRequest++;if(a.tab==='manage')return manage();if(a.tab==='units')return manageUnits();if(a.tab==='costing')return costingOverview();if(a.tab==='library')return library();if(a.tab==='categories')return categories({scroll:restoreScroll});if(a.tab==='access')return access();if(a.tab==='staff-access')return staffAccess();if(a.tab==='backups'){state.tab='backups';shell('<div id="recipe-backups"></div>');const m=await import('./recipe-backups.js?v=final-backups-20261003-1');return m.mountRecipeBackups(root.querySelector('#recipe-backups'));}return resources(a.tab,{scroll:restoreScroll});}
  if(name==='reload-private-library')return startRecipeLibrary();
- if(name==='library'){if(await leaveEditor())return library({reuse:true});return;}
+ if(name==='library'||name==='library-home'){if(await leaveEditor())return library({reuse:true});return;}
  if(name==='new'){if(await leaveEditor()){beginEdit();}return;}
  if(name==='open')return openRecipe(a.id);
  if(name==='edit'){beginEdit(state.record);return;}
@@ -704,7 +703,12 @@ function download(text,filename,type){const blob=new Blob([text],{type}),url=URL
 
 // Event handlers are attached once; rendering does not accumulate listeners.
 async function handleClick(event){
- const target=event.target.closest('[data-action]');if(!target||target.disabled||state.saving)return;
+ const target=event.target.closest('[data-action]');if(!target)return;
+ if(target.matches('a[href]')){
+  if(event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+  event.preventDefault();
+ }
+ if(target.disabled||state.saving)return;
  target.disabled=true;try{await action(target.dataset.action,target.dataset);}catch(error){showError(error);}finally{target.disabled=false;}
 }
 root.addEventListener('click',handleClick);dialogBody.addEventListener('click',handleClick);document.querySelector('.recipe-header')?.addEventListener('click',handleClick);
