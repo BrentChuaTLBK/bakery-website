@@ -16,3 +16,18 @@ test('equivalents accept fractions and saved aliases, reject zero, duplicates an
  for(const row of [{from:'kg',quantity:'1',unit:'g'},{from:'tsp',quantity:'0',unit:'g'},{from:'tsp',quantity:'-1',unit:'g'},{from:'tsp',quantity:'6',unit:'cup'},{from:'',quantity:'1',unit:'g'}])assert.throws(()=>readUnitConversions([row]));
  assert.throws(()=>readUnitConversions([{from:'tsp',quantity:'6',unit:'g'},{from:'TSP',quantity:'5',unit:'g'}]),/one equivalent/);
 });
+test('one measured piece costs grams, kilograms and all piece aliases in either direction',()=>{
+ const equivalents=readUnitConversions([{from:'pcs',quantity:'30',unit:'g'},{from:'tray',quantity:'12',unit:'pc'}]);
+ for(const unit of ['pc','pcs','piece','pieces']){
+  assert.equal(exact(ingredientCost({quantity:'60',unit:'g'},{amount:'12',quantity:'1',unit},equivalents)),'24');
+  assert.equal(exact(ingredientCost({quantity:'2',unit},{amount:'120',quantity:'300',unit:'g'},equivalents)),'24');
+ }
+ assert.equal(exact(ingredientCost({quantity:'0.06',unit:'kg'},{amount:'12',quantity:'1',unit:'pc'},equivalents)),'24');
+ assert.equal(exact(ingredientCost({quantity:'60',unit:'g'},{amount:'144',quantity:'1',unit:'tray'},equivalents)),'24');
+ assert.equal(exact(ingredientCost({quantity:'1/2',unit:'pcs'},{amount:'12',quantity:'1',unit:'pc'},equivalents)),'6');
+ assert.equal(exact(ingredientCost({quantity:'1',unit:'kg'},{amount:'120',quantity:'300',unit:'g'},equivalents)),'400');
+ assert.throws(()=>ingredientCost({quantity:'30',unit:'g'},{amount:'12',quantity:'1',unit:'pc'}),/explicit conversion/);
+ assert.throws(()=>readUnitConversions([{from:'pc',quantity:'30',unit:'g'},{from:'pieces',quantity:'35',unit:'g'}]),/one equivalent/);
+ assert.throws(()=>readUnitConversions([{from:'pcs',quantity:'2',unit:'pc'}]),/weight or volume/);
+ assert.throws(()=>ingredientCost({quantity:'1',unit:'pc'},{amount:'1',quantity:'1',unit:'g'},{pcs:{quantity:'2',unit:'pc'}}),/weight or volume/);
+});
