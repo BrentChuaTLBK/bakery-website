@@ -45,7 +45,8 @@
     "test:recipe-updates": "node --test tests/recipe-math.test.mjs tests/recipe-unit-equivalents.test.mjs tests/recipe-packaging.test.mjs tests/recipe-teaspoon-fractions.test.mjs tests/recipe-scaling-options.test.mjs && node tests/backend/run.mjs --recipe-purge && node tests/backend/run.mjs --recipe-units && node tests/ui/recipe-staff-updates.mjs && node tests/ui/recipe-scaling-options.mjs && node tests/ui/recipe-library-delete.mjs",
     "test:recipe-linked-ingredients": "node tests/backend/run.mjs --recipe-linked-ingredients && node tests/ui/recipe-linked-ingredients.mjs && node tests/ui/recipe-compact-steps.mjs",
     "test:recipe-unchanged-save": "node tests/backend/run.mjs --recipe-unchanged-save && node tests/ui/recipe-unchanged-save.mjs",
-    "test:recipe-section-position": "node tests/ui/recipe-section-position.mjs"
+    "test:recipe-section-position": "node tests/ui/recipe-section-position.mjs",
+    "test:recipe-working-drafts": "node tests/backend/run.mjs --recipe-working-drafts && node tests/ui/recipe-working-drafts.mjs"
   },
   "devDependencies": {
     "jszip": "3.10.1",

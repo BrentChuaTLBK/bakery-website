@@ -157,7 +157,23 @@ function syncSectionName(el){
 }
 async function saveDraft(){
  if(!state.editing||!state.doc||state.testWorkspace)return;const captured=state.draftId;
- try {pendingAutosave=api('autosave',{draft_id:captured,id:state.record?.id,revision:state.record?.revision,status:state.saveStatus,document:state.doc,...(isOwner()?{visibility:state.visibility}:{})});await pendingAutosave;
+ try {
+  const unchanged=()=>state.record&&recipeSaveKey(state.doc,state.saveStatus,state.visibility)===state.savedRecipeKey;
+  if(unchanged()){
+   await pendingAutosave.catch(()=>{});
+   if(state.draftId!==captured||!state.editing)return true;
+   // Recheck after an in-flight backup: the user may have continued typing.
+   if(unchanged()){
+    await api('remove_draft',{draft_id:captured});
+    if(state.draftId!==captured||!state.editing)return true;
+    if(unchanged()){
+     state.dirty=false;
+     const status=root.querySelector('[data-save-status]');if(status)status.textContent='Saved. No changes to save.';
+     return true;
+    }
+   }
+  }
+  pendingAutosave=api('autosave',{draft_id:captured,id:state.record?.id,revision:state.record?.revision,status:state.saveStatus,document:state.doc,...(isOwner()?{visibility:state.visibility}:{})});await pendingAutosave;
   if(state.draftId===captured){const status=root.querySelector('[data-save-status]');if(status)status.textContent='Working copy backed up. Click Save to keep these changes.';}
   return true;
  }catch(error){const status=root.querySelector('[data-save-status]');if(status)status.textContent=`Draft could not be saved: ${error.message}`;return false;}
@@ -196,6 +212,7 @@ async function library({reuse=false,scroll=null}={}){
    if(request!==state.request)return;
    if(session?.user?.id===state.userId&&setup.role===state.role&&Boolean(setup.can_view_rd)===Boolean(state.can_view_rd)&&retained===state.libraryView){
     state.categories=setup.categories;state.settings=setup.settings;state.global_allowance=setup.global_allowance;configureRecipeUnits(setup.settings?.recipe_units);state.authors=setup.authors;root.replaceChildren(...retained.nodes);updateNavigation();
+    showWorkingDraft(request);
     requestAnimationFrame(()=>{if(request!==state.request)return;retained.focus?.focus({preventScroll:true});window.scrollTo(0,retained.scroll);});return;
    }
    clearPrivateView();state.userId=session?.user?.id;Object.assign(state,setup);configureRecipeUnits(setup.settings?.recipe_units);state.kitchen=setup.role==='kitchen'||new URLSearchParams(location.search).get('view')==='kitchen';if(!canRD())state.rd=false;state.offset=0;return library();
@@ -218,8 +235,9 @@ async function library({reuse=false,scroll=null}={}){
  if(request===state.request)window.scrollTo(0,previousScroll);persistResourceView();
 }
 async function showWorkingDraft(request){
- try{const drafts=await api('drafts',{limit:1});if(request!==state.request||state.tab!=='library'||state.editing||!drafts.length)return;state.drafts=drafts;
-  const banner=document.createElement('div');banner.className='recipe-draft-banner';banner.innerHTML=`<span>Unfinished recipe: <strong>${esc(drafts[0].document.name||'Untitled recipe')}</strong></span>${button('Resume working draft','recover-draft',`data-id="${drafts[0].draft_id}"`)}`;root.querySelector('.recipe-filters')?.before(banner);
+ root.querySelector('.recipe-draft-banner')?.remove();
+ try{const drafts=await api('drafts',{limit:1,current_only:true});if(request!==state.request||state.tab!=='library'||state.editing||dialog.open||!drafts.length)return;state.drafts=drafts;
+  const banner=document.createElement('div');banner.className='recipe-draft-banner';banner.innerHTML=`<span>${drafts[0].recipe_id?'Unsaved changes':'New recipe draft'}: <strong>${esc(drafts[0].document.name||'Untitled recipe')}</strong></span>${button('Resume working draft','recover-draft',`data-id="${drafts[0].draft_id}"`)}`;root.querySelector('.recipe-filters')?.before(banner);
  }catch{/* Draft recovery remains available through the explicit recovery action. */}
 }
 function beginEdit(record=null,document=null,testWorkspace=null,visibility=record?.visibility){
@@ -724,10 +742,15 @@ async function action(name,a={}){
  else if(name==='add-category'){categoryEditor();return;}
  else if(name==='edit-category'){categoryEditor(state.categories.find(c=>c.id===a.id));return;}
  else if(name==='drafts'){
-  const drafts=await api('drafts',{limit:100});state.drafts=drafts;setDialog('Recover a working draft',drafts.map(d=>`<div class="recipe-resource-row"><div>${esc(d.document.name||'Untitled recipe')}<small class="recipe-muted" style="display:block">${date(d.updated_at)}</small></div>${button('Open draft','recover-draft',`data-id="${d.draft_id}"`)}</div>`).join('')||'<p>No working drafts to recover.</p>');return;
+  const drafts=await api('drafts',{limit:100});state.drafts=drafts;setDialog('Recover a working draft',drafts.length?'<p class="recipe-muted">Working copies are separate from saved recipes. Older copies remain here for recovery.</p>'+drafts.map(d=>`<div class="recipe-resource-row"><div>${esc(d.document.name||'Untitled recipe')}<small class="recipe-muted" style="display:block">${date(d.updated_at)}</small></div><div class="recipe-actions">${button('Open draft','recover-draft',`data-id="${d.draft_id}"`)}${button('Discard draft','discard-draft',`data-id="${d.draft_id}"`,'danger')}</div></div>`).join(''):'<p>No working drafts to recover.</p>');return;
+ }else if(name==='discard-draft'){
+  if(!state.drafts?.some(d=>d.draft_id===a.id))return;
+  if(!await confirmDialog('Discard this working draft? The saved recipe and its version history will be kept.',{confirmLabel:'Discard draft',danger:true}))return;
+  await api('remove_draft',{draft_id:a.id});state.drafts=state.drafts.filter(d=>d.draft_id!==a.id);
+  closeDialog();await library();notify('Working draft discarded. Saved recipe kept.');return;
  }else if(name==='recover-draft'){
   const draft=state.drafts.find(d=>d.draft_id===a.id),record=draft.recipe_id?await api('get',{id:draft.recipe_id}):null;
-  if(record&&record.revision!==draft.base_revision){setDialog('The saved recipe has changed','<p>This draft started from an older version. Recover it as a separate recipe to avoid overwriting newer work.</p>'+button('Recover as new recipe','recover-draft-copy',`data-id="${a.id}"`));return;}
+  if(record&&record.revision!==draft.base_revision){setDialog('Older working draft',`<p>The saved recipe is ${esc(recipeStatusLabel(record.status))}. This working copy started from an older version. You can recover it as a separate recipe or discard the working copy.</p><div class="recipe-actions">${button('Recover as new recipe','recover-draft-copy',`data-id="${a.id}"`)}${button('Discard draft','discard-draft',`data-id="${a.id}"`,'danger')}</div>`);return;}
   closeDialog();beginEdit(record,draft.document,null,record?.visibility==='owner'?'owner':draft.visibility);state.draftId=draft.draft_id;state.dirty=true;return;
  }else if(name==='recover-draft-copy'){
   const draft=state.drafts.find(d=>d.draft_id===a.id),source=draft.recipe_id?await api('get',{id:draft.recipe_id}):null;
