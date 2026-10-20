@@ -1,9 +1,10 @@
 import {mountLinkedIngredient} from './recipe-linked-ingredient.js?v=linked-ingredients-20261021-1';
+import {recipeEditingDocument,recipeSaveKey} from './recipe-save-state.js?v=unchanged-save-20261021-1';
 import {mountUnitConversions} from './recipe-unit-conversions.js?v=kitchen-controls-20261021-1';
 import {costingEditor,costSummaryMarkup,openCosting,costingOverviewMarkup,costingOverviewRows} from './recipe-costing.js?v=kitchen-controls-20261021-1';
 import {recipeStatuses,recipeStatus,recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
 import {bakingDetailsMarkup,bakingSections,hasBakingDetails,setBakingFieldVisible,bakingFieldLabel,syncBakingStageSummary,rememberBakingEditor,resetBakingEditor} from './recipe-baking.js?v=stage-names-20261021-1';
-import {mountKitchenReader} from './recipe-kitchen.js?v=component-baking-20261020-1';
+import {mountKitchenReader} from './recipe-kitchen.js?v=section-position-20261021-1';
 import {createKitchenGuard,kitchenLockMarkup} from './recipe-kitchen-guard.js?v=owner-visibility-20261016-1';
 import {ready,auth,recipeApi as callRecipeApi,uploadRecipeFile,recipeFileUrl} from './client.js?v=approved-20261002-1';
 import {mountSupplierQuotes} from './recipe-suppliers.js?v=kitchen-controls-20261021-1';
@@ -36,6 +37,7 @@ const readActions=new Set(['ingredient_yield_source','purge_preview','costing_se
 function invalidateLibrary(){state.libraryView=null;state.libraryStamp=null;}
 function clearFileUrls(){for(const file of state.fileUrls.values())if(file.url?.startsWith('blob:'))URL.revokeObjectURL(file.url);state.fileUrls.clear();}
 function clearPrivateView(){
+ state.savedRecipeKey=null;
  clearCompactSteps();
  purchaseDraft.clear(state.userId);configureRecipeUnits();
  state.authEpoch=(state.authEpoch||0)+1;state.request++;state.resourceRequest++;invalidateLibrary();
@@ -226,10 +228,8 @@ function beginEdit(record=null,document=null,testWorkspace=null,visibility=recor
  rememberLibrary();state.request++;
  ingredientPicker.clear();resetBakingEditor();
  state.testWorkspace=testWorkspace;state.visibility=visibilityValue(visibility);
- state.record=record;state.doc=model.normalizeRecipe(document||record?.document||model.blankRecipe());
- // Resolve old, unambiguous associations in this working copy before names
- // change. Opening the editor never rewrites an approved recipe version.
- for(const v of state.doc.variants)for(const m of v.methods)if(!Object.hasOwn(m,'group_id'))m.group_id=model.methodGroupId(v,m);
+ state.record=record;state.doc=recipeEditingDocument(document||record?.document||model.blankRecipe());
+ state.savedRecipeKey=record?recipeSaveKey(recipeEditingDocument(record.document),record.status,visibilityValue(record.visibility)):null;
  state.variant=0;state.editorSection='ingredients';state.editing=true;state.dirty=false;state.saveStatus=isOwner()?recipeStatus(record?.status):record?.status==='testing'?'testing':'draft';state.draftId=model.id();renderEditor();
 }
 function scalingEditor(v,p){
@@ -438,7 +438,7 @@ async function resourceEditor(record=null){
  kind==='ingredient'?[['Default unit','default_unit'],['Brand','brand'],['Category','category'],['Allergens · comma separated','allergens']]:
  kind==='packaging'?[['Packaging type','type'],['Dimensions','dimensions'],['Default unit','default_unit'],['Minimum order quantity','minimum_order_quantity'],['Product associations','product_associations']]:[['Equipment type','type']];
  setDialog(`${record?'Edit':'Add'} ${kind}`,`<form id="recipe-resource-form"><div class="recipe-fields two">${input('Name','name',record?.name||'')}${fields.map(([label,key])=>input(label,key,Array.isArray(data[key])?data[key].join(', '):data[key]||'')).join('')}<label class="wide">Notes<textarea name="notes">${esc(data.notes)}</textarea></label></div>
-  ${kind==='ingredient'?'<section class="recipe-form-section" data-linked-ingredient></section><section class="recipe-form-section" data-unit-equivalents></section>':''}
+  ${kind==='ingredient'?'<section class="recipe-form-section" data-unit-equivalents></section><section class="recipe-form-section" data-linked-ingredient></section>':''}
   ${kind==='packaging'?'<section class="recipe-form-section"><h3>Packaging photos · optional</h3><p class="recipe-muted">Add a photo of the box, bag or other packaging. Photos are private and included in recipe backups.</p><label>Add packaging photo<input data-resource-photo type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"></label><p data-resource-photo-status role="status"></p><div class="recipe-photos" data-resource-photos></div></section>':''}
   ${['ingredient','packaging'].includes(kind)?`<section data-purchase-prices><h3 class="recipe-form-section">Suppliers & purchase prices · optional</h3><p class="recipe-muted">Keep alternative suppliers and compare pack prices. Automatic costing uses the highest comparable unit cost, unless you choose a preferred supplier. All linked recipes use updated prices automatically. Historical snapshots retain the prices recorded at the time.</p><div data-supplier-editor></div>${record?button('Price history','price-history',`data-id="${record.id}"`):''}</section>`:''}  <label class="recipe-inline-check"><input name="active" type="checkbox" ${record?.active!==false?'checked':''}>Active</label><div class="recipe-actions"><button class="primary" type="submit">Save ${kind}</button>${record&&isOwner()?button('Delete','delete-resource',`data-id="${record.id}"`,'danger'):''}</div></form>`);
  state.resourceConversions=dialogBody.querySelector('[data-unit-equivalents]')?mountUnitConversions(dialogBody.querySelector('[data-unit-equivalents]'),data.unit_conversions||{}):null;
@@ -523,10 +523,17 @@ async function saveRecipe(){
   if(isOwner()&&state.record&&!await confirmVisibilityChange(state.record.visibility,state.visibility))return;
   clearTimeout(autosaveTimer);form.inert=true;
   await pendingAutosave.catch(()=>{});
+  if(state.record&&recipeSaveKey(state.doc,status,state.visibility)===state.savedRecipeKey){
+   if(state.dirty)await api('remove_draft',{draft_id:state.draftId}).catch(()=>{});
+   state.dirty=false;state.draftId=model.id();
+   root.querySelector('[data-save-status]').textContent='Saved. No changes to save.';
+   notify('No changes to save.');return;
+  }
   const record=await api(state.record?'save':'create',{id:state.record?.id,revision:state.record?.revision,document:state.doc,status,reason:'',...(isOwner()?{visibility:state.visibility}:{})});
   await api('remove_draft',{draft_id:state.draftId}).catch(()=>{});
-  state.record=record;state.visibility=visibilityValue(record.visibility);state.doc=model.normalizeRecipe(record.document);state.dirty=false;state.draftId=model.id();
-  notify(`Version ${record.version} saved · ${recipeStatusLabel(record.status)}.`);
+  state.record=record;state.visibility=visibilityValue(record.visibility);state.doc=recipeEditingDocument(record.document);state.dirty=false;state.draftId=model.id();
+  state.savedRecipeKey=recipeSaveKey(state.doc,record.status,state.visibility);
+  notify(record.unchanged?'No changes to save.':`Version ${record.version} saved · ${recipeStatusLabel(record.status)}.`);
   renderEditor();window.scrollTo(0,scroll);
  }finally{state.saving=false;form.inert=false;}
 }

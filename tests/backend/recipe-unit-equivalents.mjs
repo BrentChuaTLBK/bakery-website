@@ -15,7 +15,10 @@ export default async function({db,check}){
   assert.equal((await summary()).complete,true);close((await summary()).ingredient_cost,.075);
   assert.equal((await summary('saved')).complete,false);
   assert.deepEqual((await api('get',{id:recipe.id})).document,recipe.document);
-  const fresh=await api('save',{id:recipe.id,revision:recipe.revision,document:recipe.document,status:'production'});recipe=fresh;
+  const unchanged=await api('save',{id:recipe.id,revision:recipe.revision,document:recipe.document,status:'production'});
+  assert.equal(unchanged.unchanged,true);assert.equal(unchanged.version,recipe.version);assert.equal((await summary('saved')).complete,false);
+  const changed=structuredClone(recipe.document);changed.variants[0].methods[0].steps[0].instruction='Mix thoroughly.';
+  recipe=await api('save',{id:recipe.id,revision:recipe.revision,document:changed,status:'production'});
   close((await summary('saved')).ingredient_cost,.075);
   salt=await api('save_resource',{id:salt.id,revision:salt.revision,kind:'ingredient',name:salt.name,data:{...salt.data,unit_conversions:{tsp:{quantity:'4',unit:'g'},tbsp:{quantity:'12',unit:'g'}}}});
   close((await summary()).ingredient_cost,.05);close((await summary('saved')).ingredient_cost,.075);

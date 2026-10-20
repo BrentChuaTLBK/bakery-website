@@ -19,15 +19,24 @@ export function mountKitchenReader(root,state){
  const names=document.createElement('div');names.className='recipe-kitchen-sections';names.setAttribute('role','group');names.setAttribute('aria-label','Jump to recipe section');
  panels.forEach((panel,index)=>{const b=document.createElement('button');b.type='button';b.dataset.kitchenJump=String(index);b.textContent=panel.querySelector('h2')?.textContent||'Reference';names.append(b);});nav.prepend(names);
  panels[0].before(nav);
+ const space=document.createElement('div');space.setAttribute('aria-hidden','true');space.style.overflowAnchor='none';
  let active=Math.max(0,panels.findIndex(p=>p.dataset.kitchenPanel===state.kitchenSection));
- function show({focus=false}={}){
+ function show({preservePosition=false}={}){
+  const position={left:window.scrollX,top:window.scrollY,behavior:'instant'};
   panels.forEach((p,i)=>{p.hidden=i!==active;});
+  panels[active].after(space);space.style.height='0px';
   state.kitchenSection=panels[active].dataset.kitchenPanel;select.value=state.kitchenSection;
   names.querySelectorAll('button').forEach((b,i)=>b.setAttribute('aria-pressed',String(i===active)));
   nav.querySelector('[data-kitchen-prev]').disabled=active===0;nav.querySelector('[data-kitchen-next]').disabled=active===panels.length-1;
-  if(focus){const title=panels[active].querySelector('h2');title.tabIndex=-1;title.focus({preventScroll:true});nav.scrollIntoView({block:'start'});}
+  if(preservePosition){
+   // A shorter component can otherwise shrink the page and force the browser
+   // to jump upward. Reserve only the space needed for this viewport.
+   const needed=position.top+window.innerHeight-(space.getBoundingClientRect().top+window.scrollY);
+   if(needed>0)space.style.height=`${needed}px`;
+   window.scrollTo(position);
+  }
  }
- select.addEventListener('change',()=>{active=panels.findIndex(p=>p.dataset.kitchenPanel===select.value);show();});
- nav.addEventListener('click',event=>{const b=event.target.closest('button');if(!b||b.disabled)return;if(b.hasAttribute('data-kitchen-jump')){active=Number(b.dataset.kitchenJump);show();}else if(b.hasAttribute('data-kitchen-prev')){active--;show({focus:true});}else if(b.hasAttribute('data-kitchen-next')){active++;show({focus:true});}});
+ select.addEventListener('change',()=>{active=panels.findIndex(p=>p.dataset.kitchenPanel===select.value);show({preservePosition:true});});
+ nav.addEventListener('click',event=>{const b=event.target.closest('button');if(!b||b.disabled)return;if(b.hasAttribute('data-kitchen-jump'))active=Number(b.dataset.kitchenJump);else if(b.hasAttribute('data-kitchen-prev'))active--;else if(b.hasAttribute('data-kitchen-next'))active++;show({preservePosition:true});});
  show();
 }

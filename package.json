@@ -43,7 +43,9 @@
     "test:academy:final-import": "node tests/academy-final-recipe-import.mjs && node --experimental-transform-types tests/ui/academy-final-recipe-import.mjs",
     "test:academy:comparisons": "node tests/academy-comparison-management.mjs && node --experimental-transform-types --test tests/edge/academy-welcome.test.mjs tests/edge/academy-original-photos.test.mjs tests/edge/academy-portal.test.mjs && node tests/ui/academy-approved-shared.mjs && node --experimental-transform-types tests/ui/academy-approved-welcome.mjs && node --experimental-transform-types tests/ui/academy-approved-comparisons-student.mjs && node --experimental-transform-types tests/ui/academy-approved-comparisons-admin.mjs",
     "test:recipe-updates": "node --test tests/recipe-math.test.mjs tests/recipe-unit-equivalents.test.mjs tests/recipe-packaging.test.mjs tests/recipe-teaspoon-fractions.test.mjs tests/recipe-scaling-options.test.mjs && node tests/backend/run.mjs --recipe-purge && node tests/backend/run.mjs --recipe-units && node tests/ui/recipe-staff-updates.mjs && node tests/ui/recipe-scaling-options.mjs && node tests/ui/recipe-library-delete.mjs",
-    "test:recipe-linked-ingredients": "node tests/backend/run.mjs --recipe-linked-ingredients && node tests/ui/recipe-linked-ingredients.mjs && node tests/ui/recipe-compact-steps.mjs"
+    "test:recipe-linked-ingredients": "node tests/backend/run.mjs --recipe-linked-ingredients && node tests/ui/recipe-linked-ingredients.mjs && node tests/ui/recipe-compact-steps.mjs",
+    "test:recipe-unchanged-save": "node tests/backend/run.mjs --recipe-unchanged-save && node tests/ui/recipe-unchanged-save.mjs",
+    "test:recipe-section-position": "node tests/ui/recipe-section-position.mjs"
   },
   "devDependencies": {
     "jszip": "3.10.1",

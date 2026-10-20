@@ -32,7 +32,10 @@ export default async function({db,check,state={}}){
    const unchanged=await api('get',{id:parent.id});assert.deepEqual(unchanged.document,before.document);assert.deepEqual(unchanged.cost_snapshot,before.cost_snapshot);assert.equal(unchanged.version,1);
    const scaled=(await api('costing',{id:parent.id,factor:'2'})).snapshot.variants[0];assert.equal(Number(scaled.adjusted_cost),25);assert.equal(Number(scaled.revenue),80);
    const overview=await api('costing_overview',{query:'Refinement product',mode:'all'});assert.equal(overview.global_allowance.percent,'25');assert.equal(overview.rows.length,2);assert(overview.rows.every(row=>Number(row.summary.labor_percent)===25));
-   const next=await api('save',{id:parent.id,revision:parent.revision,document:parent.document,status:'final'});assert(next.document.variants.every(v=>v.costing.labor_percent==='25'));parent=next;
+   const repeated=await api('save',{id:parent.id,revision:parent.revision,document:parent.document,status:'final'});
+   assert.equal(repeated.unchanged,true);assert.equal(repeated.version,1);assert.deepEqual(repeated.document,before.document);
+   const changed=structuredClone(parent.document);changed.variants[0].methods[0].steps[0].instruction='Mix thoroughly and finish.';
+   const next=await api('save',{id:parent.id,revision:parent.revision,document:changed,status:'final'});assert(next.document.variants.every(v=>v.costing.labor_percent==='25'));parent=next;
   })();
   await check('zero is a valid shared allowance; invalid values and stale writes are rejected',async()=>{
    const stale=await setting();await setPercent('0');assert.equal(Number((await summary(parent))[0].adjusted_cost),10);assert.equal(Number((await summary(parent,'saved'))[0].adjusted_cost),12.5);
