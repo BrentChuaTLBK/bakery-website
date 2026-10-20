@@ -1,5 +1,5 @@
 import {id} from './recipe-model.js?v=approved-20261002-1';
-import {exact,multiply,quantity,unitInfo} from './recipe-math.js?v=approved-20261002-1';
+import {exact,multiply,quantity,unitInfo,displayQuantity} from './recipe-math.js?v=kitchen-controls-20261021-1';
 import {resourceMoney,resourceUnitCost} from './recipe-resource-table.js?v=refinement-20261002-1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -32,7 +32,7 @@ export function packagingEditor(v,p,{field,button,photoMarkup}){
  ${oldText?`<details class="recipe-advanced recipe-packaging-legacy" ${linked.length?'':'open'}><summary>Imported packaging reference</summary><p>${esc(oldText)}</p></details>`:''}${v.packaging?.notes?`<details class="recipe-advanced"><summary>Saved packaging notes</summary><p>${esc(v.packaging.notes)}</p></details>`:''}
  ${legacy.length?`<details class="recipe-advanced"><summary>Previously saved charges</summary><p class="recipe-muted">These are included in this recipe’s cost. Remove a charge if linked packaging replaces it.</p>${legacy.map(({item:c,index:i})=>`<div class="recipe-resource-row"><span>${esc(c.name)} · ${esc(resourceMoney(c.amount))}</span>${button('Remove saved charge','remove-cost',`data-index="${i}"`,'danger')}</div>`).join('')}</details>`:''}`;
 }
-export function packagingReferenceMarkup(v,factor='1'){
+export function packagingReferenceMarkup(v,factor='1',{maxDecimals}={}){
  const items=scaledPackagingItems(v,factor);if(!items.length)return '';
- return `<ul class="recipe-linked-packaging">${items.map(c=>`<li><strong>${esc(c.resource_name)}</strong> <span>${esc(c.quantity)} ${esc(c.unit)}${c.resource_type?` · ${esc(c.resource_type)}`:''}${c.resource_dimensions?` · ${esc(c.resource_dimensions)}`:''}</span>${c.resource_notes?`<p>${esc(c.resource_notes)}</p>`:''}</li>`).join('')}</ul>`;
+ return `<ul class="recipe-linked-packaging">${items.map(c=>`<li><strong>${esc(c.resource_name)}</strong> <span>${esc(displayQuantity(c.quantity,{unit:c.unit,maxDecimals}).text)} ${esc(c.unit)}${c.resource_type?` · ${esc(c.resource_type)}`:''}${c.resource_dimensions?` · ${esc(c.resource_dimensions)}`:''}</span>${c.resource_notes?`<p>${esc(c.resource_notes)}</p>`:''}</li>`).join('')}</ul>`;
 }

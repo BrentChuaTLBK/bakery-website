@@ -16,11 +16,12 @@ const fixtures=[
 const displayedQuantities=page=>page.locator('.recipe-component-view tbody td.numeric').allTextContents().then(values=>values.map(value=>value.trim()));
 async function showControls(page){
  const controls=page.locator('.recipe-kitchen-production');
- if(await controls.count()&&!await controls.evaluate(element=>element.open))await controls.locator('summary').first().click();
+ if(await controls.count()){assert.equal(await page.locator('[data-scale=target]').isVisible(),true);assert.equal(await page.locator('[data-scale=rounding],[data-scale=step],[data-action=custom-scale]').count(),0);}
 }
 async function selectSize(page,index){
  await showControls(page);
- await page.locator('[data-view-variant]').selectOption(String(index));
+ if(await page.locator('.recipe-kitchen-production').count())await page.locator(`[data-action=view-size][data-index="${index}"]`).click();
+ else await page.locator('[data-view-variant]').selectOption(String(index));
  await showControls(page);
  const fixture=fixtures[index];
  assert.deepEqual(await page.locator('[data-scale="mode"] option').evaluateAll(options=>options.map(option=>option.value)),fixture.options,`${fixture.name}: available modes`);
@@ -32,7 +33,7 @@ async function checkMode(page,mode,target){
  await page.locator('[data-scale="mode"]').selectOption(mode);
  await page.locator('[data-scale="target"]').fill(target);
  await page.locator('[data-scale="target"]').press('Tab');
- await page.waitForFunction(()=>document.querySelector('.recipe-yield')?.textContent.includes('Multiplier ×2'));
+ await page.waitForFunction(()=>(document.querySelector('.recipe-kitchen-production-summary')||document.querySelector('.recipe-yield'))?.textContent.includes('×2'));
  assert.deepEqual(await displayedQuantities(page),['200 g','1/4 tsp']);
  assert.equal(await page.locator('.recipe-scale-card .recipe-error').count(),0);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

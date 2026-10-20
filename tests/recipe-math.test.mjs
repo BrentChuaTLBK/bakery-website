@@ -17,6 +17,17 @@ test('rounding discloses differences and retains the exact original quantity',()
   assert.equal(displayQuantity('2.25',{mode:'practical',step:'0.5'}).text,'2.5');
   assert.throws(()=>displayQuantity('2',{mode:'practical',step:'0'}));
 });
+
+test('kitchen display uses at most two decimals without changing exact quantities or teaspoon fractions',()=>{
+ for(const [value,expected] of [['1.005','1.01'],['9.999','10'],['1/3','0.33'],['1.2','1.2'],['0.004','0']]){
+  const display=displayQuantity(value,{maxDecimals:2});
+  assert.equal(display.text,expected);assert.equal(exact(display.exact),exact(value));
+ }
+ assert.equal(displayQuantity('0.125',{unit:'tsp',maxDecimals:2}).text,'1/8');
+ assert.equal(displayQuantity('1.5',{unit:'tsp',maxDecimals:2}).text,'1 1/2');
+ assert.equal(displayQuantity('1.2345').text,'1.2345');
+ assert.throws(()=>displayQuantity('1',{maxDecimals:-1}),/precision/);
+});
 test('six scaling inputs calculate ratios and never mutate master rows',()=>{
   const y={quantity:'1',portions:'6',portion_weight:'175',batch_weight:'1050',pans:'6'};
   for(const [mode,target,expected] of [['multiplier','1.15','1.15'],['yield','2','2'],['pieces','12','2'],['portion','350','2'],['weight','525','0.5'],['pans','3','0.5']])assert.equal(exact(scaleFactor(y,mode,target)),expected);

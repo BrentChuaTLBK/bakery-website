@@ -21,7 +21,7 @@ try{
  v.methods=[{id:'mix',group_id:'cream',name:'Mix filling',steps:[{id:'mix-1',instruction:'Mix until smooth.'}]},{id:'finish',group_id:'assembly',name:'Finish',steps:[{id:'finish-1',instruction:'Chill and assemble.'}]}];v.costing={mode:'saleable',labor_percent:'20',saleable_yield:'2',sale_unit:'whole_cake',selling_price:'100',price_basis:'unit'};
  let saved=await api(h.ids.owner,'create',{document:doc,status:'production'}),initial=structuredClone(saved);
  const k=await pageFor(h.ids.staff,820);await k.page.goto(origin+'/recipes.html?view=kitchen');await k.page.locator(`[data-action=open][data-id="${saved.id}"]`).click();await k.page.getByRole('button',{name:'×3',exact:true}).click();
- assert.equal(await k.page.locator('[data-kitchen-panel]:visible td.numeric').first().innerText(),'3000 g');assert.match(await k.page.locator('.recipe-kitchen-production>summary').innerText(),/Prepare 6 cakes/);
+ assert.equal(await k.page.locator('[data-kitchen-panel]:visible td.numeric').first().innerText(),'3000 g');assert.match(await k.page.locator('.recipe-kitchen-production-summary').innerText(),/Prepare 6 cakes/);
  await k.page.getByRole('button',{name:'Assembly',exact:true}).click();assert.equal(await k.page.locator('[data-kitchen-panel]:visible').getAttribute('data-kitchen-panel'),'component:assembly');assert.deepEqual((await api(h.ids.owner,'get',{id:saved.id})).document,initial.document);
  await k.page.screenshot({path:join(out,'after-A-820.png'),fullPage:true});await k.context.close();check('A: one-tap ×3 and named section navigation preserve the saved Final formula and exact quantities');
  const {page,context}=await pageFor(h.ids.owner);await open(page,saved.id);await page.locator('[data-action=edit]').click();

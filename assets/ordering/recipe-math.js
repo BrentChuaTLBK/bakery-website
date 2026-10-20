@@ -49,9 +49,14 @@ export function formatQuantity(value,unit='') {
   const q=quantity(value),whole=q.n/q.d,remainder=q.n%q.d;
   return !remainder?String(whole):`${whole?`${whole} `:''}${remainder}/${q.d}`;
 }
-export function displayQuantity(value,{mode='exact',step='1',unit=''}={}) {
+export function displayQuantity(value,{mode='exact',step='1',unit='',maxDecimals}={}) {
   const q=quantity(value);
-  if(mode==='exact')return {text:formatQuantity(q,unit),exact:serialize(q),rounded:false};
+  if(mode==='exact'){
+    if(maxDecimals===undefined||String(unit).trim().toLowerCase()==='tsp')return {text:formatQuantity(q,unit),exact:serialize(q),rounded:false};
+    if(!Number.isInteger(maxDecimals)||maxDecimals<0||maxDecimals>12)throw Error('Invalid display precision.');
+    const precision=10n**BigInt(maxDecimals),rounded=rational((q.n*precision*2n+q.d)/(q.d*2n),precision);
+    return {text:exact(rounded),exact:serialize(q),rounded:compare(rounded,q)!==0};
+  }
   if(!['whole','practical'].includes(mode))throw Error('Unknown rounding option.');
   const increment=quantity(mode==='whole'?'1':step);
   if(!increment.n)throw Error('Rounding increment must be greater than zero.');
@@ -138,9 +143,19 @@ export function componentPlan(baseYield,needed,{wholeBatches=false}={}) {
   return {batches:serialize(batches),produced:serialize(produced),leftover:serialize(leftover)};
 }
 // Cost currency must match. No density, egg weight or cup convention is guessed.
-export function ingredientCost(row,price) {
+export function ingredientCost(row,price,conversions={}) {
   if(!price || price.amount==null || !price.quantity || !price.unit) return null;
-  const used=convert(row.quantity,row.unit,price.unit);
+  const basis=unit=>{
+    const base=unitInfo(unit);if(!base.dimension.startsWith('custom:'))return base;
+    const entry=Object.entries(conversions).find(([key])=>key.trim().toLowerCase()===String(unit).trim().toLowerCase())?.[1];
+    if(!entry)return base;
+    const target=unitInfo(entry.unit),amount=inputQuantity(entry.quantity);
+    if(target.dimension.startsWith('custom:')||!amount.n)throw Error('Enter a positive equivalent in a standard unit.');
+    return {...target,factor:multiply(target.factor,amount)};
+  };
+  const from=basis(row.unit),to=basis(price.unit);
+  if(from.dimension!==to.dimension)throw Error(`Cannot convert ${row.unit} to ${price.unit} without an explicit conversion.`);
+  const used=divide(multiply(quantity(row.quantity),from.factor),to.factor);
   return multiply(divide(used,quantity(price.quantity)),quantity(price.amount));
 }
 export function costRecipe(groups,{prices={},additional=[],portions=null,currency='PHP',factor='1'}={}) {
