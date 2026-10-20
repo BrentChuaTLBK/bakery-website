@@ -4,8 +4,37 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 export function procedureEditor(v,p,index,{field,button,photoMarkup}){
  const m=v.methods[index],groupId=methodGroupId(v,m);
  return `<div class="recipe-procedure-editor" data-method-editor="${index}"><div class="recipe-section-head"><h3>${esc(m.name||'Procedure')}</h3><details class="recipe-procedure-options"><summary>Procedure options</summary><div class="recipe-fields two">${field('Procedure title',`${p}.methods.${index}.name`)}<label>Place under<select data-method-group="${index}"><option value="">Assembly / overall procedure</option>${v.groups.map(g=>`<option value="${esc(g.id)}" ${g.id===groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label></div>${button('Remove procedure','remove-method',`data-method="${index}"`,'danger')}</details></div>
- ${m.steps.map((s,si)=>`<div class="recipe-step-editor">${field(`Step ${si+1}`,`${p}.methods.${index}.steps.${si}.instruction`,{type:'textarea',rows:2,placeholder:'Write what to do…'})}${s.image_id?photoMarkup(v.photos.filter(p=>p.file_id===s.image_id)):''}<div class="recipe-actions">${button(s.image_id?'Change photo':'Add photo','upload',`data-purpose="process" data-method="${index}" data-step="${si}"`)}${button('↑','move-step',`data-method="${index}" data-step="${si}" data-direction="-1" aria-label="Move step up" ${si===0?'disabled':''}`)}${button('↓','move-step',`data-method="${index}" data-step="${si}" data-direction="1" aria-label="Move step down" ${si===m.steps.length-1?'disabled':''}`)}${button('Remove','remove-step',`data-method="${index}" data-step="${si}" aria-label="Remove step ${si+1}"`,'danger')}</div></div>`).join('')}
+ ${m.steps.map((s,si)=>`<div class="recipe-step-editor"><span class="recipe-step-number" aria-hidden="true">${si+1}.</span><label class="recipe-step-instruction"><span class="recipe-resource-sr">Step ${si+1}</span><textarea data-step-input data-path="${esc(`${p}.methods.${index}.steps.${si}.instruction`)}" rows="1" placeholder="Write what to do…">${esc(s.instruction)}</textarea></label><details class="recipe-step-options"><summary aria-label="Options for step ${si+1}" title="Step options">⋯</summary><div class="recipe-step-menu">${button(s.image_id?'Change photo':'Add photo','upload',`data-purpose="process" data-method="${index}" data-step="${si}"`)}${button('Move up','move-step',`data-method="${index}" data-step="${si}" data-direction="-1" aria-label="Move step up" ${si===0?'disabled':''}`)}${button('Move down','move-step',`data-method="${index}" data-step="${si}" data-direction="1" aria-label="Move step down" ${si===m.steps.length-1?'disabled':''}`)}${button('Remove step','remove-step',`data-method="${index}" data-step="${si}" aria-label="Remove step ${si+1}"`,'danger')}</div></details>${s.image_id?photoMarkup(v.photos.filter(p=>p.file_id===s.image_id)):''}</div>`).join('')}
  <div class="recipe-actions recipe-add-step">${button('+ Step','add-step',`data-method="${index}"`)}</div></div>`;
+}
+
+let stepObserver;
+export function clearCompactSteps(){stepObserver?.disconnect();stepObserver=null;}
+// Fit the whole instruction without reserving blank lines for every short step.
+// Refit when a hidden editor panel opens or its available width changes.
+export function mountCompactSteps(root){
+ clearCompactSteps();
+ const form=root.querySelector('#recipe-editor');if(!form)return;
+ const fields=[...form.querySelectorAll('[data-step-input]')],widths=new WeakMap();
+ function fit(field){
+  if(!field.clientWidth)return;
+  widths.set(field,field.clientWidth);field.style.height='auto';
+  const style=getComputedStyle(field),borders=parseFloat(style.borderTopWidth)+parseFloat(style.borderBottomWidth);
+  field.style.height=Math.max(44,field.scrollHeight+borders)+'px';
+ }
+ fields.forEach(fit);
+ stepObserver=new ResizeObserver(()=>{for(const field of fields)if(field.clientWidth&&widths.get(field)!==field.clientWidth)fit(field);});
+ stepObserver.observe(form);
+ form.addEventListener('input',event=>{if(event.target.matches('[data-step-input]'))fit(event.target);});
+ form.addEventListener('click',event=>{
+  const summary=event.target.closest('.recipe-step-options>summary');
+  for(const menu of form.querySelectorAll('.recipe-step-options[open]'))if(menu!==summary?.parentElement)menu.open=false;
+ });
+ form.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  const open=form.querySelector('.recipe-step-options[open]');if(!open)return;
+  event.preventDefault();event.stopPropagation();open.open=false;open.querySelector('summary').focus();
+ });
 }
 export function componentEditor(v,p,render){
  const {field,button,ingredientEditor}=render,{components,standalone,unassignedBaking}=recipeSections(v);

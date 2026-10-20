@@ -14,7 +14,7 @@ import {recipeLoadingMarkup} from './recipe-loading.js?v=approved-ux-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {prepareProductImage} from './product-image.js?v=approved-20261002-1';
 import * as model from './recipe-model.js?v=component-baking-20261020-1';
-import {componentEditor} from './recipe-component-editor.js?v=stage-names-20261021-1';
+import {componentEditor,mountCompactSteps,clearCompactSteps} from './recipe-component-editor.js?v=compact-steps-20261021-1';
 import {mountTestWorkspace} from './recipe-rd-workspace.js?v=approved-ux-1';
 import {ingredientPickerMarkup,mountIngredientPicker} from './recipe-ingredient-picker.js?v=linked-ingredients-20261021-1';
 import {addRecipePackaging,packagingEditor,packagingReferenceMarkup,packagingItems,packagingPhotos,packagingLegacyText,replacePackagingPhotos} from './recipe-packaging.js?v=linked-ingredients-20261021-1';
@@ -36,6 +36,7 @@ const readActions=new Set(['ingredient_yield_source','purge_preview','costing_se
 function invalidateLibrary(){state.libraryView=null;state.libraryStamp=null;}
 function clearFileUrls(){for(const file of state.fileUrls.values())if(file.url?.startsWith('blob:'))URL.revokeObjectURL(file.url);state.fileUrls.clear();}
 function clearPrivateView(){
+ clearCompactSteps();
  purchaseDraft.clear(state.userId);configureRecipeUnits();
  state.authEpoch=(state.authEpoch||0)+1;state.request++;state.resourceRequest++;invalidateLibrary();
  state.doc=null;state.record=null;state.testWorkspace=null;state.testDraftPhotos=[];state.tests=[];state.versions=[];state.resources=[];state.costOverviewData=null;clearFileUrls();state.selection.clear();state.filters={};state.costFilters={};state.categories=[];
@@ -121,6 +122,7 @@ function updateNavigation(){
  document.body.classList.toggle('recipe-staff-protected',state.role==='kitchen');
 }
 function shell(content,{tabs=true,heading='',retainFilters=false}={}) {
+ clearCompactSteps();
  const retained=retainFilters?root.querySelector('.recipe-filters'):null,active=retained?.contains(document.activeElement)?document.activeElement:null,caret=active?.selectionStart;
  ingredientPicker.close();
  const loading=content.includes('data-recipe-loading'),wasLoading=root.getAttribute('aria-busy')==='true';
@@ -294,7 +296,7 @@ function renderEditor(){
   mountTestWorkspace(root,w,{button});renderTestPhotos().catch(showError);
  }
  if(!state.testWorkspace)arrangeEditor(root,state,{api,onError:showError});
- hydratePhotos();ingredientPicker.hydrate();
+ mountCompactSteps(root);hydratePhotos();ingredientPicker.hydrate();
 }
 function ingredientEditor(p,gi,ri){
  const prefix=`${p}.groups.${gi}.ingredients.${ri}`,row=state.doc.variants[state.variant].groups[gi].ingredients[ri];
