@@ -15,6 +15,8 @@ export default async function({db,check}){
  const backup=(a,p={},user=owner)=>h.as(user,async()=>(await db.query('select public.recipe_backup_api($1,$2::jsonb) result',[a,JSON.stringify(p)])).rows[0].result);
  const supplier=await api('save_resource',{kind:'supplier',name:'Essential supplier',data:{}});
  const ingredient=await api('save_resource',{kind:'ingredient',name:'Sugar',data:{default_unit:'g'},price:{amount:'100',quantity:'1',unit:'kg',supplier_id:supplier.id}});
+ const syrup=await api('save_resource',{kind:'ingredient',name:'Sugar syrup',data:{default_unit:'g',yield_source:{ingredient_id:ingredient.id,source_quantity:'100',source_unit:'g',yield_quantity:'200',yield_unit:'g'}}});
+ const glaze=await api('save_resource',{kind:'ingredient',name:'Glaze from syrup',data:{default_unit:'g',yield_source:{ingredient_id:syrup.id,source_quantity:'100',source_unit:'g',yield_quantity:'80',yield_unit:'g'}}});
  const packaging=await api('save_resource',{kind:'packaging',name:'Box',data:{},price:{amount:'10',quantity:'1',unit:'pcs',supplier_id:supplier.id}});
  await api('save_resource',{kind:'equipment',name:'Excluded oven',data:{}});
  const bytes=new TextEncoder().encode('Essential linked file'),sha=digestBytes(bytes);
@@ -42,6 +44,16 @@ export default async function({db,check}){
  })();
  const require=createRequire(join(resolve(process.env.PGLITE_PACKAGE_ROOT),'package.json')),{PGlite}=require('@electric-sql/pglite'),{pgcrypto}=require('@electric-sql/pglite/contrib/pgcrypto');
  await check('essential archive restores to an isolated database with matching Final formulas and saved costs',async()=>{const isolated=new PGlite({extensions:{pgcrypto}});try{const report=await rehearseRecipeRestore(archive,{db:isolated});assert.equal(report.relationships,true);assert.equal(report.files,1);const version=(await isolated.query('select document,cost_snapshot from tlb.recipe_versions')).rows[0];assert.equal(version.document.variants[0].groups[0].ingredients[0].quantity,'500');assert.deepEqual(version.cost_snapshot,final.cost_snapshot);assert.equal(Number(version.cost_snapshot.variants[0].total),50);assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_audit')).rows[0].n,0);assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_tests')).rows[0].n,0);}finally{await isolated.close();}})();
+ await check('linked ingredient chains restore in dependency order and retain current source costing',async()=>{
+  const isolated=new PGlite({extensions:{pgcrypto}});
+  try{
+   const snapshot=structuredClone(recovered);
+   snapshot.tables.recipe_resources.sort((a,b)=>Number(b.id===glaze.id)-Number(a.id===glaze.id));
+   assert.equal((await rehearseRecipeRestore(snapshot,{db:isolated})).relationships,true);
+   const row=(await isolated.query('select * from tlb.recipe_current_price($1)',[glaze.id])).rows[0];
+   assert.equal(Number(row.amount),7.5);assert.equal(Number(row.quantity),80);assert.equal(row.unit,'g');
+  }finally{await isolated.close();}
+ })();
  await check('older complete archives still verify and restore without changing staff access defaults',async()=>{
   const tables=Object.fromEntries(RECIPE_BACKUP_TABLES.map(t=>[t,recovered.tables[t]||[]])),legacyStart={...start,scope:'full',tables:RECIPE_BACKUP_TABLES,file_count:1,record_count:Object.values(tables).reduce((n,r)=>n+r.length,0)};
   const dispatch=async(action,p)=>action==='progress'?{}:{rows:p.after?[]:tables[p.table].map((data,i)=>({sequence:i+1,data}))};const chunks=[];for await(const chunk of buildRecipeArchive(legacyStart,dispatch,async()=>bytes))chunks.push(chunk);const legacy=new Blob(chunks);assert.equal((await readRecipeArchive(legacy)).manifest.schema_version,1);const isolated=new PGlite({extensions:{pgcrypto}});try{assert.equal((await rehearseRecipeRestore(legacy,{db:isolated})).relationships,true);assert.equal((await isolated.query('select count(*)::int n from tlb.recipe_staff_controls')).rows[0].n,0);}finally{await isolated.close();}

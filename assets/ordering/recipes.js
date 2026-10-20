@@ -1,3 +1,4 @@
+import {mountLinkedIngredient} from './recipe-linked-ingredient.js?v=linked-ingredients-20261021-1';
 import {mountUnitConversions} from './recipe-unit-conversions.js?v=kitchen-controls-20261021-1';
 import {costingEditor,costSummaryMarkup,openCosting,costingOverviewMarkup,costingOverviewRows} from './recipe-costing.js?v=kitchen-controls-20261021-1';
 import {recipeStatuses,recipeStatus,recipeStatusLabel} from './recipe-status.js?v=approved-ux-1';
@@ -8,15 +9,15 @@ import {ready,auth,recipeApi as callRecipeApi,uploadRecipeFile,recipeFileUrl} fr
 import {mountSupplierQuotes} from './recipe-suppliers.js?v=kitchen-controls-20261021-1';
 import {recipeUnits,configureRecipeUnits,unitOptions,unitOptionsMarkup} from './recipe-units.js?v=teaspoon-fractions-20261019-1';
 import {allRecipeSuppliers} from './recipe-catalog.js?v=approved-20261002-1';
-import {resourceTableMarkup,sortResourceRows} from './recipe-resource-table.js?v=refinement-20261002-1';
+import {resourceTableMarkup,sortResourceRows} from './recipe-resource-table.js?v=linked-ingredients-20261021-1';
 import {recipeLoadingMarkup} from './recipe-loading.js?v=approved-ux-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
 import {prepareProductImage} from './product-image.js?v=approved-20261002-1';
 import * as model from './recipe-model.js?v=component-baking-20261020-1';
 import {componentEditor} from './recipe-component-editor.js?v=stage-names-20261021-1';
 import {mountTestWorkspace} from './recipe-rd-workspace.js?v=approved-ux-1';
-import {ingredientPickerMarkup,mountIngredientPicker} from './recipe-ingredient-picker.js?v=teaspoon-fractions-20261019-1';
-import {addRecipePackaging,packagingEditor,packagingReferenceMarkup,packagingItems,packagingPhotos,packagingLegacyText,replacePackagingPhotos} from './recipe-packaging.js?v=kitchen-controls-20261021-1';
+import {ingredientPickerMarkup,mountIngredientPicker} from './recipe-ingredient-picker.js?v=linked-ingredients-20261021-1';
+import {addRecipePackaging,packagingEditor,packagingReferenceMarkup,packagingItems,packagingPhotos,packagingLegacyText,replacePackagingPhotos} from './recipe-packaging.js?v=linked-ingredients-20261021-1';
 import {quantity,exact,formatQuantity,scaleFactor,scaleIngredients,displayQuantity,ingredientTotals,multiply,scaledYield,componentPlan,scalingOptions,initialScale} from './recipe-math.js?v=kitchen-controls-20261021-1';
 
 import {arrangeEditor,arrangeReader,arrangeCosting,currentCostMarkup,allowanceMarkup,fillLibraryCosts} from './recipe-refinement.js?v=refinement-20261002-1';
@@ -31,7 +32,7 @@ const state={role:null,categories:[],settings:{},tab:'library',rd:new URLSearchP
  filters:{},offset:0,limit:24,selection:new Set(),record:null,doc:null,variant:0,editing:false,dirty:false,draftId:null,
  scale:{mode:'multiplier',target:'1',rounding:'exact',step:'1'},wholeComponents:false,fileUrls:new Map(),resources:[],request:0};
 let noticeTimer,autosaveTimer,draggedRow,pendingAutosave=Promise.resolve();
-const readActions=new Set(['purge_preview','costing_settings','recipe_units','library_costs','purchase_preview','bootstrap','list','get','resources','prices','versions','tests','drafts','access','runs','costing','cost_preview','costing_overview','component_plan','export','export_data','access_check','staff_overview','staff_activity','scale','export_authorize','client_security_event']);
+const readActions=new Set(['ingredient_yield_source','purge_preview','costing_settings','recipe_units','library_costs','purchase_preview','bootstrap','list','get','resources','prices','versions','tests','drafts','access','runs','costing','cost_preview','costing_overview','component_plan','export','export_data','access_check','staff_overview','staff_activity','scale','export_authorize','client_security_event']);
 function invalidateLibrary(){state.libraryView=null;state.libraryStamp=null;}
 function clearFileUrls(){for(const file of state.fileUrls.values())if(file.url?.startsWith('blob:'))URL.revokeObjectURL(file.url);state.fileUrls.clear();}
 function clearPrivateView(){
@@ -435,11 +436,16 @@ async function resourceEditor(record=null){
  kind==='ingredient'?[['Default unit','default_unit'],['Brand','brand'],['Category','category'],['Allergens · comma separated','allergens']]:
  kind==='packaging'?[['Packaging type','type'],['Dimensions','dimensions'],['Default unit','default_unit'],['Minimum order quantity','minimum_order_quantity'],['Product associations','product_associations']]:[['Equipment type','type']];
  setDialog(`${record?'Edit':'Add'} ${kind}`,`<form id="recipe-resource-form"><div class="recipe-fields two">${input('Name','name',record?.name||'')}${fields.map(([label,key])=>input(label,key,Array.isArray(data[key])?data[key].join(', '):data[key]||'')).join('')}<label class="wide">Notes<textarea name="notes">${esc(data.notes)}</textarea></label></div>
-  ${kind==='ingredient'?'<section class="recipe-form-section" data-unit-equivalents></section>':''}
+  ${kind==='ingredient'?'<section class="recipe-form-section" data-linked-ingredient></section><section class="recipe-form-section" data-unit-equivalents></section>':''}
   ${kind==='packaging'?'<section class="recipe-form-section"><h3>Packaging photos · optional</h3><p class="recipe-muted">Add a photo of the box, bag or other packaging. Photos are private and included in recipe backups.</p><label>Add packaging photo<input data-resource-photo type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"></label><p data-resource-photo-status role="status"></p><div class="recipe-photos" data-resource-photos></div></section>':''}
-  ${['ingredient','packaging'].includes(kind)?`<h3 class="recipe-form-section">Suppliers & purchase prices · optional</h3><p class="recipe-muted">Keep alternative suppliers and compare pack prices. Automatic costing uses the highest comparable unit cost, unless you choose a preferred supplier. All linked recipes use updated prices automatically. Historical snapshots retain the prices recorded at the time.</p><div data-supplier-editor></div>${record?button('Price history','price-history',`data-id="${record.id}"`):''}`:''}  <label class="recipe-inline-check"><input name="active" type="checkbox" ${record?.active!==false?'checked':''}>Active</label><div class="recipe-actions"><button class="primary" type="submit">Save ${kind}</button>${record&&isOwner()?button('Delete','delete-resource',`data-id="${record.id}"`,'danger'):''}</div></form>`);
+  ${['ingredient','packaging'].includes(kind)?`<section data-purchase-prices><h3 class="recipe-form-section">Suppliers & purchase prices · optional</h3><p class="recipe-muted">Keep alternative suppliers and compare pack prices. Automatic costing uses the highest comparable unit cost, unless you choose a preferred supplier. All linked recipes use updated prices automatically. Historical snapshots retain the prices recorded at the time.</p><div data-supplier-editor></div>${record?button('Price history','price-history',`data-id="${record.id}"`):''}</section>`:''}  <label class="recipe-inline-check"><input name="active" type="checkbox" ${record?.active!==false?'checked':''}>Active</label><div class="recipe-actions"><button class="primary" type="submit">Save ${kind}</button>${record&&isOwner()?button('Delete','delete-resource',`data-id="${record.id}"`,'danger'):''}</div></form>`);
  state.resourceConversions=dialogBody.querySelector('[data-unit-equivalents]')?mountUnitConversions(dialogBody.querySelector('[data-unit-equivalents]'),data.unit_conversions||{}):null;
- state.resourceQuotes=dialogBody.querySelector('[data-supplier-editor]')?mountSupplierQuotes(dialogBody.querySelector('[data-supplier-editor]'),{record,suppliers,defaultUnit:data.default_unit||(kind==='packaging'?'pc':'g'),getConversions:()=>state.resourceConversions?.read()||data.unit_conversions||{}}):null;
+ state.resourceQuotes=dialogBody.querySelector('[data-supplier-editor]')?mountSupplierQuotes(dialogBody.querySelector('[data-supplier-editor]'),{record:data.yield_source?{...record,price:record.unassigned_price||null}:record,suppliers,defaultUnit:data.default_unit||(kind==='packaging'?'pc':'g'),getConversions:()=>state.resourceConversions?.read()||data.unit_conversions||{}}):null;
+ state.resourceYield=kind==='ingredient'?mountLinkedIngredient(dialogBody.querySelector('[data-linked-ingredient]'),{record,api,onMode:linked=>{
+  const purchase=dialogBody.querySelector('[data-purchase-prices]'),unit=dialogBody.querySelector('[name=default_unit]');
+  purchase.hidden=linked;for(const control of purchase.querySelectorAll('input,select,textarea,button')){if(linked){control.dataset.yieldDisabled=String(control.disabled);control.disabled=true;}else if(control.dataset.yieldDisabled!==undefined){control.disabled=control.dataset.yieldDisabled==='true';delete control.dataset.yieldDisabled;}}
+  unit.disabled=linked;unit.closest('label').hidden=linked;
+ }}):null;
  await renderResourcePhotos();
 }
 async function renderResourcePhotos(){
@@ -634,6 +640,7 @@ async function action(name,a={}){
  else if(name==='link-packaging-cost'){setDialog('Choose packaging','<label>Search packaging<input type="search" data-packaging-search placeholder="Box, board, size…"></label><div data-packaging-results></div>');await findPackaging('');return;}
  else if(name==='choose-packaging-cost'){const r=state.packagingChoices.find(r=>r.id===a.id);if(!r)throw Error('Choose a packaging item from the current results.');const selected=addRecipePackaging(v,r);closeDialog();if(selected.added)markDirty();renderEditor();root.querySelector(`[data-path="variants.${state.variant}.additional_costs.${selected.index}.quantity"]`)?.focus();if(!selected.added)notify('This packaging is already included. Adjust its quantity here.');return;}
  else if(name==='remove-cost'){v.additional_costs.splice(Number(a.index),1);}
+ else if(name==='remove-packaging-reference'){for(const key of ['description','dimensions','box','board'])delete v.packaging[key];}
  else if(name==='reset-packaging-photo')replacePackagingPhotos(state.doc,v,[]);
  else if(name==='remove-component'){if(!await confirmDialog('Remove this component link from the working draft?',{confirmLabel:'Remove component',danger:true}))return;v.components.splice(Number(a.index),1);}
  else if(name==='remove-photo'){
@@ -806,9 +813,11 @@ dialogBody.addEventListener('submit',async event=>{
    const record=state.resourceEditing,data={...(record?.data||{})};for(const [key,value]of Object.entries(f))if(!['name','active','supplier_id','preferred_supplier_id'].includes(key)&&!key.startsWith('price_'))data[key]=key==='allergens'?value.split(',').map(s=>s.trim()).filter(Boolean):value;
    if(state.tab==='packaging')data.photos=state.resourcePhotos;
    if(state.resourceConversions)data.unit_conversions=state.resourceConversions.read();
+   const yieldSource=state.resourceYield?.read();
+   if(yieldSource){data.yield_source=yieldSource;data.default_unit=yieldSource.yield_unit;}else delete data.yield_source;
    const payload={id:record?.id,revision:record?.revision,kind:state.tab,name:f.name,data,active:f.active==='on'};
-   if(state.resourceQuotes){const quotes=state.resourceQuotes.read();payload.suppliers=quotes.suppliers;data.supplier_id=quotes.suppliers[0]?.supplier_id||null;data.preferred_supplier_id=quotes.preferred_supplier_id;}
-   await api('save_resource',payload);closeDialog();await resources(state.tab);notify('Record saved.');
+   if(state.resourceQuotes&&!yieldSource){const quotes=state.resourceQuotes.read();payload.suppliers=quotes.suppliers;data.supplier_id=quotes.suppliers[0]?.supplier_id||null;data.preferred_supplier_id=quotes.preferred_supplier_id;}
+   await api('save_resource',payload);ingredientPicker.clear();closeDialog();await resources(state.tab);notify('Record saved.');
   }else if(form.id==='recipe-category-form'){await api('save_category',{id:state.categoryEditing.id,revision:state.categoryEditing.revision,...f,active:f.active==='on'});state.categories=(await api('bootstrap')).categories;closeDialog();await categories();}
   else if(form.id==='recipe-test-form'){const t=state.testEditing;await api('save_test',{id:t?.id,revision:t?.revision,recipe_id:state.record.id,version_id:t?.version_id||state.record.version_id,data:{...(t?.data||{}),...f,photos:state.testDraftPhotos},proposed_document:t?.proposed_document||state.record.document});await tests();notify('Test log saved.');}
   else if(form.id==='recipe-run-form'){await api('record_run',{...f,scaling_mode:state.scale.mode,version_id:state.record.version_id,variant_id:state.doc.variants[state.variant].id,multiplier:exact(scaleFactor(state.doc.variants[state.variant].yield,state.scale.mode,state.scale.target))});await productionHistory();notify('Production quantity recorded.');}
