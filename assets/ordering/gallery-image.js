@@ -12,8 +12,9 @@ async function decode(blob) {
   } finally { URL.revokeObjectURL(url); }
 }
 
-async function convertGalleryImage(file, { format = 'webp', maxDimension = 1600, maxBytes = 5 * 1024 * 1024, quality = format === 'jpeg' ? 0.86 : 0.82 } = {}) {
+async function convertGalleryImage(file, { format = 'webp', fallbackFormat, maxDimension = 1600, maxBytes = 5 * 1024 * 1024, quality = format === 'jpeg' ? 0.86 : 0.82 } = {}) {
   if (!['webp', 'jpeg'].includes(format)) throw new Error('Choose a supported image format.');
+  if (fallbackFormat !== undefined && fallbackFormat !== 'png') throw new Error('Choose a supported fallback image format.');
   if (!file?.size) throw new Error('Choose an image.');
   if (file.size > 25 * 1024 * 1024) throw new Error('Choose an image up to 25 MB.');
   if (!/\.(jpe?g|png|webp|avif|gif|bmp|heic|heif)$/i.test(file.name) && !/^image\/(jpeg|png|webp|avif|gif|bmp|heic|heif)$/.test(file.type)) {
@@ -45,11 +46,17 @@ async function convertGalleryImage(file, { format = 'webp', maxDimension = 1600,
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const mime = `image/${format}`, extension = format === 'jpeg' ? 'jpg' : 'webp';
+    let mime = `image/${format}`, extension = format === 'jpeg' ? 'jpg' : 'webp';
     let blob;
     for (let attempt = 0; attempt < 6; attempt++) {
       blob = await new Promise(resolve => canvas.toBlob(resolve, mime, quality));
-      if (!blob || blob.type !== mime) throw new Error(`Your browser cannot create ${format === 'jpeg' ? 'JPEG' : 'WebP'} images. Try a current Chrome, Edge, or Firefox browser.`);
+      if ((!blob || blob.type !== mime) && format === 'webp' && fallbackFormat === 'png') {
+        // Safari may return PNG when asked for WebP. Keep its real type and
+        // transparency, and apply the same size limit and resize attempts.
+        mime = 'image/png'; extension = 'png';
+        if (blob?.type !== mime) blob = await new Promise(resolve => canvas.toBlob(resolve, mime));
+      }
+      if (!blob || blob.type !== mime) throw new Error(fallbackFormat ? 'This photo could not be prepared. Try another image file.' : `Your browser cannot create ${format === 'jpeg' ? 'JPEG' : 'WebP'} images. Try a current Chrome, Edge, or Firefox browser.`);
       if (blob.size <= maxBytes) break;
       canvas.width = Math.max(1, Math.round(canvas.width * .8));
       canvas.height = Math.max(1, Math.round(canvas.height * .8));

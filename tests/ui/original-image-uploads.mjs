@@ -43,18 +43,18 @@ try{
  const png=Buffer.from(files[0],'base64'),jpeg=Buffer.from(files[1],'base64');
  await check('Browser runtime is active and native encoder behavior is recorded',async()=>{const type=await page.evaluate(()=>new Promise(resolve=>document.createElement('canvas').toBlob(b=>resolve(b?.type),'image/webp')));console.log('Native WebP result:',type);assert(type==='image/webp'||type==='image/png');});
  // Exercise failure regardless of platform updates to native WebP support.
- await page.evaluate(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(callback,type,quality){return original.call(this,callback,type==='image/webp'?'image/png':type,quality);};});
+ await page.evaluate(()=>{const original=HTMLCanvasElement.prototype.toBlob;window.photoEncodes=[];HTMLCanvasElement.prototype.toBlob=function(callback,type,quality){window.photoEncodes.push(type);if(type==='image/webp'&&window.webpReturnsNull){callback(null);return;}return original.call(this,callback,type==='image/webp'?'image/png':type,quality);};});
  await check('Pending photo locks implicit submit, editor actions and closing; draft edits survive',async()=>{
   let start,release;const started=new Promise(r=>start=r);hold={started:start,promise:new Promise(r=>release=r)};
   await page.locator('[name=description]').fill('Original photo fallback draft');await page.locator('#product-photos').setInputFiles({name:'phone.png',mimeType:'image/png',buffer:png});await started;
   assert(await page.locator('[data-form=product] [type=submit]').isDisabled());assert(await page.locator('[data-action=add-group]').isDisabled());assert(await page.locator('#dialog-close').isDisabled());
   await page.evaluate(()=>document.querySelector('[data-form=product]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));assert.equal(saves,0);
   await page.locator('[name=description]').fill('Draft changed during upload');release();await page.waitForFunction(()=>document.querySelectorAll('.photo-tile').length===1||document.querySelector('#product-photo-status')?.textContent.includes('was not uploaded'));assert.equal(await page.locator('#product-photo-status').innerText(),'');assert.equal(await page.locator('[name=description]').inputValue(),'Draft changed during upload');
-  assert.equal(uploads[0].mime,'image/png');assert.deepEqual(uploads[0].bytes,png);
+  assert.equal(uploads[0].mime,'image/png');assert.equal(uploads[0].width,360);assert.equal(uploads[0].height,240);
  });
- await check('PNG, JPEG and real HEIC originals reach storage byte-for-byte with correct types and extensions',async()=>{
+ await check('PNG, JPEG and real HEIC photos upload with correctly named PNG fallback when WebP encoding is unavailable',async()=>{
   await page.locator('#product-photos').setInputFiles([{name:'phone.jpeg',mimeType:'image/jpeg',buffer:jpeg},{name:'phone.HEIC',mimeType:'application/octet-stream',buffer:heic}]);await page.waitForFunction(()=>document.querySelectorAll('.photo-tile').length===3,null,{timeout:90000});
-  assert.deepEqual(uploads.map(x=>x.mime),['image/png','image/jpeg','image/heic']);assert.deepEqual(uploads[1].bytes,jpeg);assert.deepEqual(uploads[2].bytes,heic);
+  assert.deepEqual(uploads.map(x=>x.mime),['image/png','image/png','image/png']);assert(uploads.every(x=>x.width<=1600&&x.height<=1600&&x.bytes.length<=5*1024*1024));
   await page.waitForFunction(()=>Array.from(document.querySelectorAll('.photo-tile img')).every(img=>img.complete&&img.naturalWidth>0),null,{timeout:90000});
  });
  await check('Network failure is visible beside photos and cannot silently save; retry succeeds',async()=>{
@@ -69,6 +69,37 @@ try{
  });
  await check('Corrupt and renamed image files are still rejected and can be explicitly skipped',async()=>{
   await page.locator('#product-photos').setInputFiles({name:'bad.heic',mimeType:'image/heic',buffer:Buffer.from('<svg/>')});await page.locator('#product-photo-status').filter({hasText:/was not uploaded/}).waitFor({timeout:30000});assert.equal(uploads.length,4);await page.getByRole('button',{name:'Continue without the failed photo',exact:true}).click();assert.equal(await page.locator('#product-photo-status').innerText(),'');
+ });
+ await check('Mobile JPEG with trailing data is normalized, uploaded once, saved and reopened without relying on original-file fallback',async()=>{
+  // Browsers decode this JPEG, but the original-byte validator rejects it.
+  const attached=Buffer.concat([jpeg,Buffer.from([0,0])]);assert.throws(()=>inspectImage(attached));
+  await page.evaluate(()=>{const original=HTMLCanvasElement.prototype.toBlob;window.photoEncodes=[];HTMLCanvasElement.prototype.toBlob=function(callback,type,quality){window.photoEncodes.push(type);if(type==='image/webp'&&window.webpReturnsNull){callback(null);return;}return original.call(this,callback,type==='image/webp'?'image/png':type,quality);};});
+  await page.locator('#product-photos').setInputFiles({name:'attachment.jpeg',mimeType:'image/jpeg',buffer:attached});
+  await page.waitForFunction(()=>document.querySelectorAll('.photo-tile').length===5);
+  assert.equal(await page.locator('#product-photo-status').innerText(),'');assert.equal(uploads.length,5);assert.equal(uploads[4].mime,'image/png');
+  assert.deepEqual(await page.evaluate(()=>window.photoEncodes),['image/webp'],'Prepared fallback is not converted again by the upload client');
+  await page.locator('[data-form=product] [type=submit]').click();await page.waitForFunction(()=>!document.querySelector('#admin-dialog').open);
+  await page.reload();await selectDashboardSection(page,'products');await page.locator(`[data-action=edit-product][data-id="${product.id}"]`).click();assert.equal(await page.locator('.photo-tile').count(),5);
+  await page.waitForFunction(()=>Array.from(document.querySelectorAll('.photo-tile img')).every(img=>img.complete&&img.naturalWidth>0));
+  await page.locator('#product-photo-order').screenshot({path:out+'/mobile-png-fallback.png'});
+ });
+ await check('Null WebP output falls back to PNG with transparency and size limits; unavailable canvas still preserves valid originals',async()=>{
+  const result=await page.evaluate(async()=>{
+   const {prepareProductImage}=await import('/assets/ordering/product-image.js?v=mobile-product-photos-20261022-1');
+   const canvas=document.createElement('canvas');canvas.width=2000;canvas.height=1000;canvas.getContext('2d').fillRect(0,0,500,1000);
+   const original=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+   const encode=HTMLCanvasElement.prototype.toBlob;
+   HTMLCanvasElement.prototype.toBlob=function(callback,type,quality){if(type==='image/webp'){callback(null);return;}return encode.call(this,callback,type,quality);};
+   const file=await prepareProductImage(new File([original],'transparent.png',{type:'image/png'}));
+   const bitmap=await createImageBitmap(file),preview=document.createElement('canvas');preview.width=bitmap.width;preview.height=bitmap.height;const ctx=preview.getContext('2d');ctx.drawImage(bitmap,0,0);
+   const alpha=ctx.getImageData(bitmap.width-1,0,1,1).data[3];bitmap.close();
+   const context=HTMLCanvasElement.prototype.getContext;
+   HTMLCanvasElement.prototype.getContext=function(){return null;};
+   let preserved;
+   try{preserved=await prepareProductImage(new File([original],'original.png',{type:'image/png'}));}finally{HTMLCanvasElement.prototype.getContext=context;HTMLCanvasElement.prototype.toBlob=encode;}
+   return {mime:file.type,name:file.name,size:file.size,width:preview.width,height:preview.height,alpha,originalPreserved:await preserved.text()===await original.text()};
+  });
+  assert.equal(result.mime,'image/png');assert.match(result.name,/\.png$/);assert.equal(result.width,1600);assert.equal(result.height,800);assert.equal(result.alpha,0);assert(result.size<=5*1024*1024);assert.equal(result.originalPreserved,true);
  });
  await check('HEIC payment receipt keeps its private order-owned path and authorized proof status',async()=>{
   await page.evaluate(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(callback,type,quality){return original.call(this,callback,type==='image/webp'?'image/png':type,quality);};});
