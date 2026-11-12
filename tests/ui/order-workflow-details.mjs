@@ -121,20 +121,31 @@ try {
   await selectDashboardSection(staff, 'orders');
   await staff.locator(`[data-action="open-order"][data-id="${first.id}"]`).click();
   const linkSection = staff.locator('[data-direct-order-link]');
-  await linkSection.getByRole('button', { name:'Copy link' }).click();
-  const privateLink = await linkSection.getByRole('textbox', { name:'Private order link' }).inputValue();
+  const copyLink = linkSection.getByRole('button', { name:'Copy link' });
+  const linkInput = linkSection.getByRole('textbox', { name:'Private order link' });
+  await copyLink.waitFor();
+  await staff.waitForFunction(() => document.activeElement?.id === 'order-dialog-summary');
+  assert.ok(await linkSection.evaluate(section =>
+    section.previousElementSibling?.matches('.order-total') &&
+    section.nextElementSibling?.matches('[data-order-photos]')
+  ));
+  for (const width of [320,390,1440]) {
+    await staff.setViewportSize({ width, height:844 });
+    const [field, button] = await Promise.all([linkInput.boundingBox(), copyLink.boundingBox()]);
+    assert.ok(field.x + field.width <= button.x && Math.abs(field.y - button.y) <= 1);
+    assert.ok(await linkSection.evaluate(section => section.scrollWidth <= section.clientWidth + 1));
+  }
+  await staff.setViewportSize({ width:390, height:844 });
+  await copyLink.click();
+  const privateLink = await linkInput.inputValue();
   const customerUrl = new URL(privateLink);
   const customerParams = new URLSearchParams(customerUrl.hash.slice(1));
   assert.ok(customerUrl.pathname.endsWith('/shop.html'));
   assert.equal(customerParams.get('order'),first.id);
   assert.equal(customerParams.get('token'),first.access_token);
   await linkSection.getByText('Link copied.').waitFor();
+  await linkSection.getByRole('button', { name:'Copied' }).waitFor();
   assert.equal(await staff.evaluate(() => window.copiedDirectOrderLink),privateLink);
-  for (const width of [390,1440]) {
-    await staff.setViewportSize({ width, height:844 });
-    assert.ok(await linkSection.evaluate(section => section.scrollWidth <= section.clientWidth + 1));
-  }
-  await staff.setViewportSize({ width:390, height:844 });
   console.log('PASS The direct order details show and copy the matching customer link on mobile and desktop.');
   const picker = staff.locator('[data-attach-photos]');
   await staff.locator('[data-photo-status]').filter({hasText:'No photos attached yet.'}).waitFor();
@@ -177,6 +188,13 @@ try {
     return form;
   }
   let form = await openPrivateOrder(first);
+  await guest.setViewportSize({ width:1440, height:844 });
+  const [optIn, saveEmail] = await Promise.all([
+    form.locator('.order-email-opt-in').boundingBox(),
+    form.getByRole('button', { name:'Save email for order updates' }).boundingBox(),
+  ]);
+  assert.ok(optIn.x + optIn.width <= saveEmail.x && Math.abs(optIn.y - saveEmail.y) <= 1);
+  await guest.setViewportSize({ width:390, height:844 });
   await form.locator('[name=email]').fill('order-only@example.test');
   await form.getByRole('button',{name:'Save email for order updates'}).click();
   await form.getByText('Order updates will go to order-only@example.test.').waitFor();
@@ -190,7 +208,8 @@ try {
 
   form = await openPrivateOrder(second);
   await form.locator('[name=email]').fill('newsletter@example.test');
-  await form.locator('[name=newsletter]').check();
+  await form.getByText('Also join the TLB newsletter for new treats and offers', { exact:true }).click();
+  assert.equal(await form.locator('[name=newsletter]').isChecked(),true);
   await form.getByRole('button',{name:'Save email for order updates'}).click();
   await form.getByText(/Order updates will go to newsletter@example.test.*Newsletter signup could not be completed/).waitFor();
   await form.getByRole('button',{name:'Retry newsletter signup'}).click();

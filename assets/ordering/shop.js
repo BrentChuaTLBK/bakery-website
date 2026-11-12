@@ -1,4 +1,4 @@
-import { orderEmailMarkup, bindOrderEmail } from './order-email.js?v=order-workflow-20261113';
+import { orderEmailMarkup, bindOrderEmail } from './order-email.js?v=order-email-layout-20261113';
 import {shopFeatureMarkup} from './website-content.js?v=brand-20261001';
 import {paymentProofAllowed,deliveryProofAllowed,paymentDue,deliveryStatusText} from './pos.js?v=maintenance-1';
 import {renderPaymentOptions,bindPaymentOptions} from './payment-options.js?v=payment-options-1';
