@@ -68,3 +68,37 @@
 .order-reference-row h1{min-width:0;overflow-wrap:anywhere}
 .order-copy-button{min-height:44px;font-size:12px;padding:10px 14px;white-space:nowrap}
 .shop-hero .hero-stamp{max-width:calc(100% - 44px);overflow-wrap:anywhere}
+
+.order-email-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.order-email-actions > .button { min-height: 44px; }
+.order-email-opt-in {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #faf5ed;
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.order-email-opt-in input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--brown);
+  cursor: inherit;
+}
+.order-email-opt-in input:focus-visible {
+  outline: 2px solid var(--brown);
+  outline-offset: 3px;
+}

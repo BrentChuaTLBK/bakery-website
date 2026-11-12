@@ -3,15 +3,16 @@ export function orderEmailMarkup(order, token) {
   return `<section class="panel order-section no-print" aria-labelledby="order-email-title">
     <h2 id="order-email-title">Get email updates for this order</h2>
     <form id="order-email-form">
-      <div data-order-email-fields>
-        <label class="field">Email address
-          <input name="email" type="email" maxlength="254" autocomplete="email" required>
-        </label>
-        <label class="check-field"><input name="newsletter" type="checkbox">
+      <label class="field" data-order-email-field>Email address
+        <input name="email" type="email" maxlength="254" autocomplete="email" required>
+      </label>
+      <div class="order-email-actions">
+        <label class="order-email-opt-in" data-order-email-field>
+          <input name="newsletter" type="checkbox">
           <span>Also join the TLB newsletter for new treats and offers</span>
         </label>
+        <button type="submit" class="button">Save email for order updates</button>
       </div>
-      <button type="submit" class="button">Save email for order updates</button>
       <p class="help-text" role="status"></p>
     </form>
   </section>`;
@@ -19,8 +20,8 @@ export function orderEmailMarkup(order, token) {
 
 export function bindOrderEmail(form, { save, subscribe }) {
   if (!form) return;
-  const fields = form.querySelector('[data-order-email-fields]');
-  const inputs = fields.querySelectorAll('input');
+  const fields = form.querySelectorAll('[data-order-email-field]');
+  const inputs = form.querySelectorAll('[data-order-email-field] input');
   const button = form.querySelector('button');
   const status = form.querySelector('[role="status"]');
   let savedEmail = '', pending = false;
@@ -37,7 +38,7 @@ export function bindOrderEmail(form, { save, subscribe }) {
       if (!savedEmail) {
         const result = await save(form.elements.email.value.trim());
         savedEmail = result.email;
-        fields.hidden = true;
+        for (const field of fields) field.hidden = true;
       }
       if (wantsNewsletter) await subscribe(savedEmail);
       status.textContent = `Order updates will go to ${savedEmail}.${wantsNewsletter ? ' You’re subscribed to the TLB newsletter.' : ''}`;
