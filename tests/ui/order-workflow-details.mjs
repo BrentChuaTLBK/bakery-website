@@ -112,9 +112,30 @@ try {
   };
   const first = await create('Reference photo client'), second = await create('Newsletter client');
   const staff = await browserPage(h.ids.owner);
+  await staff.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: async link => { window.copiedDirectOrderLink = link; } },
+    });
+  });
   await staff.goto(origin + '/manage.html');
   await selectDashboardSection(staff, 'orders');
   await staff.locator(`[data-action="open-order"][data-id="${first.id}"]`).click();
+  const linkSection = staff.locator('[data-direct-order-link]');
+  await linkSection.getByRole('button', { name:'Copy link' }).click();
+  const privateLink = await linkSection.getByRole('textbox', { name:'Private order link' }).inputValue();
+  const customerUrl = new URL(privateLink);
+  const customerParams = new URLSearchParams(customerUrl.hash.slice(1));
+  assert.ok(customerUrl.pathname.endsWith('/shop.html'));
+  assert.equal(customerParams.get('order'),first.id);
+  assert.equal(customerParams.get('token'),first.access_token);
+  await linkSection.getByText('Link copied.').waitFor();
+  assert.equal(await staff.evaluate(() => window.copiedDirectOrderLink),privateLink);
+  for (const width of [390,1440]) {
+    await staff.setViewportSize({ width, height:844 });
+    assert.ok(await linkSection.evaluate(section => section.scrollWidth <= section.clientWidth + 1));
+  }
+  await staff.setViewportSize({ width:390, height:844 });
+  console.log('PASS The direct order details show and copy the matching customer link on mobile and desktop.');
   const picker = staff.locator('[data-attach-photos]');
   await staff.locator('[data-photo-status]').filter({hasText:'No photos attached yet.'}).waitFor();
   const photo = await staff.evaluate(() => {
