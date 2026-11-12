@@ -41,7 +41,7 @@ import { mountPartyPackageManager } from './party-package-manager.js?v=brand-202
 import { mountOrderPhotos, orderPhotosMarkup } from './order-photos.js?v=order-workflow-20261113';
 import {mountCalendar} from './calendar-manager.js?v=order-workflow-20261113';
 import {mountProduction} from './production-manager.js?v=production-summary-20261015';
-import {mountPOS} from './pos-manager.js?v=order-workflow-20261113';
+import {mountPOS} from './pos-manager.js?v=pos-quantity-layout-20261113';
 import {salesSource,deliveryStatusText} from './pos.js?v=pos-1';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
