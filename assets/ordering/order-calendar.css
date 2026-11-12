@@ -7,3 +7,4 @@
 #order-calendar-manager .calendar-order.is-completed{border-left-color:#8a847c}
 
 .calendar-amount{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-top:1px solid #e6dacc;padding-top:12px;margin:12px 0 0;font-size:.9rem}.calendar-amount strong{font-size:1.05rem;white-space:nowrap}
+.calendar-instructions{white-space:pre-wrap;overflow-wrap:anywhere}

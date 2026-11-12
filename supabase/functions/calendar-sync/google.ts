@@ -37,7 +37,7 @@ export function calendarDescription(order:any){
  const amount=Number.isSafeInteger(order.total_cents)&&order.total_cents>=0?new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(order.total_cents/100):'Not recorded';
  return [`Customer name: ${customer}`,`Phone number: ${contact||'Not provided'}`,`Social media: ${social}`,`Order ID: ${clean(order.reference,80)}`,
   ...(delivery?[...(name(order)!==customer?[`Recipient: ${name(order)}`]:[]),...(phone(order)&&phone(order)!==contact?[`Recipient phone: ${phone(order)}`]:[]),`Delivery address: ${address||'Not provided'}`]:[]),
-  '', 'Order details:',...items,'',`Amount: ${amount}`,...(delivery&&order.instructions?['',`Delivery instructions: ${clean(order.instructions)}`]:[])].join('\n');
+  '', 'Order details:',...items,'',`Amount: ${amount}`,...(clean(order.instructions).trim()?['','Order notes:',clean(order.instructions).trim()]:[])].join('\n');
 }
 export function eventBody(order:any,eventId:string) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(order?.date)||!['pickup','delivery'].includes(order.method))throw new CalendarError('configuration');
@@ -47,8 +47,10 @@ export function eventBody(order:any,eventId:string) {
   const completed=order.status==='completed',delivery=order.method==='delivery',area=clean(order.address?.locality,100)||'Area not recorded';
   const address=delivery?[order.address?.line1,order.address?.line2,order.address?.locality,order.address?.postal_code].filter(Boolean).map(v=>clean(v)).join(', '):'';
   const url=`https://thelittlebakerkitchen.com/manage.html#calendar?date=${order.date}&order=${encodeURIComponent(order.id)}`;
+  const photoLink = /^[0-9a-f]{64}$/.test(order.photo_share || '')
+    ? `\n\n<a href="https://thelittlebakerkitchen.com/order-photos.html#photos=${order.photo_share}">View order photos</a>` : '';
   return {id:eventId,summary:`${completed?'✓ Completed · ':''}${delivery?`Delivery · ${area}`:'Pickup'} · ${clean(order.reference,80)} · ${name(order)}`.slice(0,500),
-    description:calendarDescription(order).split('\n').map(html).join('\n'),location:address,colorId:completed?'8':delivery?'9':'2',
+    description:calendarDescription(order).split('\n').map(html).join('\n')+photoLink,location:address,colorId:completed?'8':delivery?'9':'2',
     start:{date:order.date},end:{date:end},visibility:'private',transparency:'transparent',status:'confirmed',
     reminders:{useDefault:false},attendees:[],source:{title:'Open in TLB',url},
     extendedProperties:{private:{tlb_source:'tlb-orders',tlb_order_id:order.id}}};

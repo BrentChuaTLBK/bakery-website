@@ -34,14 +34,23 @@ assert.equal(filteredCalendarOrders([order],{search:'makati'}).length,1);
   assert.match(summary,/Social media: Instagram · @mia.santos/);assert.match(summary,/Amount: ₱930.00/);
   assert.match(summary,/2 × Vanilla, 1 × Matcha/);assert.doesNotMatch(summary,/Do not repeat|Email:|Window:|Pickup location:|Reschedule|Buyer phone:/);
   if(method==='pickup'){
-   assert.equal(event.location,'');assert.doesNotMatch(summary,/Private kitchen|Call at the gate|Recipient:|Delivery address:/);
-   assert.deepEqual(summary.split('\n').filter(s=>s.includes(':')).map(s=>s.split(':')[0]),['Customer name','Phone number','Social media','Order ID','Order details','Amount']);
-  }else{assert.equal(event.location,'12 Test St, Makati');assert.match(summary,/Recipient: <Recipient>/);assert.match(summary,/Delivery instructions: Call at the gate/);}
+   assert.equal(event.location,'');assert.doesNotMatch(summary,/Private kitchen|Recipient:|Delivery address:/);
+   assert.deepEqual(summary.split('\n').filter(s=>s.includes(':')).map(s=>s.split(':')[0]),['Customer name','Phone number','Social media','Order ID','Order details','Amount','Order notes']);
+  }else{assert.equal(event.location,'12 Test St, Makati');assert.match(summary,/Recipient: <Recipient>/);}
+  assert.match(summary,/Order notes:\nCall at the gate/);
  }
  const sameRecipient={...sample,recipient:{name:sample.buyer.name,phone:sample.buyer.phone}};
  assert.doesNotMatch(calendarDescription(sameRecipient),/Recipient:|Recipient phone:/);
  assert.match(calendarDescription({...sample,buyer:{...sample.buyer,social_platform:'na',social_username:'N/A'},total_cents:0}),/Social media: Not provided/);
  assert.match(calendarDescription({...sample,total_cents:0}),/Amount: ₱0.00/);
+}
+{
+ const photoToken = 'a'.repeat(64);
+ const event = eventBody({...order, instructions:'Use <blue> ribbon', photo_share:photoToken},job.event_id);
+ assert.match(event.description,/Use &lt;blue&gt; ribbon/);
+ assert.match(event.description,new RegExp('order-photos.html#photos='+photoToken+'">View order photos'));
+ assert.doesNotMatch(event.description,/access_token|storage\/v1/);
+ assert.doesNotMatch(eventBody({...order,photo_share:'" onmouseover="x'},job.event_id).description,/View order photos/);
 }
 {
  const f=fixture([{method:'GET',data:owned},{method:'PUT',data:{etag:'completed'}}]);

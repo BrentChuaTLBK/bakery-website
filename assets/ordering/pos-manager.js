@@ -2,7 +2,7 @@ import {posAppMarkup,refreshPOSConnection} from './pos-app.js?v=pos-app-1';
 import {escapeHtml as esc,money,manilaDate} from './client.js?v=approved-20261002-1';
 import {accountingDatePicker,bindAccountingDates} from './accounting-date-picker.js?v=branded-calendars-1';
 import {confirmDialog} from './site-dialog.js?v=brand-20261001';
-import {POS_METHODS,pesoCents,posEstimate,posOrderUrl,salesSource,productsDue,deliveryStatusText} from './pos.js?v=pos-1';
+import {POS_METHODS,pesoCents,posEstimate,posItemVariations,posOrderUrl,salesSource,productsDue,deliveryStatusText} from './pos.js?v=order-workflow-20261113';
 
 import {defaultPOSConfig,posPaymentFields,posCashView,posMethodsView} from './pos-register.js?v=approved-20261002-1';
 
@@ -149,7 +149,7 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
  function renderReceipt() {
   const o=receipt,unpaid=['awaiting_payment','under_review'].includes(o.payment_status)&&o.fulfillment_status==='pending_confirmation';
   const link=posOrderUrl(o,settings.site_url||document.baseURI);
-  return `<section class="panel pos-receipt"><h2>${esc(o.reference)}</h2><p>${esc(salesSource(o))}${o.event_name?` · ${esc(o.event_name)}`:''} · ${esc(o.fulfillment_status.replaceAll('_',' '))}</p><p>${esc(o.buyer?.name||'Client not recorded')} · ${esc(o.payment_status.replaceAll('_',' '))}${o.payment_method?` · ${esc(o.payment_method_label||POS_METHODS[o.payment_method]||o.payment_method)}`:''}</p><ul class="pos-review-lines">${o.items.map(i=>`<li><span>${i.quantity} × ${esc(i.name)}</span><strong>${money(i.line_total_cents)}</strong></li>`).join('')}</ul><div class="pos-total"><span>Total</span><span>${money(o.total_cents)}</span></div>${o.payment_method==='cash'?`<p>Cash received: ${money(o.cash_received_cents)} · <strong>Change: ${money(o.change_cents)}</strong></p>`:''}${unpaid?'<p class="notice">Stock stays reserved until you cancel this order. Share the link for payment details and proof upload.</p>':''}<label class="field">Private order link<div class="pos-link"><input data-share-link readonly value="${esc(link)}">${button('copy','Copy link')}</div></label><p class="help-text">Share this link with the customer only.</p><div class="pos-actions">${editable(o)?button('edit-order','Edit order'):''}${button('print','Print slip')}${button('details','Client details')}${button('manage-order','Order history / status')}${o.source==='popup'&&o.fulfillment_status==='completed'&&role==='owner'?button('void','Void sale'):''}${button('new-sale','New sale / order')}</div>
+  return `<section class="panel pos-receipt"><h2>${esc(o.reference)}</h2><p>${esc(salesSource(o))}${o.event_name?` · ${esc(o.event_name)}`:''} · ${esc(o.fulfillment_status.replaceAll('_',' '))}</p><p>${esc(o.buyer?.name||'Client not recorded')} · ${esc(o.payment_status.replaceAll('_',' '))}${o.payment_method?` · ${esc(o.payment_method_label||POS_METHODS[o.payment_method]||o.payment_method)}`:''}</p><ul class="pos-review-lines">${o.items.map(i=>`<li><span>${i.quantity} × ${esc(i.name)}</span><strong>${money(i.line_total_cents)}</strong></li>`).join('')}</ul><div class="pos-total"><span>Total</span><span>${money(o.total_cents)}</span></div>${o.payment_method==='cash'?`<p>Cash received: ${money(o.cash_received_cents)} · <strong>Change: ${money(o.change_cents)}</strong></p>`:''}${unpaid?'<p class="notice">Stock stays reserved until you cancel this order. Share the link for payment details and proof upload.</p>':''}<label class="field">Private order link<div class="pos-link"><input data-share-link readonly value="${esc(link)}">${button('copy','Copy link')}</div></label><p class="help-text">Share this link with the customer only.</p><div class="pos-actions">${editable(o)?button('edit-order','Edit order'):''}${button('print','Print slip')}${button('details','Client details')}${button('manage-order','Order history / status')}${o.source==='direct_message'?button('photos','Order photos'):''}${o.source==='popup'&&o.fulfillment_status==='completed'&&role==='owner'?button('void','Void sale'):''}${button('new-sale','New sale / order')}</div>
    ${unpaid?`<form id="pos-payment-form" class="pos-payment"><h3>${o.deferred_delivery?'Record full product payment':'Record full payment'}</h3>${paymentFields(productsDue(o))}<button class="button" type="submit">Confirm payment received</button></form>`:''}${deliveryPanel(o)}<p class="pos-feedback" role="status"></p></section>`;
  }
  function deliveryPanel(o) {
@@ -163,19 +163,83 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
  function renderCustomItem() {
   return `<dialog id="pos-custom-dialog" class="pos-options-dialog" aria-labelledby="pos-custom-title"><div class="pos-options-heading"><h2 id="pos-custom-title">Custom item</h2>${button('custom-close','&times;','aria-label="Close custom item"')}</div><p class="notice danger" role="alert" ${error?'':'hidden'}>${esc(error)}</p><form id="pos-custom-form">${field('name','Item name','','text','autofocus required maxlength="160"')}${field('description','Details · optional','','text','maxlength="2000"')}<div class="field-row">${field('quantity','Quantity',1,'number','required min="1" max="10000" step="1"')}${field('price','Unit price · PHP','','number','required min="0" step="0.01" inputmode="decimal"')}</div><div class="pos-actions">${button('custom-close','Cancel')}<button class="button" type="submit">Add item</button></div></form></dialog>`;
  }
- function renderOptions() {
-  return `<dialog id="pos-options-dialog" class="pos-options-dialog" aria-labelledby="pos-options-title"><div class="pos-options-heading"><h2 id="pos-options-title">${esc(optionProduct.name)}</h2>${button('options-close','&times;','aria-label="Close flavors" autofocus')}</div><p class="notice danger" role="alert" ${error?'':'hidden'}>${esc(error)}</p><form id="pos-options-form">${optionProduct.option_groups.map((g,gi)=>`<fieldset class="pos-choice" data-option-group="${gi}"><legend>${esc(g.label)} · choose ${g.required_count}</legend>${g.choices.filter(c=>c.active!==false).map(c=>{const left=choiceLeft(optionProduct,g,c),limit=Math.min(g.required_count,left);return `<div class="option-choice"><label for="pos-choice-${esc(g.id)}-${esc(c.id)}">${esc(c.label)}${Number.isFinite(left)?`<small class="pos-choice-stock">${left?left+' left':'Sold out / in basket'}</small>`:''}</label><span class="option-choice-controls"><small>${c.surcharge_cents?'+'+money(c.surcharge_cents):money(0)}</small><span class="option-stepper"><button type="button" data-pos-option-delta="-1" aria-label="Decrease ${esc(c.label)} quantity" disabled>&minus;</button><input id="pos-choice-${esc(g.id)}-${esc(c.id)}" class="option-count" name="${esc(g.id)}:${esc(c.id)}" aria-label="${esc(c.label)} quantity" type="number" inputmode="numeric" min="0" max="${limit}" data-limit="${limit}" value="0" step="1" required><button type="button" data-pos-option-delta="1" aria-label="Increase ${esc(c.label)} quantity" ${limit?'':'disabled'}>+</button></span></span></div>`}).join('')}<p class="help-text" data-option-count aria-live="polite">0 of ${g.required_count} selected</p></fieldset>`).join('')}<div class="pos-actions">${button('options-close','Cancel')}<button type="submit" class="button">Add to order</button></div></form></dialog>`;
+ function optionStock(p) {
+  return p.custom_event_item_id
+   ? event()?.custom_stock.find(stock => stock.id === p.custom_event_item_id)
+   : event()?.stock.find(stock => stock.product_id === p.id);
  }
- function syncOptions(changed){
-  let complete=true;
-  for(const group of root.querySelectorAll('[data-option-group]')){
-   const max=Number(optionProduct.option_groups[Number(group.dataset.optionGroup)].required_count),inputs=[...group.querySelectorAll('.option-count')];
-   if(inputs.includes(changed)){const others=inputs.filter(i=>i!==changed).reduce((n,i)=>n+Number(i.value||0),0);changed.value=String(Math.max(0,Math.min(max-others,Number(changed.dataset.limit),Math.trunc(Number(changed.value)||0))))}
-   const total=inputs.reduce((n,i)=>n+Number(i.value||0),0);
-   for(const input of inputs){const stepper=input.closest('.option-stepper');stepper.querySelector('[data-pos-option-delta="-1"]').disabled=Number(input.value)<=0;stepper.querySelector('[data-pos-option-delta="1"]').disabled=total>=max||Number(input.value)>=Number(input.dataset.limit);input.max=String(Math.min(Number(input.dataset.limit),max-total+Number(input.value||0)))}
-   group.querySelector('[data-option-count]').textContent=`${total} of ${max} selected`;if(total!==max)complete=false;
+ function optionQuantityLimit(p) {
+  if (source !== 'popup') return 10000;
+  const reserved = items.filter(item => sameOptionItem(item, p)).reduce((sum, item) => sum + item.quantity, 0);
+  const byGroup = (p.option_groups || []).map(group => {
+   const available = group.choices.filter(choice => choice.active !== false)
+    .reduce((sum, choice) => sum + choiceLeft(p, group, choice), 0);
+   return Math.floor(available / group.required_count);
+  });
+  return Math.max(0, Math.min(10000, (optionStock(p)?.remaining || 0) - reserved, ...byGroup));
+ }
+ function renderOptions() {
+  const groups = optionProduct.option_groups || [];
+  const limit = optionQuantityLimit(optionProduct);
+  const markup = groups.map((group, index) => {
+   const choices = group.choices.filter(choice => choice.active !== false).map(choice => {
+    const left = choiceLeft(optionProduct, group, choice);
+    const id = esc(`pos-choice-${group.id}-${choice.id}`);
+    return `<div class="option-choice"><label for="${id}">${esc(choice.label)}${Number.isFinite(left) ? `<small class="pos-choice-stock">${left ? left + ' left' : 'Sold out / in basket'}</small>` : ''}</label>
+     <span class="option-choice-controls"><small>${choice.surcharge_cents ? '+' + money(choice.surcharge_cents) : money(0)}</small>
+     <span class="option-stepper"><button type="button" data-pos-option-delta="-1" aria-label="Decrease ${esc(choice.label)} quantity" disabled>&minus;</button>
+     <input id="${id}" class="option-count" name="${esc(group.id)}:${esc(choice.id)}" aria-label="${esc(choice.label)} quantity" type="number" inputmode="numeric" min="0" value="0" step="1" required data-stock="${left}">
+     <button type="button" data-pos-option-delta="1" aria-label="Increase ${esc(choice.label)} quantity">+</button></span></span></div>`;
+   }).join('');
+   return `<fieldset class="pos-choice" data-option-group="${index}"><legend>${esc(group.label)}</legend>${choices}<p class="help-text" data-option-count aria-live="polite"></p></fieldset>`;
+  }).join('');
+  const packHint = groups.length > 1 || groups.some(group => group.required_count > 1)
+   ? '<p class="help-text" data-pack-hint hidden>Choices fill each unit in the order shown. Review the combinations in the basket.</p>' : '';
+  return `<dialog id="pos-options-dialog" class="pos-options-dialog" aria-labelledby="pos-options-title">
+   <div class="pos-options-heading"><h2 id="pos-options-title">${esc(optionProduct.name)}</h2>${button('options-close','&times;',`aria-label="${groups.length ? 'Close flavors' : 'Close quantity'}"`)}</div>
+   <p class="notice danger" role="alert" ${error ? '' : 'hidden'}>${esc(error)}</p>
+   <form id="pos-options-form">
+   <label class="field pos-item-quantity" for="pos-item-quantity">Quantity</label>
+   <div class="option-stepper pos-item-stepper">
+    <button type="button" data-pos-option-delta="-1" aria-label="Decrease item quantity">&minus;</button>
+    <input id="pos-item-quantity" name="item_quantity" type="number" inputmode="numeric" min="1" max="${Math.max(1, limit)}" value="1" step="1" required autofocus>
+    <button type="button" data-pos-option-delta="1" aria-label="Increase item quantity">+</button>
+   </div>
+   ${limit ? '' : '<p class="help-text">No more units are available for this sale.</p>'}${packHint}${markup}
+   <div class="pos-actions">${button('options-close','Cancel')}<button type="submit" class="button">Add to order</button></div>
+   </form></dialog>`;
+ }
+ function syncOptions() {
+  const form = $('#pos-options-form');
+  if (!form) return;
+  const input = form.elements.item_quantity;
+  const quantity = input.valueAsNumber;
+  const quantityLimit = optionQuantityLimit(optionProduct);
+  const validQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= quantityLimit;
+  let complete = validQuantity;
+  form.querySelector('[aria-label="Decrease item quantity"]').disabled = !(quantity > 1);
+  form.querySelector('[aria-label="Increase item quantity"]').disabled = !(quantity < quantityLimit);
+  const hint = form.querySelector('[data-pack-hint]');
+  if (hint) hint.hidden = !(quantity > 1);
+  for (const fieldset of form.querySelectorAll('[data-option-group]')) {
+   const group = optionProduct.option_groups[Number(fieldset.dataset.optionGroup)];
+   const required = group.required_count * (validQuantity ? quantity : 0);
+   const choices = [...fieldset.querySelectorAll('.option-count')];
+   const selected = choices.reduce((sum, choice) => sum + (choice.valueAsNumber || 0), 0);
+   for (const choice of choices) {
+    const count = choice.valueAsNumber;
+    const limit = Math.min(required, Number(choice.dataset.stock));
+    choice.max = String(limit);
+    const stepper = choice.closest('.option-stepper');
+    stepper.querySelector('[data-pos-option-delta="-1"]').disabled = !(count > 0);
+    stepper.querySelector('[data-pos-option-delta="1"]').disabled = !(selected < required && count < limit);
+    if (!Number.isInteger(count) || count < 0 || count > limit) complete = false;
+   }
+   fieldset.querySelector('[data-option-count]').textContent = validQuantity
+    ? `${selected} of ${required} selected` : 'Enter the item quantity.';
+   if (selected !== required) complete = false;
   }
-  $('#pos-options-form button[type=submit]').disabled=!complete;
+  form.querySelector('button[type=submit]').disabled = !complete;
  }
  function render(){
   if(!root.isConnected)return;
@@ -191,28 +255,53 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
   if(registerPending){root.insertAdjacentHTML('beforeend','<div class="notice"><p>The last save is unconfirmed. Retry to check and save it once.</p>'+button('register-retry','Retry this save')+'</div>');root.querySelectorAll('input,select,textarea,button').forEach(el=>{if(el.dataset.pos!=='register-retry')el.disabled=true})}
  }
  async function refresh(){const data=await api('pos_bootstrap');events=data.events||[];orders=data.orders||[];registerConfig=data.register_config||defaultPOSConfig();cashSessions=data.cash_sessions||[];if(!eventReady(event())&&!items.length)eventId=events.find(eventReady)?.id||'';}
- function addCartItem(item){
-  const variant=selections=>JSON.stringify(Object.entries(selections||{}).sort(([a],[b])=>a.localeCompare(b)).map(([key,values])=>[key,Object.entries(values).filter(([,n])=>n>0).sort(([a],[b])=>a.localeCompare(b))]));
-  const same=items.find(i=>item.product_id?i.product_id===item.product_id&&variant(i.selections)===variant(item.selections):item.custom_event_item_id?i.custom_event_item_id===item.custom_event_item_id&&variant(i.selections)===variant(item.selections):!i.product_id&&!i.custom_event_item_id&&i.name===item.name&&i.description===item.description&&i.unit_price_cents===item.unit_price_cents);
-  if(same){const next=same.quantity+(item.product_id?1:item.quantity);if(next>10000)throw new Error('Use up to 10000 units per item.');same.quantity=next}else items.push(item);
- }
- function addCustomEventProduct(s,selections={}){
-  const p={...s,custom_event_item_id:s.id},inBasket=items.filter(i=>i.custom_event_item_id===s.id).reduce((n,i)=>n+i.quantity,0);
-  if(inBasket+1>s.remaining)throw new Error('Not enough event stock. Check the basket quantities.');
-  for(const g of s.option_groups||[])for(const c of g.choices)if((selections[g.id]?.[c.id]||0)>choiceLeft(p,g,c))throw new Error(`Not enough stock for ${c.label}. Check the basket quantities.`);
-  const surcharge=(s.option_groups||[]).reduce((sum,g)=>sum+g.choices.reduce((n,c)=>n+(selections[g.id]?.[c.id]||0)*c.surcharge_cents,0),0);
-  const labels=(s.option_groups||[]).flatMap(g=>g.choices.filter(c=>selections[g.id]?.[c.id]>0).map(c=>`${selections[g.id][c.id]} × ${c.label}`));
-  addCartItem({custom_event_item_id:s.id,name:s.name,description:[s.description,...labels].filter(Boolean).join(' · '),quantity:1,unit_price_cents:s.price_cents+surcharge,selections});
- }
- function addProduct(p,selections={}) {
-  if(source==='popup'){
-   const s=event().stock.find(s=>s.product_id===p.id),inBasket=items.filter(i=>i.product_id===p.id).reduce((n,i)=>n+i.quantity,0);
-   if(inBasket+1>s.remaining)throw new Error('Not enough event stock. Check the basket quantities.');
-   for(const g of p.option_groups||[])for(const c of g.choices)if((selections[g.id]?.[c.id]||0)>choiceLeft(p,g,c))throw new Error(`Not enough stock for ${c.label}. Check the basket quantities.`);
+ function addCartItems(additions) {
+  const variant = selections => JSON.stringify(Object.entries(selections || {}).sort(([a], [b]) => a.localeCompare(b))
+   .map(([key, values]) => [key, Object.entries(values).filter(([, count]) => count > 0).sort(([a], [b]) => a.localeCompare(b))]));
+  const nextItems = items.map(item => ({ ...item }));
+  for (const item of additions) {
+   const same = nextItems.find(line => {
+    if (item.product_id) return line.product_id === item.product_id && variant(line.selections) === variant(item.selections);
+    if (item.custom_event_item_id) return line.custom_event_item_id === item.custom_event_item_id && variant(line.selections) === variant(item.selections);
+    return !line.product_id && !line.custom_event_item_id && line.name === item.name && line.description === item.description && line.unit_price_cents === item.unit_price_cents;
+   });
+   if (!same) nextItems.push(item);
+   else {
+    const next = same.quantity + item.quantity;
+    if (next > 10000) throw new Error('Use up to 10000 units per item.');
+    same.quantity = next;
+   }
   }
-  const surcharge=(p.option_groups||[]).reduce((sum,g)=>sum+g.choices.reduce((s,c)=>s+(selections[g.id]?.[c.id]||0)*c.surcharge_cents,0),0);
-  addCartItem({product_id:p.id,name:p.name,quantity:1,unit_price_cents:(source==='popup'?event().stock.find(s=>s.product_id===p.id).price_cents:p.price_cents)+surcharge,selections,
-   description:(p.option_groups||[]).flatMap(g=>g.choices.filter(c=>selections[g.id]?.[c.id]>0).map(c=>`${g.label}: ${selections[g.id][c.id]} × ${c.label}`)).join(' · ')});
+  if (nextItems.length > 100) throw new Error('Use up to 100 separate lines per order.');
+  items = nextItems;
+ }
+ function addSelectedProduct(form) {
+  const p = optionProduct, groups = p.option_groups || [];
+  const quantity = form.elements.item_quantity.valueAsNumber;
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > optionQuantityLimit(p)) {
+   throw new Error('Enter a whole quantity within the available stock.');
+  }
+  const totals = Object.fromEntries(groups.map(group => [group.id, Object.fromEntries(
+   group.choices.filter(choice => choice.active !== false).map(choice => {
+    const count = form.elements.namedItem(`${group.id}:${choice.id}`).valueAsNumber;
+    if (count > choiceLeft(p, group, choice)) throw new Error(`Not enough stock for ${choice.label}.`);
+    return [choice.id, count];
+   })
+  )]));
+  const price = source === 'popup' ? optionStock(p).price_cents : p.price_cents;
+  const identity = p.custom_event_item_id ? { custom_event_item_id: p.custom_event_item_id } : { product_id: p.id };
+  const additions = posItemVariations(groups, quantity, totals).map(variation => {
+   let surcharge = 0;
+   const labels = groups.flatMap(group => group.choices.flatMap(choice => {
+    const count = variation.selections[group.id]?.[choice.id] || 0;
+    if (!count) return [];
+    surcharge += count * (choice.surcharge_cents || 0);
+    return [`${p.custom_event_item_id ? '' : group.label + ': '}${count} × ${choice.label}`];
+   }));
+   return { ...identity, ...variation, name: p.name, unit_price_cents: price + surcharge,
+    description: [p.custom_event_item_id ? p.description : '', ...labels].filter(Boolean).join(' · ') };
+  });
+  addCartItems(additions);
  }
  function syncPayment(){
   const form=$('#pos-confirm-form')||$('#pos-payment-form')||$('#pos-delivery-payment-form');if(!form||(editing&&form.id==='pos-confirm-form'))return;
@@ -270,7 +359,7 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
  root.addEventListener('click',e=>{
   const tender=e.target.closest('[data-pos-payment]');if(tender){e.preventDefault();if(busy||pending||registerPending)return;const f=tender.closest('form');f.elements.namedItem('payment_method').value=tender.dataset.posPayment;syncPayment();return}
   const cash=e.target.closest('[data-pos-cash]');if(cash){e.preventDefault();if(busy||pending||cash.disabled||registerPending)return;cash.closest('form').elements.namedItem('cash_received').value=amount(cash.dataset.posCash);syncPayment();return}
-  const step=e.target.closest('[data-pos-option-delta]');if(step){e.preventDefault();if(busy||step.disabled)return;const input=step.closest('.option-stepper').querySelector('input');input.value=String(Number(input.value||0)+Number(step.dataset.posOptionDelta));syncOptions(input);return}
+  const step=e.target.closest('[data-pos-option-delta]');if(step){e.preventDefault();if(busy||step.disabled)return;const input=step.closest('.option-stepper').querySelector('input');input.value=String(Number(input.value||0)+Number(step.dataset.posOptionDelta));syncOptions();return}
   if(['pos-options-dialog','pos-custom-dialog'].includes(e.target.id)){const box=e.target.getBoundingClientRect();if(e.clientX<box.left||e.clientX>box.right||e.clientY<box.top||e.clientY>box.bottom)e.target.querySelector(`[data-pos="${e.target.id==='pos-custom-dialog'?'custom-close':'options-close'}"]`).click();return}
   const b=e.target.closest('[data-pos]');if(!b||busy||b.disabled)return;e.preventDefault();e.stopPropagation();capture();captureEvent();captureMethods();
   const action=b.dataset.pos;
@@ -299,7 +388,7 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
    }else if(action==='source'||action==='new-sale'){
     if(items.length&&!await confirmDialog('Your unsaved items will be cleared.',{title:'Start a new order?',confirmLabel:'Start new order'}))return;
     editing=null;source=b.dataset.source||source;items=[];draft={};section='sell';screen='sale';mobilePane='products';search='';submissionKey=crypto.randomUUID();
-   }else if(action==='add'){const p=saleProduct(product(b.dataset.id));if(p.option_groups?.length){optionProduct=p;optionReturnId=p.id;optionReturnCustom=false;screen='options'}else addProduct(p)}
+   }else if(action==='add'){const p=saleProduct(product(b.dataset.id));optionProduct=p;optionReturnId=p.id;optionReturnCustom=false;screen='options'}
    else if(action==='quantity'){const item=items[Number(b.dataset.index)],next=item.quantity+Number(b.dataset.delta);if(next>=1&&(next<=cartLimit(item)||next<item.quantity))item.quantity=next}
    else if(action==='remove')items.splice(Number(b.dataset.index),1);
    else if(action==='options-close'){optionProduct=null;screen='sale'}
@@ -321,7 +410,7 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
    }
    else if(action==='event-custom'){const id=crypto.randomUUID();eventDraft.entries.push({id,custom:true,name:'',description:'',capacity:0,used:0,price:'0.00'});setTimeout(()=>$(`[name="custom_name_${id}"]`)?.focus(),0)}
    else if(action==='event-remove')eventDraft.entries=eventDraft.entries.filter(s=>s.id!==b.dataset.id);
-   else if(action==='add-event-custom'){const s=event().custom_stock.find(s=>s.id===b.dataset.id);if(s.options_tracked){optionProduct={...s,custom_event_item_id:s.id};optionReturnId=s.id;optionReturnCustom=true;screen='options'}else addCustomEventProduct(s)}
+   else if(action==='add-event-custom'){const s=event().custom_stock.find(s=>s.id===b.dataset.id);optionProduct={...s,custom_event_item_id:s.id,option_groups:s.options_tracked?s.option_groups:[]};optionReturnId=s.id;optionReturnCustom=true;screen='options'}
    else if(action==='back'){if(screen==='event'&&!await confirmDialog('Your unsaved event changes will be lost.',{title:'Leave event setup?',confirmLabel:'Discard changes',cancelLabel:'Keep editing'}))return;screen=screen==='event'?'setup':'sale';quote=null}
    else if(action==='receipt'){if(items.length&&!await confirmDialog('Your unsaved items will be cleared.',{title:'Leave this draft?',confirmLabel:'Open order'}))return;editing=null;items=[];draft={};receipt=await api('pos_order_link',{order_id:b.dataset.id});screen='receipt';paymentKey=crypto.randomUUID()}
    else if(action==='receipt-back')screen='receipt';
@@ -330,6 +419,7 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
    else if(action==='copy'){await navigator.clipboard.writeText(posOrderUrl(receipt,settings.site_url||document.baseURI));return setTimeout(()=>{if($('.pos-feedback'))$('.pos-feedback').textContent='Link copied.'},0)}
    else if(action==='print')await printOrderSlips([receipt],{products,settings});
    else if(action==='manage-order')openOrder(receipt.id);
+   else if(action==='photos')openOrder(receipt.id,{showPhotos:true});
    else if(action==='refresh'){await refresh();feedback='Orders refreshed.'}
   });
  });
@@ -338,7 +428,7 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
   if(e.target.closest('#pos-methods-form')){captureMethods();registerDirty=true;dirty();return}
   if(e.target.closest('.pos-cash-form')){registerDirty=true;syncCashCount();dirty();return}
   if(e.target.closest('#pos-event-form')){captureEvent();if(e.target.name==='event_search'){eventSearch=e.target.value;const start=e.target.selectionStart;render();const f=$('[name="event_search"]');f.focus();f.setSelectionRange(start,start)}return}
-  if(e.target.closest('#pos-options-form')){syncOptions(e.target);return}
+  if(e.target.closest('#pos-options-form')){syncOptions();return}
   if(e.target.name==='search') {capture();search=e.target.value;const start=e.target.selectionStart;render();const f=$('[name="search"]');f.focus();f.setSelectionRange(start,start);return}
   if(e.target.name?.startsWith('qty_'))items[Number(e.target.name.slice(4))].quantity=Number(e.target.value);
   if(e.target.name?.startsWith('price_')){try{items[Number(e.target.name.slice(6))].unit_price_cents=pesoCents(e.target.value)}catch{}}
@@ -373,8 +463,8 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
      try{const found=await api(updating?'pos_find_edit':'pos_find_submission',{idempotency_key:submissionKey,...(updating?{order_id:editedId}:{})});if(found){await saved(found);return}pending=null}catch{}
      throw e;
     }
-   }else if(form.id==='pos-custom-form'){addCartItem({name:value(form,'name'),description:value(form,'description'),quantity:Number(value(form,'quantity')),unit_price_cents:pesoCents(value(form,'price')),selections:{}});screen='sale';mobilePane='basket'}
-   else if(form.id==='pos-options-form'){const selections={};for(const g of optionProduct.option_groups){selections[g.id]={};let sum=0;for(const c of g.choices){const n=Number(value(form,`${g.id}:${c.id}`)||0);if(n)selections[g.id][c.id]=n;sum+=n}if(sum!==g.required_count)throw new Error(`Choose exactly ${g.required_count} for ${g.label}.`)}if(optionProduct.custom_event_item_id)addCustomEventProduct(optionProduct,selections);else addProduct(optionProduct,selections);screen='sale'}
+   }else if(form.id==='pos-custom-form'){addCartItems([{name:value(form,'name'),description:value(form,'description'),quantity:Number(value(form,'quantity')),unit_price_cents:pesoCents(value(form,'price')),selections:{}}]);screen='sale';mobilePane='basket'}
+   else if(form.id==='pos-options-form'){addSelectedProduct(form);screen='sale';optionProduct=null}
    else if(form.id==='pos-event-form'){
     captureEvent();const {entries,...details}=eventDraft;
     const row=s=>({capacity:Number(s.capacity),price_cents:pesoCents(s.price),active:true});

@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <meta name="referrer" content="no-referrer">
   <title>Order preparation slips</title>
-  <link rel="stylesheet" href="order-slips.css?v=compact-slips-1">
+  <link rel="stylesheet" href="order-slips.css?v=order-workflow-20261113">
   <style id="paper-style">@page{size:A4 landscape;margin:0}</style>
 </head>
 <body>
@@ -15,6 +15,7 @@
     <label class="paper-choice">Paper <select id="paper-size" disabled><option value="a4">A4 landscape</option><option value="letter">Letter landscape</option></select></label>
     <button type="button" class="print-slips" disabled>Print slips</button>
     <button type="button" class="close-preview">Close</button>
+    <details class="print-copies" hidden><summary>Copies per order</summary><div id="copy-counts"></div></details>
   </div>
   <main id="slips"></main>
 </body>

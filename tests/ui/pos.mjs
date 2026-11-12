@@ -90,6 +90,13 @@ try{
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const basket=async()=>{if(width<760&&await page.locator('[data-pos=mobile-basket]').isVisible())await page.locator('[data-pos=mobile-basket]').click()};
   const productView=async()=>{if(width<760)await page.locator('[data-pos=mobile-products]').click()};
+  const addPlain=async(selector,quantity=1)=>{
+   await page.locator(selector).click();
+   const input=page.locator('#pos-options-form [name=item_quantity]');
+   assert.equal(await input.inputValue(),'1');
+   await input.fill(String(quantity));
+   await page.getByRole('button',{name:'Add to order',exact:true}).click();
+  };
   const openCashDrawer=async()=>{
    await page.locator('[data-pos=section][data-section=drawer]').click();await page.locator('.pos-cash-panel').waitFor();
    if(await page.locator('#pos-cash-open-form').count()){await page.locator('[name=opening]').fill('1000');await page.getByRole('button',{name:'Open cash session',exact:true}).click();await page.locator('[data-pos=cash-mode]').first().waitFor()}
@@ -106,7 +113,10 @@ try{
   assert.equal(await page.locator('[name=event_id] option').count(),2);
   if(width===820){assert.equal(await page.locator('.admin-sidebar').isVisible(),false);assert.equal(await page.locator('.pos-basket-panel').isVisible(),true)}
   await page.screenshot({path:join(out,`selling-products-${width}.png`)});await openCashDrawer();
-  assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);await page.locator('[data-pos=add][data-id=p1]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'1','Pop-up products ignore the website minimum');await page.locator('[data-pos=add][data-id=p1]').click();assert.equal(await page.locator('.pos-cart li').count(),1);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');
+  assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);
+  await addPlain('[data-pos=add][data-id=p1]',2);
+  assert.equal(await page.locator('.pos-cart li').count(),1);
+  assert.equal(await page.locator('[name=qty_0]').inputValue(),'2','Choose the quantity before adding an unflavored item below the website minimum');
   await page.locator('[data-pos=section][data-section=orders]').click();assert.equal(await page.locator('.pos-products-panel').count(),0);await page.locator('[data-pos=section][data-section=sell]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');
   await basket();
   await page.getByRole('button',{name:'Increase Brownies quantity',exact:true}).click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'3');assert.match(await page.locator('[data-line-total]').innerText(),/240\.00.*for 3/);
@@ -121,7 +131,24 @@ try{
   await page.locator('[data-pos=copy]').click();await page.waitForFunction(()=>window.copied);assert.match(await page.evaluate(()=>window.copied),/shop.html#order=order0&token=/);
   await page.locator('[data-pos=print]').click();assert.equal((await page.evaluate(()=>window.printed))[0].source,'popup');
   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();
-  await page.locator('[data-pos=add][data-id=p1]').click();await page.locator('[data-pos=add][data-id=p1]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.equal(await page.locator('[name=price_0]').count(),0);await basket();await page.locator('[data-pos=remove]').click();await productView();
+  await addPlain('[data-pos=add][data-id=p1]',2);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.equal(await page.locator('[name=price_0]').count(),0);await basket();await page.locator('[data-pos=remove]').click();await productView();
+  await page.locator('[data-pos=add][data-id=p2]').click();
+  const packQty=page.locator('#pos-options-form [name=item_quantity]');
+  const addPacks=page.getByRole('button',{name:'Add to order',exact:true});
+  await packQty.fill('2');
+  await page.locator('[name="flavor:choc"]').fill('3');
+  assert.equal(await addPacks.isDisabled(),true);
+  assert.match(await page.locator('[data-option-count]').innerText(),/3 of 4/);
+  await page.locator('[name="flavor:vanilla"]').fill('1');
+  assert.equal(await addPacks.isDisabled(),false);
+  await packQty.fill('1');assert.equal(await addPacks.isDisabled(),true);
+  await packQty.fill('2');await addPacks.click();await basket();
+  assert.equal(await page.locator('[data-cart-line]').count(),2);
+  assert.match(await page.locator('[data-cart-line="0"]').innerText(),/2 × Chocolate/);
+  assert.match(await page.locator('[data-cart-line="1"]').innerText(),/1 × Chocolate.*1 × Vanilla/s);
+  assert.match(await page.locator('[data-cart-line="0"] [data-unit-price]').innerText(),/210\.00/);
+  assert.match(await page.locator('[data-cart-line="1"] [data-unit-price]').innerText(),/205\.00/);
+  await page.locator('[data-pos=remove]').first().click();await page.locator('[data-pos=remove]').first().click();await productView();
   for(const variant of ['Chocolate','Chocolate','Vanilla']){
    const beforeItems=await page.locator('.pos-cart li').count();await page.locator('[data-pos=add][data-id=p2]').click();assert.equal(await page.locator('#pos-options-dialog').evaluate(d=>d.open),true);assert.equal(await page.locator('.pos-products-panel').isVisible(),true);
    assert.equal(await page.locator('#pos-options-dialog').evaluate(d=>d.contains(document.activeElement)),true);assert.equal(await page.getByRole('button',{name:'Add to order',exact:true}).isDisabled(),true);
@@ -213,7 +240,7 @@ try{
   assert.equal(await page.evaluate(()=>window.posCalls.filter(c=>c.action==='pos_update_order').length),1);
   assert.equal(await page.evaluate(()=>window.posCalls.some(c=>c.action==='pos_find_edit')),true);
   await page.locator('#pos-payment-form [data-pos-payment=eastwest]').click();await page.getByRole('button',{name:'Confirm payment received',exact:true}).click();await page.waitForFunction(()=>window.posOrders[0].payment_status==='paid');
-  await page.getByRole('button',{name:'Edit order',exact:true}).click();await page.locator('[name=price_0]').fill('300');await productView();await page.locator('[data-pos=add][data-id=p1]').click();await basket();
+  await page.getByRole('button',{name:'Edit order',exact:true}).click();await page.locator('[name=price_0]').fill('300');await productView();await addPlain('[data-pos=add][data-id=p1]');await basket();
   assert.equal(await page.locator('[name=price_1]').count(),0,'Website prices stay locked when editing');
   await page.getByRole('button',{name:'Review changes',exact:true}).click();assert.match(await page.locator('.pos-review .notice').innerText(),/stays Paid/);
   assert.match(await page.locator('.pos-review').innerText(),/725.00/);assert.equal(await page.locator('[name=payment_state]').count(),0);
@@ -246,13 +273,13 @@ try{
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:join(out,`event-setup-${width}.png`)});await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[data-pos=event-sell][data-id=new-event]').waitFor();assert.equal(await page.locator('[name=event_id]').count(),0);assert.match(await page.locator('.pos-status').innerText(),/Event saved/);await page.locator('[data-pos=event-sell][data-id=new-event]').click();await page.locator('[name=event_id]').waitFor();assert.equal(await page.locator('[name=event_id]').inputValue(),'new-event');
    assert.equal(await page.locator('[data-pos=add]').count(),1);assert.equal(await page.locator('[data-pos=add-event-custom]').count(),1);assert.equal(await page.locator('[data-pos=add][data-id=p3]').count(),0);
    await page.locator('[data-pos=section][data-section=setup]').click();await page.locator('[data-pos=event-edit][data-id=new-event]').click();await page.locator('[data-pos=event-remove][data-id=p1]').click();assert.equal(await page.locator('[data-stock-id]').count(),1);await page.getByRole('button',{name:'Save event',exact:true}).click();await page.locator('[data-pos=event-sell][data-id=new-event]').click();await page.locator('[data-pos=add-event-custom]').waitFor();assert.equal(await page.locator('[data-pos=add]').count(),0);
-   await openCashDrawer();await page.locator('[data-pos=add-event-custom]').click();await page.locator('[data-pos=add-event-custom]').click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),7000);
+   await openCashDrawer();await addPlain('[data-pos=add-event-custom]',2);assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();await page.getByRole('button',{name:'Complete sale',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.equal(await page.evaluate(()=>window.posOrders[0].total_cents),7000);
   }else assert.equal(await page.locator('[data-pos=event-new]').count(),0);
   if(width===390){
    await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=direct_message]').click();await page.locator('[data-pos=custom]').click();await page.locator('#pos-custom-form [name=name]').fill('Retry order');await page.locator('#pos-custom-form [name=price]').fill('10');await page.getByRole('button',{name:'Add item',exact:true}).click();await page.getByRole('button',{name:'Review order',exact:true}).click();
    const count=await page.evaluate(()=>window.posOrders.length);await page.evaluate(()=>window.pendingFailure=true);await page.getByRole('button',{name:'Create direct order',exact:true}).click();await page.getByRole('button',{name:'Retry saving this order',exact:true}).waitFor();assert.equal(await page.locator('[data-pos=section][data-section=setup]').isDisabled(),true);assert.equal(await page.locator('#pos-manager').getAttribute('data-busy'),'true');
    await page.evaluate(()=>window.pendingFailure=false);await page.getByRole('button',{name:'Retry saving this order',exact:true}).click();await page.locator('[data-pos=print]').waitFor();assert.equal(await page.evaluate(()=>window.posOrders.length),count+1);
-   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=popup]').click();await page.locator('[data-pos=add-event-custom]').click();
+   await page.locator('[data-pos=new-sale]').click();await page.locator('[data-source=popup]').click();await addPlain('[data-pos=add-event-custom]');
    const selected=await page.locator('[name=event_id]').inputValue();await page.evaluate(id=>window.closeEventId=id,selected);await page.locator('[data-pos=section][data-section=orders]').click();await page.locator('[data-pos=refresh]').click();await page.locator('[data-pos=section][data-section=sell]').click();assert.match(await page.locator('.pos-products-panel .notice').innerText(),/no longer open/);assert.equal(await page.locator('[name=event_id]').inputValue(),'');await basket();await page.getByRole('button',{name:'Review sale',exact:true}).click();assert.match(await page.locator('.pos-error').innerText(),/open pop-up event/);assert.equal(await page.evaluate(()=>window.posCalls.filter(c=>c.action==='pos_quote').at(-1).p.event_id),selected);await page.locator('[data-pos=remove]').click();
 
   }
@@ -326,7 +353,7 @@ try{
   await addButterCookies();await basket();assert.equal(await page.locator('[name=qty_0]').inputValue(),'2');assert.match(await page.locator('[data-line-total]').innerText(),/400\.00.*for 2/);
   await page.getByRole('button',{name:'Decrease Butter Cookies (440ml) quantity',exact:true}).click();assert.equal(await page.locator('[name=qty_0]').inputValue(),'1');
   await page.locator('[name=qty_0]').fill('2');await page.locator('[name=qty_0]').fill('1');
-  await productView();await page.locator('[data-pos=add][data-id=p1]').click();await basket();assert.equal(await page.locator('[name=qty_1]').inputValue(),'1','Unflavored products also ignore min_quantity=3');
+  await productView();await addPlain('[data-pos=add][data-id=p1]');await basket();assert.equal(await page.locator('[name=qty_1]').inputValue(),'1','Unflavored products also ignore min_quantity=3');
   assert.match(await page.locator('[data-estimate]').innerText(),/300\.00/);
   await page.screenshot({path:join(out,`single-unit-direct-${width}-${role}.png`)});
   await page.getByRole('button',{name:'Review order',exact:true}).click();

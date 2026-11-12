@@ -67,4 +67,62 @@ export default async function({db,check,state}){
   assert.equal(await h.scalar("select tlb.calendar_order(jsonb_populate_record(null::tlb.orders,to_jsonb(o)||jsonb_build_object('source','popup'))) from tlb.orders o where id=$1",[order.id]),null,'In-person counter sales are excluded');
   assert.equal(await h.scalar("select count(*)::int from tlb.calendar_events e join tlb.orders o on o.id=e.order_id where o.source='popup' and e.desired is not null"),0);
  })();
+ await check('Private direct order email is token-bound, write-once, and enables later updates',async()=>{
+  const payload = { source:'direct_message', method:'pickup', fulfillment_date:date, override_dates:true,
+   buyer:{ name:'Direct pickup', email:'' }, instructions:'Blue ribbon\nCall on pickup',
+   items:[{ name:'Custom order', quantity:1, unit_price_cents:10000 }], discount:{ kind:'none' }, email_notifications:false };
+  const expected = await h.api('pos_quote',payload,h.ids.owner);
+  order = await h.api('pos_create_order',{ ...payload, expected_quote:expected,idempotency_key:randomUUID(),
+   payment:{ method:'gcash',amount_cents:10000,received_cents:10000 } },h.ids.owner);
+  const request = { order_id:order.id,email:' PickUp@Example.test ' };
+  for (const token of [null, '0'.repeat(64)]) {
+   await assert.rejects(h.api('add_order_email',request,h.ids.owner,token),/access/i);
+  }
+  await assert.rejects(h.api('add_order_email',{...request,email:'invalid'},null,order.access_token),/valid email/i);
+  assert.deepEqual(await h.api('add_order_email',request,null,order.access_token),
+   {email:'pickup@example.test',email_notifications:true});
+  const after = await h.order(order.id);
+  assert.equal(after.buyer.email,'pickup@example.test');
+  assert.equal(after.email_notifications,true);
+  assert.equal(after.revision,order.revision+1);
+  assert.equal(after.instructions,payload.instructions);
+  await h.api('add_order_email',request,null,order.access_token);
+  assert.equal((await h.order(order.id)).revision,after.revision,'Retry does not create another revision');
+  await assert.rejects(h.api('add_order_email',{...request,email:'else@example.test'},null,order.access_token),/already/i);
+  await db.query("select tlb.queue_email($1,'ready_for_pickup',$2)",[order.id,'order-email-test:'+order.id]);
+  assert.equal(await h.scalar("select to_email from tlb.outbox where event_key=$1",['order-email-test:'+order.id]),'pickup@example.test');
+  const entry = (await h.api('calendar_list',{from:date,to:date},h.ids.staff)).orders.find(value=>value.id===order.id);
+  assert.equal(entry.instructions,payload.instructions);
+ })();
+ await check('Order photos are staff-managed, album-only, and revoked after the last removal',async()=>{
+  const scope = { order_id:order.id, user_id:h.ids.staff };
+  await assert.rejects(h.service('order_photo_list',{ ...scope,user_id:h.ids.customer }),/access/i);
+  const photoId = randomUUID(), path = `${order.id}/${photoId}.png`, hash = 'b'.repeat(64);
+  const photo = { ...scope,photo_id:photoId,storage_path:path,sha256:hash,mime_type:'image/png',filename:'reference.png' };
+  await assert.rejects(h.service('order_photo_attach',photo),/missing/i);
+  await db.query("insert into storage.objects(bucket_id,name,metadata) values('order-photos',$1,'{}')",[path]);
+  assert.equal((await h.service('order_photo_attach',photo)).accepted,true);
+  assert.equal((await h.service('order_photo_attach',{...photo,photo_id:randomUUID(),storage_path:'retry'})).id,photoId);
+  assert.equal((await h.service('order_photo_list',scope)).length,1);
+  const event = await row(), token = event.desired.photo_share;
+  assert.match(token,/^[0-9a-f]{64}$/);
+  assert.equal(event.desired.photo_count,1);
+  assert.notEqual(token,order.access_token);
+  assert.deepEqual(await h.service('order_photo_shared',{token}),[{id:photoId,storage_path:path}]);
+  assert.deepEqual(await h.service('order_photo_shared',{token:order.access_token}),[]);
+  const publicOrder = await h.api('get_order',{order_id:order.id},null,order.access_token);
+  assert.doesNotMatch(JSON.stringify(publicOrder),/photo_share|reference\.png|order_photo_added/);
+  const calendar = (await h.api('calendar_list',{from:date,to:date},h.ids.staff)).orders.find(value=>value.id===order.id);
+  assert.equal(calendar.photo_count,1);
+  assert.equal(calendar.photo_share,undefined);
+  assert.equal(await h.scalar("select public from storage.buckets where id='order-photos'"),false);
+  for (const role of ['anon','authenticated','service_role']) {
+   assert.equal(await h.scalar("select has_table_privilege($1,'tlb.order_photos','select')",[role]),false);
+   assert.equal(await h.scalar("select has_function_privilege($1,'tlb.shared_order_photos(text)','execute')",[role]),false);
+  }
+  assert.equal((await h.service('order_photo_detach',{...scope,photo_id:photoId})).storage_path,path);
+  assert.deepEqual(await h.service('order_photo_shared',{token}),[]);
+  assert.equal((await row()).desired.photo_count,0);
+  assert.equal((await row()).desired.photo_share,undefined);
+ })();
 }

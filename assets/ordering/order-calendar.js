@@ -29,7 +29,7 @@ export function calendarSummary(order){
   ...(delivery?[...(calendarName(order)!==(buyer.name||calendarName(order))?[`Recipient: ${calendarName(order)}`]:[]),
    ...(calendarPhone(order)&&calendarPhone(order)!==(buyer.phone||calendarPhone(order))?[`Recipient phone: ${calendarPhone(order)}`]:[]),`Delivery address: ${calendarAddress(order)||'Not provided'}`]:[]),
   '', 'Order details:',...calendarItemLines(order),'',`Amount: ${calendarAmount(order)}`,
-  ...(delivery&&order.instructions?['',`Delivery instructions: ${order.instructions}`]:[])].join('\n');
+  ...(order.instructions?.trim()?['','Order notes:',order.instructions.trim()]:[])].join('\n');
 }
 export function filteredCalendarOrders(orders,filters){
  const query=String(filters.search||'').trim().toLowerCase();
