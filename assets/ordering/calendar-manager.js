@@ -1,5 +1,5 @@
 import {accountingDatePicker,bindAccountingDates,setAccountingDate} from './accounting-date-picker.js?v=branded-calendars-1';
-import {calendarMonth,shiftedMonth,todayInManila,calendarArea,calendarName,calendarPhone,calendarAddress,filteredCalendarOrders,calendarCopy,calendarSocial,calendarAmount,calendarItemLines} from './order-calendar.js?v=summary-1';
+import {calendarMonth,shiftedMonth,todayInManila,calendarArea,calendarName,calendarPhone,calendarAddress,filteredCalendarOrders,calendarCopy,calendarSocial,calendarAmount,calendarItemLines} from './order-calendar.js?v=order-workflow-20261113';
 
 const errors={access:'Google Calendar access needs attention. Check that the service account can make changes to events.',api_disabled:'Enable Google Calendar API to resume syncing.',configuration:'Finish the Google Calendar connection.',network:'Google Calendar is temporarily unavailable. Changes are saved and will retry automatically.',quota:'Google is limiting requests. Saved changes will retry automatically.',conflict:'A Google event could not be matched safely. Please contact the shop owner.'};
 const dateLabel=value=>new Intl.DateTimeFormat('en-PH',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(new Date(value+'T12:00:00Z'));
@@ -29,7 +29,8 @@ export function mountCalendar(root,{api,calendarConnection,role,connected,openOr
    '<dl class="calendar-details">'+row('Phone number',phone,'buyer_phone')+row('Social media',social,social==='Not provided'?null:'social')+
    (delivery?(calendarName(o)!==customer?row('Recipient',calendarName(o),'name'):'')+(calendarPhone(o)&&calendarPhone(o)!==phone?row('Recipient phone',calendarPhone(o),'phone'):'')+row('Delivery address',calendarAddress(o),'address'):'')+'</dl>'+
    '<p class="calendar-items"><strong>Order details</strong><br>'+calendarItemLines(o).map(esc).join('<br>')+'</p><p class="calendar-amount"><span>Amount</span><strong>'+esc(calendarAmount(o))+'</strong></p>'+
-   (delivery&&o.instructions?'<p class="calendar-instructions"><strong>Delivery instructions:</strong> '+esc(o.instructions)+'</p>':'')+
+   (o.instructions?.trim()?'<p class="calendar-instructions"><strong>Order notes</strong><br>'+esc(o.instructions.trim())+'</p>':'')+
+   (o.photo_count>0?'<p><button type="button" class="calendar-copy" data-calendar-open="'+esc(o.id)+'" data-calendar-photos>View order photos ('+Number(o.photo_count)+')</button></p>':'')+
    '<div class="calendar-order-footer"><button class="button button-secondary" data-calendar-copy="all" data-calendar-id="'+esc(o.id)+'">Copy '+(delivery?'delivery':'pickup')+' details</button><small>'+(!connection?.connected?'Dashboard calendar':o.sync_state==='synced'?'Synced to Google':o.sync_state==='retrying'?'Google update retrying':'Google update pending')+'</small></div></article>';
  }
  function status(){if(!connection)return;let text=!connection.connected?'Google Calendar is not connected yet. The TLB schedule is available below.':connection.last_error?(errors[connection.last_error]||errors.network):connection.pending?`${connection.pending} Google Calendar ${connection.pending===1?'update':'updates'} pending. Updates run automatically.`:connection.last_success_at?`Google Calendar synced · ${timeLabel(connection.last_success_at)} PHT`:'Google Calendar connected. Initial sync is pending.';
@@ -77,7 +78,7 @@ export function mountCalendar(root,{api,calendarConnection,role,connected,openOr
  async function copy(value){if(!value)return;try{await navigator.clipboard.writeText(value);toast('Copied.');}catch{const area=document.createElement('textarea');area.value=value;area.style.cssText='position:fixed;left:-9999px';document.body.append(area);area.select();const done=document.execCommand('copy');area.remove();toast(done?'Copied.':'Copy was blocked. Select the details and copy them manually.',done?undefined:'error');}}
  async function click(event){const element=event.target.closest('button');if(!element||!root.contains(element))return;
   if(element.dataset.calendarCopy){const order=orders.find(o=>o.id===element.dataset.calendarId);if(order)await copy(calendarCopy(order,element.dataset.calendarCopy));return;}
-  if(element.dataset.calendarOpen){openOrder(element.dataset.calendarOpen);return;}
+  if(element.dataset.calendarOpen){openOrder(element.dataset.calendarOpen,{showPhotos:element.hasAttribute('data-calendar-photos')});return;}
   if(element.dataset.calendarDay){filters.selected=element.dataset.calendarDay;draw();return;}
   const action=element.dataset.calendarAction;if(!action)return;
   if(action==='copy-service'){await copy(info.service_account_email);return;}

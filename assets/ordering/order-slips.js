@@ -4,7 +4,9 @@ import { escapeHtml as esc, formatDate } from './client.js?v=approved-20261002-1
 const label = value => String(value || '').replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
 const text = value => String(value ?? '').trim();
 const lines = values => values.map(text).filter(Boolean).join('\n');
-const previewUrl = new URL('./order-print.html?v=compact-slips-1', import.meta.url).href;
+const previewUrl = new URL('./order-print.html?v=order-workflow-20261113', import.meta.url).href;
+const paperDimensions = { a4: [297, 210], letter: [279.4, 215.9] };
+const maxCopies = 20;
 
 function photoUrl(value) {
   if (typeof value !== 'string' || !(/^(https?:\/\/|assets\/)/.test(value))) return '';
@@ -168,7 +170,7 @@ async function readyImages(doc) {
     let timer;
     const done = () => {
       clearTimeout(timer); img.removeEventListener('load', done); img.removeEventListener('error', done);
-      if (!img.complete || !img.naturalWidth) img.parentElement.textContent = 'Photo unavailable';
+      if ((!img.complete || !img.naturalWidth) && img.parentElement) img.parentElement.textContent = 'Photo unavailable';
       resolve();
     };
     if (img.complete) return done();
@@ -206,7 +208,12 @@ function arrangeSheets(doc, slips, paper) {
     let position=available();
     if(!sheet||position===undefined){
       sheet=doc.createElement('section');sheet.className='print-sheet';sheet.dataset.paper=paper;
-      sheet.setAttribute('aria-label',`Sheet ${++count}`);host.append(sheet);occupied=[];position=0;
+      sheet.setAttribute('aria-label',`Sheet ${++count}`);
+      const frame = doc.createElement('div');
+      frame.className = 'print-sheet-frame';
+      frame.append(sheet);
+      host.append(frame);
+      occupied=[];position=0;
     }
     slip.style.gridRow=String(Math.floor(position/2)+1);
     slip.style.gridColumn=slots===2?'1 / span 2':String(position%2+1);
@@ -239,24 +246,64 @@ export async function printOrderSlips(source, { products = [], settings = {} } =
     const models = orders.map(order => printModel(order, products, settings));
     doc.title = `${models.length === 1 ? models[0].reference : `${models.length} orders`} - preparation slips`;
     status.textContent = 'Preparing order slips…';
-    const slips = models.flatMap(model => fitOrder(doc, model));
+    const slipSets = models.map(model => fitOrder(doc, model));
     await readyImages(doc);
     if (preview.closed) return;
     try { if (localStorage.getItem('order-slip-paper') === 'letter') paperChoice.value = 'letter'; } catch { /* Paper choice remains available without storage. */ }
-    const resize = () => doc.documentElement.style.setProperty('--preview-scale', Math.min(1, Math.max(.1, (preview.innerWidth - 24) / ((paperChoice.value === 'letter' ? 279.4 : 297) * 96 / 25.4))));
-    const arrange = () => {
+    const device = preview.navigator;
+    const portrait = /iPhone|iPad|iPod/i.test(device.userAgent) || (device.platform === 'MacIntel' && device.maxTouchPoints > 1);
+    const orientation = portrait ? 'portrait' : 'landscape';
+    for (const option of paperChoice.options) option.textContent = `${option.value === 'letter' ? 'Letter' : 'A4'} ${orientation}`;
+    const copies = doc.querySelector('.print-copies');
+    const counts = models.map(model => {
+      const label = doc.createElement('label');
+      label.textContent = model.reference;
+      const input = doc.createElement('input');
+      Object.assign(input, { type: 'number', min: '1', max: String(maxCopies), step: '1', value: '1', inputMode: 'numeric' });
+      input.setAttribute('aria-label', `Copies of ${model.reference}`);
+      label.append(input);
+      doc.querySelector('#copy-counts').append(label);
+      return input;
+    });
+    copies.hidden = false;
+    copies.open = models.length === 1;
+    const resize = () => {
+      const [wide, short] = paperDimensions[paperChoice.value] || paperDimensions.a4;
+      const width = (portrait ? short : wide) * 96 / 25.4;
+      const height = (portrait ? wide : short) * 96 / 25.4;
+      const scale = Math.min(1, Math.max(.1, (preview.innerWidth - 24) / width));
+      const style = doc.documentElement.style;
+      style.setProperty('--preview-width', `${width * scale}px`);
+      style.setProperty('--preview-height', `${height * scale}px`);
+      style.setProperty('--preview-scale', scale * (portrait ? short / wide : 1));
+    };
+    let layoutVersion = 0;
+    const arrange = async () => {
+      const version = ++layoutVersion;
+      button.disabled = true;
+      let copyCount = 0;
+      const slips = slipSets.flatMap((set, index) => {
+        const number = Math.max(1, Math.min(maxCopies, Math.trunc(Number(counts[index].value)) || 1));
+        counts[index].value = String(number);
+        copyCount += number;
+        return Array.from({ length: number }, () => set.map(slip => slip.cloneNode(true))).flat();
+      });
       const paper = paperChoice.value === 'letter' ? 'letter' : 'a4';
       const count=arrangeSheets(doc, slips, paper); resize();
       const half=slips.filter(s=>s.dataset.size==='half').length;
-      status.textContent = `${orders.length} order${orders.length === 1 ? '' : 's'} · ${slips.length} slip${slips.length === 1 ? '' : 's'} · ${count} sheet${count === 1 ? '' : 's'}. ${slips.length-half} quarter-sheet · ${half} half-sheet. Each slip uses at most half a sheet; extra slips are added only when necessary. Choose matching paper in the print dialog, landscape, Actual size / 100%, with headers and footers off.`;
+      const copiesText = copyCount > orders.length ? ` · ${copyCount} copies` : '';
+      status.textContent = `${orders.length} order${orders.length === 1 ? '' : 's'}${copiesText} · ${slips.length} slip${slips.length === 1 ? '' : 's'} · ${count} sheet${count === 1 ? '' : 's'}. Choose matching paper in the print dialog, ${orientation}, Actual size / 100%, with headers and footers off.`;
+      button.textContent = copyCount > orders.length ? `Print ${copyCount} copies` : `Print ${orders.length === 1 ? 'order' : `${orders.length} orders`}`;
+      await readyImages(doc);
+      if (version === layoutVersion) button.disabled = false;
     };
-    arrange(); preview.addEventListener('resize', resize);
+    await arrange();
+    preview.addEventListener('resize', resize);
+    for (const input of counts) input.addEventListener('change', arrange);
     paperChoice.addEventListener('change', () => {
       arrange();
       try { localStorage.setItem('order-slip-paper', paperChoice.value); } catch { /* Preferences are optional. */ }
     });
-    button.textContent = `Print ${orders.length === 1 ? 'order' : `${orders.length} orders`}`;
-    button.disabled = false;
     paperChoice.disabled = false;
     button.addEventListener('click', () => { preview.focus(); preview.print(); });
     preview.focus();

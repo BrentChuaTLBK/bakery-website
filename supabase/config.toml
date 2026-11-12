@@ -50,6 +50,9 @@ verify_jwt = false
 
 [functions.proof-url]
 verify_jwt = false
+[functions.order-photos]
+# Uploads require a verified staff session. Album reads require the photo-only link token.
+verify_jwt = false
 
 [functions.email-worker]
 verify_jwt = false

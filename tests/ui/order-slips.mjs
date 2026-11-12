@@ -236,8 +236,14 @@ try {
   await popup.locator('#paper-size').selectOption('letter');
   check('Letter paper preserves compact slips at their physical size', await popup.locator('.print-sheet[data-paper="letter"]').count() === 1 && await popup.locator('.slip').count() === 3);
   await popup.pdf({ path: join(output, 'batch-letter.pdf'), preferCSSPageSize: true, printBackground: true });
+  await popup.locator('.print-copies summary').click();
+  const copies = popup.getByRole('spinbutton', { name: 'Copies of SAMPLE-DELIVERY' });
+  await copies.fill('2');
+  await copies.press('Tab');
+  await popup.locator('.print-slips:enabled').waitFor();
+  check('One order can be copied independently inside a mixed batch', (await popup.locator('.slip-reference').allTextContents()).filter(value => value === 'SAMPLE-DELIVERY').length === 2 && await popup.locator('.slip').count() === 4 && await popup.locator('.print-sheet').count() === 1);
   await popup.locator('.print-slips').click();
-  check('One print action includes the complete batch after photos are ready', await popup.evaluate(() => window.printCalls === 1 && window.photosReadyAtPrint));
+  check('One print action includes the complete batch and its copies after photos are ready', await popup.evaluate(() => window.printCalls === 1 && window.photosReadyAtPrint));
   await popup.close();
   check('Batch printing retrieves each selected saved order', (await page.evaluate(() => window.loadedOrderIds)).join() === 'order-1,order-2,order-3');
   await page.locator('[data-action="clear-print-selection"]').click();

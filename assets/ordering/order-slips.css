@@ -9,6 +9,11 @@ body{margin:0}
 .print-toolbar .close-preview{background:white;color:#745032}
 .paper-choice{display:flex;align-items:center;gap:8px}
 .paper-choice select{padding:9px;border:1px solid #745032;border-radius:6px;background:white;font:inherit;color:#25221e}
+.print-copies{flex-basis:100%}
+.print-copies summary{cursor:pointer;color:#745032}
+#copy-counts{display:flex;gap:10px 18px;flex-wrap:wrap;padding-top:10px}
+#copy-counts label{display:flex;align-items:center;gap:8px}
+#copy-counts input{width:4.5rem;padding:6px;border:1px solid #745032;border-radius:6px;font:inherit}
 #slips{padding:20px 12px;display:grid;justify-content:center;gap:20px}
 .print-sheet{width:297mm;height:210mm;padding:3mm;background:white;box-shadow:0 2px 12px #0002;display:grid;grid-template-columns:repeat(2,127mm);grid-template-rows:repeat(2,101.6mm);gap:.5mm;justify-content:start;align-content:start}
 .print-sheet[data-paper="letter"]{width:279.4mm;height:215.9mm}
@@ -84,12 +89,17 @@ body{margin:0}
 .slip--compact .slip-detail{padding-bottom:1mm;margin-bottom:1mm}
 .slip--compact .slip-detail p{line-height:1.2}
 .slip--compact .slip-footer{padding-top:1mm}
-@media screen{.print-sheet{zoom:var(--preview-scale,1)}}
+@media screen{
+  :root{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  .print-sheet-frame{position:relative;width:var(--preview-width);height:var(--preview-height);background:white;box-shadow:0 2px 12px #0002;overflow:hidden}
+  .print-sheet-frame>.print-sheet{position:absolute;inset:0 auto auto 0;transform:scale(var(--preview-scale,1));transform-origin:top left;box-shadow:none}
+}
 @page{size:A4 landscape;margin:0}
 @media print{
   :root,body{background:white}
   .print-toolbar{display:none!important}
   #slips{display:block;padding:0}
+  .print-sheet-frame{display:contents}
   .print-sheet{box-shadow:none;margin:0;break-after:page;break-inside:avoid}
   .print-sheet:last-child{break-after:auto}
   .slip{margin:0;break-inside:avoid;print-color-adjust:exact;-webkit-print-color-adjust:exact}
