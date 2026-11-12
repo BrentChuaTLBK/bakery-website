@@ -199,13 +199,16 @@ export async function mountPOS(root,{api:remoteApi,role,connected,products=[],se
    <div class="pos-options-heading"><h2 id="pos-options-title">${esc(optionProduct.name)}</h2>${button('options-close','&times;',`aria-label="${groups.length ? 'Close flavors' : 'Close quantity'}"`)}</div>
    <p class="notice danger" role="alert" ${error ? '' : 'hidden'}>${esc(error)}</p>
    <form id="pos-options-form">
-   <label class="field pos-item-quantity" for="pos-item-quantity">Quantity</label>
-   <div class="option-stepper pos-item-stepper">
-    <button type="button" data-pos-option-delta="-1" aria-label="Decrease item quantity">&minus;</button>
-    <input id="pos-item-quantity" name="item_quantity" type="number" inputmode="numeric" min="1" max="${Math.max(1, limit)}" value="1" step="1" required autofocus>
-    <button type="button" data-pos-option-delta="1" aria-label="Increase item quantity">+</button>
+   ${packHint}${markup}
+   <div class="pos-item-quantity">
+    <label class="field" for="pos-item-quantity">Quantity</label>
+    <div class="option-stepper">
+     <button type="button" data-pos-option-delta="-1" aria-label="Decrease item quantity">&minus;</button>
+     <input id="pos-item-quantity" class="option-count" name="item_quantity" type="number" inputmode="numeric" min="1" max="${Math.max(1, limit)}" value="1" step="1" required ${groups.length ? '' : 'autofocus'}>
+     <button type="button" data-pos-option-delta="1" aria-label="Increase item quantity">+</button>
+    </div>
+    ${limit ? '' : '<p class="help-text">No more units are available for this sale.</p>'}
    </div>
-   ${limit ? '' : '<p class="help-text">No more units are available for this sale.</p>'}${packHint}${markup}
    <div class="pos-actions">${button('options-close','Cancel')}<button type="submit" class="button">Add to order</button></div>
    </form></dialog>`;
  }
