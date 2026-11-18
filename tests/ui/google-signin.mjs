@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
 import { join, resolve, extname } from 'node:path';
 const require=createRequire(import.meta.url);
-const {chromium}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
+const {chromium,webkit,devices}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
 const root=resolve(import.meta.dirname,'../..'),origin='https://google-signin.test';
 const client=await readFile(join(root,'assets/ordering/client.js'),'utf8');
 const helpers=client.slice(client.indexOf('export function money('));
@@ -20,13 +20,15 @@ signInWithPassword:async value=>{window.passwordCalls=(window.passwordCalls||[])
 signOut:async()=>({error:null})};
 export async function api(action){if(action==='my_orders')return [{id:'existing-order',reference:'TLB-EXISTING',total_cents:10000,fulfillment_date:'2026-10-20',method:'pickup',payment_status:'paid',fulfillment_status:'confirmed',items:[]}];throw Error('No staff access')}
 ${helpers}`;
-const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined});
+const iphone=process.env.BROWSER_ENGINE==='webkit';
+const browser=await (iphone?webkit:chromium).launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined});
+const device=iphone?devices['iPhone 15 Pro Max']:{viewport:{width:390,height:844}};
 const errors=[],requests=[],out=resolve(root,'work');await mkdir(out,{recursive:true});
 let checks=0;
 const check=(name,value)=>{assert.ok(value,name);checks++;};
 try{
- async function fixture({enabled=true,settingsError=false,oauthFails=false,user=null,remembered=null,recipeRole=null}={}){
-  const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+ async function fixture({settings,oauthFails=false,user=null,remembered=null,recipeRole=null}={}){
+  const context=await browser.newContext({...device,serviceWorkers:'block'});
   await context.addInitScript(({oauthFails,user,remembered})=>{
    window.oauthFails=oauthFails;window.testUser=user;
    if(!localStorage.getItem('tlb-checkout-v1'))localStorage.setItem('tlb-checkout-v1','saved checkout fixture');
@@ -35,7 +37,7 @@ try{
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());
    if(url.pathname==='/rest/v1/rpc/recipe_api'){assert.deepEqual(route.request().postDataJSON(),{p_action:'bootstrap',p_payload:{}});assert.equal(route.request().headers().authorization,'Bearer fixture');return route.fulfill({status:recipeRole?200:403,contentType:'application/json',body:JSON.stringify(recipeRole?{role:recipeRole}:{message:'No recipe access'})});}
-   if(url.pathname==='/auth/v1/settings')return route.fulfill({status:settingsError?503:200,contentType:'application/json',body:JSON.stringify({external:{google:enabled}})});
+   if(url.pathname==='/auth/v1/settings')return settings ? settings(route) : route.fulfill({json:{external:{google:true}}});
    if(url.pathname==='/rest/v1/rpc/newsletter_offer')return route.fulfill({contentType:'application/json',body:JSON.stringify({enabled:true,kind:'percent',value:5,valid_days:30,min_subtotal_cents:30000,cap_cents:10000})});
    if(url.pathname==='/functions/v1/newsletter'){const input=route.request().postDataJSON();if(input.action==='subscribe')await route.request().frame().evaluate(()=>window.newsletterSubscribes=(window.newsletterSubscribes||0)+1);return route.fulfill({contentType:'application/json',body:JSON.stringify({status:input.action==='subscribe'?'subscribed':'not_subscribed'})});}
    if(url.origin!==origin){requests.push(url.href);return route.abort()}
@@ -47,20 +49,62 @@ try{
   });
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));return {context,page};
  }
- let f=await fixture({enabled:false});await f.page.goto(origin+'/account.html',{waitUntil:'networkidle'});
- check('Disabled provider hides Google while email sign-in stays available',!await f.page.locator('[data-google-signin]').isVisible()&&await f.page.locator('#auth-form').isVisible());await f.context.close();
- f=await fixture({settingsError:true});await f.page.goto(origin+'/account.html',{waitUntil:'networkidle'});
- check('Provider discovery outage does not block password login',!await f.page.locator('[data-google-signin]').isVisible()&&await f.page.locator('[name=password]').isEnabled());await f.context.close();
+ const googleButton=page=>page.getByRole('button',{name:'Sign in with Google',exact:true});
+ let enabled=false,settingsReads=0;
+ let f=await fixture({settings:route=>{
+   settingsReads++;
+   return route.fulfill({json:{external:{google:enabled}}});
+ }});
+ await f.page.goto(origin+'/account.html',{waitUntil:'networkidle'});
+ check('Google is available to select before any settings request',await googleButton(f.page).isEnabled()&&settingsReads===0);
+ await googleButton(f.page).click();
+ await f.page.getByText(/Google sign-in is currently unavailable/).waitFor();
+ check('An explicitly disabled provider gives a retry without starting OAuth',await googleButton(f.page).isEnabled()&&await f.page.evaluate(()=>!window.oauthCalls));
+ enabled=true;
+ await googleButton(f.page).click();
+ await f.page.waitForURL(origin+'/google-provider');
+ check('A Google-only customer can retry on the same page when the provider returns',settingsReads===2);
+ await f.context.close();
+
+ f=await fixture({settings:route=>route.fulfill({status:503,json:{}})});
+ await f.page.goto(origin+'/account.html?mode=signup');
+ await googleButton(f.page).waitFor();
+ check('Google and email signup are both available during a settings outage',await googleButton(f.page).isEnabled()&&await f.page.locator('[name=password]').isEnabled());
+ await googleButton(f.page).click();
+ await f.page.waitForURL(origin+'/google-provider');
+ check('A failed settings lookup still lets Google OAuth start',true);
+ await f.context.close();
+
+ let stalledSettings;
+ f=await fixture({settings:route=>{stalledSettings=route;}});
+ await f.page.goto(origin+'/account.html');
+ await googleButton(f.page).click();
+ await f.page.waitForURL(origin+'/google-provider',{timeout:12000});
+ check('A stalled settings request allows the Google handoff after the timeout',Boolean(stalledSettings));
+ await stalledSettings.abort().catch(()=>{});
+ await f.context.close();
+
+ f=await fixture();await f.page.goto(origin+'/account.html');
+ await googleButton(f.page).waitFor();
+ await f.context.setOffline(true);
+ await googleButton(f.page).click();
+ await f.page.getByText(/You’re offline/).waitFor();
+ check('Google stays available to retry while offline',await googleButton(f.page).isEnabled()&&await f.page.evaluate(()=>!window.oauthCalls));
+ await f.context.setOffline(false);
+ await googleButton(f.page).click();
+ await f.page.waitForURL(origin+'/google-provider');
+ check('Reconnecting allows Google sign-in without a page reload',true);
+ await f.context.close();
  f=await fixture();await f.page.goto(origin+'/account.html?next=shop.html%23checkout',{waitUntil:'networkidle'});
  await f.page.getByRole('button',{name:'Sign in with Google',exact:true}).waitFor();
  check('Google sign-in fits on mobile',await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await f.page.screenshot({path:join(out,'google-signin-mobile.png'),fullPage:true});
+ await f.page.screenshot({path:join(out,iphone?'google-signin-iphone-webkit.png':'google-signin-mobile.png'),fullPage:true});
  await f.page.getByRole('button',{name:'Sign in with Google',exact:true}).click();await f.page.waitForURL(origin+'/google-provider');
  check('Google does not require email/password fields before redirect',new URL(f.page.url()).pathname==='/google-provider');
  check('Checkout and safe return destination survive OAuth launch',await f.page.evaluate(()=>localStorage.getItem('tlb-checkout-v1')==='saved checkout fixture'&&sessionStorage.getItem('tlb-auth-return-v1')==='/shop.html#checkout'));await f.context.close();
  f=await fixture({oauthFails:true});await f.page.goto(origin+'/account.html?mode=signup',{waitUntil:'networkidle'});
  await f.page.getByRole('button',{name:'Sign in with Google',exact:true}).click();
- await f.page.getByText('Google sign-in could not start. Please try again or sign in with your email and password.').waitFor();
+ await f.page.getByText('Google sign-in could not start. Check your connection and try the Google button again.').waitFor();
  const calls=await f.page.evaluate(()=>window.oauthCalls);
  assert.deepEqual(calls,[{provider:'google',options:{redirectTo:origin+'/oauth-callback.html',queryParams:{prompt:'select_account'}}}]);checks++;
  check('OAuth error restores Google and password controls',await f.page.getByRole('button',{name:'Sign in with Google',exact:true}).isEnabled()&&await f.page.locator('[name=password]').isEnabled());

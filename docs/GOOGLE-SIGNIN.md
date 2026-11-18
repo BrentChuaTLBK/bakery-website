@@ -1,6 +1,6 @@
 # Google sign-in for TLB
 
-Email/password login remains available. The website reads Supabase's public provider settings and shows the Google button only when Google is enabled. It asks Google to let the customer choose an account and returns to the saved shop, account or staff destination in the same tab. Saved checkout data is preserved. Google sign-in does not subscribe someone to the newsletter; that choice remains available in account preferences.
+The sign-in and create-account forms show **Sign in with Google** as soon as the form opens. Selecting it starts a fresh check of Supabase’s public provider settings. If Supabase explicitly reports that Google is off, the form displays a message and lets the customer retry. If the check fails or exceeds five seconds, the site proceeds with the normal Google OAuth flow while online. The customer chooses a Google account and returns to the saved shop, account or staff destination in the same tab. Saved checkout data is preserved. Newsletter signup is a separate choice in account preferences.
 
 ## 1. Create Google credentials
 
@@ -31,7 +31,7 @@ Retain the existing `auth-callback.html` and `reset-password.html` redirect entr
 
 ## 3. Publish and validate
 
-Merge the prepared website change into the production repository and wait for GitHub Pages to publish it. Refresh the account page after enabling the provider. If provider discovery fails, the email/password form remains usable.
+After enabling the provider, select **Sign in with Google** on the account page to validate the handoff to Google. A customer who reconnects can retry from the same page.
 
 If Google keeps the app in Testing, add the controlled test accounts under **Audience → Test users** as required. Before general customer use, confirm the app's audience/publication status allows those customers and complete any branding/domain checks Google requests. Do not claim live Google acceptance based only on local mocks.
 
@@ -41,7 +41,7 @@ Supabase automatically links eligible identities with the same email and applies
 
 ## Validation and assets
 
-Run `node tests/ui/google-signin.mjs` with Playwright available (`PLAYWRIGHT_PACKAGE_ROOT` and `BROWSER_EXECUTABLE_PATH` can select the installed runtime), plus `node tests/newsletter-ui.mjs` for the existing account/newsletter flows. The 22 Google browser checks cover provider visibility/outage, launch and error fallback, safe return destinations, cart preservation, account history display, and invalid/cancelled/recovery/unverified callbacks. Provider identity linking itself requires live acceptance after credentials are configured.
+Run `node tests/ui/google-signin.mjs` with Playwright available (`PLAYWRIGHT_PACKAGE_ROOT` and `BROWSER_EXECUTABLE_PATH` can select the installed runtime). Set `BROWSER_ENGINE=webkit` to run the same checks with the iPhone 15 Pro Max profile. Run `node tests/newsletter-ui.mjs` for account and newsletter flows. The Google checks cover disabled, unavailable and slow provider settings, retry after reconnection, OAuth launch, return destinations, cart preservation, account history and callback handling. Provider identity linking itself requires live acceptance after credentials are configured.
 
 `assets/img/brands/google-signin.svg` is the unmodified official light pill button from Google's Android + Web SVG asset bundle, downloaded on September 19, 2026. Its text is drawn as paths, so it does not depend on a remote font.
 

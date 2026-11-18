@@ -4,7 +4,7 @@ import {applyNewsletterOffer} from './newsletter-offer.js?v=newsletter-settings-
 import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js?v=approved-20261002-1';
 import { newsletterRequest } from './newsletter-client.js?v=approved-20261002-1';
 import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=approved-20261002-1';
-import { googleSignInEnabled } from './google-signin.js?v=google-1';
+import { googleSignInEnabled } from './google-signin.js?v=google-retry-20261118';
 
 const root = document.getElementById('account-root');
 const page = document.body.dataset.accountPage;
@@ -82,7 +82,7 @@ function accountForm() {
     <h2 id="auth-title">${titles[mode]}</h2><p class="muted">${descriptions[mode]}</p>
     ${disabled ? disconnectedNotice() : ''}
     <div id="account-notice" role="status" tabindex="-1" hidden></div>
-    ${['signin', 'signup'].includes(mode) && !disabled ? '<div class="google-signin" data-google-signin hidden><button type="button" class="google-signin-button" data-action="google-signin" aria-label="Sign in with Google"><img src="assets/img/brands/google-signin.svg" width="225" height="50" alt="Sign in with Google"></button><p class="google-signin-divider">or continue with email</p></div>' : ''}
+    ${['signin', 'signup'].includes(mode) && !disabled ? '<div class="google-signin" data-google-signin><button type="button" class="google-signin-button" data-action="google-signin" aria-label="Sign in with Google"><img src="assets/img/brands/google-signin.svg" width="225" height="50" alt="Sign in with Google"></button><p class="google-signin-divider">or continue with email</p></div>' : ''}
     <form id="auth-form"><fieldset ${disabled ? 'disabled' : ''} style="border:0;padding:0;margin:0">
       <label class="field">Email address<input name="email" type="email" autocomplete="email" maxlength="254" required value="${esc(email)}" placeholder="you@example.com"></label>
       ${['signin', 'signup'].includes(mode) ? `<label class="field">Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" ${mode === 'signup' ? 'minlength="10"' : ''} maxlength="128" required ${mode === 'signup' ? 'aria-describedby="password-hint"' : ''}></label>${mode === 'signup' ? '<p class="muted" id="password-hint">Use at least 10 characters. A memorable phrase works well.</p><label class="field">Confirm password<input name="confirm_password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>' : ''}` : ''}
@@ -108,11 +108,7 @@ function renderSignedOut() {
     root.querySelector('[name="email"]')?.focus();
   }));
   document.getElementById('auth-form').addEventListener('submit', submitAuth);
-  const google = root.querySelector('[data-google-signin]');
-  if (google) {
-    google.querySelector('button').addEventListener('click', signInWithGoogle);
-    googleSignInEnabled().then(enabled => { if (google.isConnected) google.hidden = !enabled; });
-  }
+  root.querySelector('[data-action="google-signin"]')?.addEventListener('click', signInWithGoogle);
 }
 
 async function signInWithGoogle() {
@@ -120,21 +116,32 @@ async function signInWithGoogle() {
   submitting = true;
   const controls = [...root.querySelectorAll('button, input')].filter(node => !node.disabled);
   controls.forEach(node => { node.disabled = true; });
+  function allowRetry(message) {
+    submitting = false;
+    controls.forEach(node => { if (node.isConnected) node.disabled = false; });
+    try { sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
+    notice(message, 'danger');
+  }
   try {
+    notice('Opening Google sign-in…');
+    if (navigator.onLine && (await googleSignInEnabled()) === false) {
+      allowRetry('Google sign-in is currently unavailable. Please try the Google button again later.');
+      return;
+    }
+    if (navigator.onLine === false) {
+      allowRetry('You’re offline. Reconnect, then select Sign in with Google again.');
+      return;
+    }
     // OAuth stays in this tab so the existing checkout and return destination
     // survive. Never put checkout details, tokens or a Google secret in this URL.
     try { sessionStorage.setItem('tlb-auth-return-v1', next); } catch { /* The callback falls back to the shop. */ }
     try { if(mode==='signup'&&root.querySelector('[name=newsletter]')?.checked)sessionStorage.setItem('tlb-newsletter-signup-consent',String(Date.now()));else sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
-    notice('Opening Google sign-in…');
     const { error } = await auth.signInWithOAuth({ provider: 'google', options: {
       redirectTo: redirect('oauth-callback.html'), queryParams: { prompt: 'select_account' },
     } });
     if (error) throw error;
   } catch {
-    submitting = false;
-    controls.forEach(node => { if (node.isConnected) node.disabled = false; });
-    try { sessionStorage.removeItem('tlb-newsletter-signup-consent'); } catch {}
-    notice('Google sign-in could not start. Please try again or sign in with your email and password.', 'danger');
+    allowRetry('Google sign-in could not start. Check your connection and try the Google button again.');
   }
 }
 
