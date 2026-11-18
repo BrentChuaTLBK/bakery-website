@@ -1,6 +1,6 @@
 # Google sign-in for TLB
 
-The sign-in and create-account forms show **Sign in with Google** as soon as the form opens. Selecting it starts a fresh check of Supabase’s public provider settings. If Supabase explicitly reports that Google is off, the form displays a message and lets the customer retry. If the check fails or exceeds five seconds, the site proceeds with the normal Google OAuth flow while online. The customer chooses a Google account and returns to the saved shop, account or staff destination in the same tab. Saved checkout data is preserved. Newsletter signup is a separate choice in account preferences.
+The sign-in and create-account forms check Supabase’s public provider settings in the background. **Sign in with Google** appears when Supabase confirms Google is enabled. The form accepts a slow response and automatically retries inconclusive or disabled results while the page is open. Tapping the button starts the Google redirect immediately. The customer chooses a Google account and returns to the saved shop, account or staff destination in the same tab. Saved checkout data is preserved. Newsletter signup is a separate choice in account preferences.
 
 ## 1. Create Google credentials
 
@@ -31,7 +31,7 @@ Retain the existing `auth-callback.html` and `reset-password.html` redirect entr
 
 ## 3. Publish and validate
 
-After enabling the provider, select **Sign in with Google** on the account page to validate the handoff to Google. A customer who reconnects can retry from the same page.
+After enabling the provider, keep the account page open until **Sign in with Google** appears, then select it to validate the handoff to Google. A phone that reconnects or brings the page back to the foreground checks availability again automatically.
 
 If Google keeps the app in Testing, add the controlled test accounts under **Audience → Test users** as required. Before general customer use, confirm the app's audience/publication status allows those customers and complete any branding/domain checks Google requests. Do not claim live Google acceptance based only on local mocks.
 

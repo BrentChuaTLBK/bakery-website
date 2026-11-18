@@ -4,7 +4,7 @@ import {applyNewsletterOffer} from './newsletter-offer.js?v=newsletter-settings-
 import { api, auth, authLink, ready, configured, initializationError, escapeHtml as esc, money, formatDate, toast } from './client.js?v=approved-20261002-1';
 import { newsletterRequest } from './newsletter-client.js?v=approved-20261002-1';
 import { mountNewsletterPreferences, rememberPreference } from './newsletter.js?v=approved-20261002-1';
-import { googleSignInEnabled } from './google-signin.js?v=google-retry-20261118';
+import { watchGoogleSignIn } from './google-signin.js?v=google-background-20261118';
 
 const root = document.getElementById('account-root');
 const page = document.body.dataset.accountPage;
@@ -16,6 +16,7 @@ let renderVersion = 0;
 let authChangeTimer;
 let submitting = false;
 let newsletterChoice = false;
+let stopGoogleSignInCheck;
 
 // Only this site's ordering destinations can be used after authentication.
 // In particular, protocol-relative URLs and another site's login redirects
@@ -82,7 +83,7 @@ function accountForm() {
     <h2 id="auth-title">${titles[mode]}</h2><p class="muted">${descriptions[mode]}</p>
     ${disabled ? disconnectedNotice() : ''}
     <div id="account-notice" role="status" tabindex="-1" hidden></div>
-    ${['signin', 'signup'].includes(mode) && !disabled ? '<div class="google-signin" data-google-signin><button type="button" class="google-signin-button" data-action="google-signin" aria-label="Sign in with Google"><img src="assets/img/brands/google-signin.svg" width="225" height="50" alt="Sign in with Google"></button><p class="google-signin-divider">or continue with email</p></div>' : ''}
+    ${['signin', 'signup'].includes(mode) && !disabled ? '<div class="google-signin" data-google-signin hidden><button type="button" class="google-signin-button" data-action="google-signin" aria-label="Sign in with Google"><img src="assets/img/brands/google-signin.svg" width="225" height="50" alt="Sign in with Google"></button><p class="google-signin-divider">or continue with email</p></div>' : ''}
     <form id="auth-form"><fieldset ${disabled ? 'disabled' : ''} style="border:0;padding:0;margin:0">
       <label class="field">Email address<input name="email" type="email" autocomplete="email" maxlength="254" required value="${esc(email)}" placeholder="you@example.com"></label>
       ${['signin', 'signup'].includes(mode) ? `<label class="field">Password<input name="password" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" ${mode === 'signup' ? 'minlength="10"' : ''} maxlength="128" required ${mode === 'signup' ? 'aria-describedby="password-hint"' : ''}></label>${mode === 'signup' ? '<p class="muted" id="password-hint">Use at least 10 characters. A memorable phrase works well.</p><label class="field">Confirm password<input name="confirm_password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>' : ''}` : ''}
@@ -94,6 +95,7 @@ function accountForm() {
 }
 
 function renderSignedOut() {
+  stopGoogleSignInCheck?.();
   voucherController?.destroy();voucherController=null;root.classList.remove('account-dashboard');
   renderVersion++;
   root.innerHTML = `<div class="account-layout"><section><p class="eyebrow">Made for sweet moments</p><h1>A little place for<br>your favourite bakes.</h1><p>Keep your orders together, follow their progress, and make your next celebration a little easier.</p><p class="muted">Your cart, selected date, and checkout details stay saved on this browser while you sign in.</p><a class="button button-secondary" href="${esc(guestNext)}">Continue as a guest</a><p class="muted">You can order without an account. Promo codes require a verified account.</p></section>${accountForm()}</div>`;
@@ -108,7 +110,9 @@ function renderSignedOut() {
     root.querySelector('[name="email"]')?.focus();
   }));
   document.getElementById('auth-form').addEventListener('submit', submitAuth);
-  root.querySelector('[data-action="google-signin"]')?.addEventListener('click', signInWithGoogle);
+  const googleBlock = root.querySelector('[data-google-signin]');
+  stopGoogleSignInCheck = googleBlock && watchGoogleSignIn(googleBlock);
+  googleBlock?.querySelector('button').addEventListener('click', signInWithGoogle);
 }
 
 async function signInWithGoogle() {
@@ -124,10 +128,6 @@ async function signInWithGoogle() {
   }
   try {
     notice('Opening Google sign-in…');
-    if (navigator.onLine && (await googleSignInEnabled()) === false) {
-      allowRetry('Google sign-in is currently unavailable. Please try the Google button again later.');
-      return;
-    }
     if (navigator.onLine === false) {
       allowRetry('You’re offline. Reconnect, then select Sign in with Google again.');
       return;
@@ -244,6 +244,8 @@ async function renderAccount() {
   if (version !== renderVersion) return;
   currentUser = !error ? user : null;
   if (!currentUser) { renderSignedOut(); return; }
+  stopGoogleSignInCheck?.();
+  stopGoogleSignInCheck = null;
   const verified = Boolean(user.email_confirmed_at);
   root.classList.add('account-dashboard');
   root.innerHTML = `<header class="account-welcome"><div class="account-welcome-main"><div><p class="eyebrow">Your little corner</p><h1>Welcome back</h1><p class="account-welcome-note">Your orders, little treats, and everything TLB.</p><p class="account-identity"><span>${esc(user.email)}</span><span class="badge">${verified?'Email verified':'Verification pending'}</span></p></div><a class="button" href="${esc(next)}">${esc(returnLabel)} <span aria-hidden="true">↗</span></a></div><div class="account-welcome-bottom"><nav class="account-section-links" aria-label="Your account"><a href="#account-orders">Your orders</a><a href="#account-vouchers">My vouchers</a><a href="#newsletter-preferences">Email preferences</a></nav><div class="dialog-actions"><a class="button button-quiet" id="staff-link" href="manage.html" hidden>Staff dashboard</a><button class="button button-quiet" id="sign-out" type="button">Sign out</button></div></div></header><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified?'':'<div class="notice"><p>Verify your email to view personal vouchers and use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<div class="account-content-grid"><section id="account-orders" class="panel" aria-labelledby="orders-title"><div class="section-heading"><div><p class="eyebrow">From our kitchen</p><h2 id="orders-title">Your orders</h2></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div><p class="account-guest-note muted">Placed an order as a guest? Open the secure link from your confirmation email.</p></section><section id="account-vouchers" class="panel" aria-label="My vouchers"></section></div>`;
