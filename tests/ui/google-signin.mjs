@@ -50,50 +50,94 @@ try{
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));return {context,page};
  }
  const googleButton=page=>page.getByRole('button',{name:'Sign in with Google',exact:true});
- let enabled=false,settingsReads=0;
- let f=await fixture({settings:route=>{
+ const isSettings=request=>new URL(request.url()).pathname==='/auth/v1/settings';
+ let settingsReads=0;
+ let releaseCheck;
+ const delayed=new Promise(resolve=>{releaseCheck=resolve});
+ let f=await fixture({settings:async route=>{
+   settingsReads++;
+   await delayed;
+   return route.fulfill({json:{external:{google:true}}});
+ }});
+ const firstRead=f.page.waitForRequest(isSettings);
+ await f.page.goto(origin+'/account.html',{waitUntil:'domcontentloaded'});
+ await firstRead;
+ const email=f.page.getByRole('textbox',{name:'Email address'});
+ await email.fill('customer@example.test');
+ check('Google and its divider are hidden before confirmation',await f.page.locator('[data-google-signin]').isHidden());
+ await f.page.waitForTimeout(5500);
+ check('A pending check still hides Google after five seconds',await googleButton(f.page).isHidden());
+ releaseCheck();
+ await googleButton(f.page).waitFor();
+ check('The original slow check reveals Google without refreshing or disturbing the email field',
+   settingsReads===1&&await email.inputValue()==='customer@example.test'&&await email.evaluate(node=>document.activeElement===node));
+ await googleButton(f.page).click();
+ await f.page.waitForURL(origin+'/google-provider',{timeout:3000});
+ check('Tapping the confirmed button starts OAuth with no second settings lookup',settingsReads===1);
+ await f.context.close();
+
+ let enabled=false;
+ settingsReads=0;
+ f=await fixture({settings:route=>{
    settingsReads++;
    return route.fulfill({json:{external:{google:enabled}}});
  }});
  await f.page.goto(origin+'/account.html',{waitUntil:'networkidle'});
- check('Google is available to select before any settings request',await googleButton(f.page).isEnabled()&&settingsReads===0);
- await googleButton(f.page).click();
- await f.page.getByText(/Google sign-in is currently unavailable/).waitFor();
- check('An explicitly disabled provider gives a retry without starting OAuth',await googleButton(f.page).isEnabled()&&await f.page.evaluate(()=>!window.oauthCalls));
+ check('An explicitly disabled provider stays hidden',settingsReads>=1&&await googleButton(f.page).isHidden());
  enabled=true;
- await googleButton(f.page).click();
- await f.page.waitForURL(origin+'/google-provider');
- check('A Google-only customer can retry on the same page when the provider returns',settingsReads===2);
- await f.context.close();
-
- f=await fixture({settings:route=>route.fulfill({status:503,json:{}})});
- await f.page.goto(origin+'/account.html?mode=signup');
  await googleButton(f.page).waitFor();
- check('Google and email signup are both available during a settings outage',await googleButton(f.page).isEnabled()&&await f.page.locator('[name=password]').isEnabled());
+ const readsBeforeTap=settingsReads;
  await googleButton(f.page).click();
  await f.page.waitForURL(origin+'/google-provider');
- check('A failed settings lookup still lets Google OAuth start',true);
+ check('Google appears when enabled on the same page and the tap uses that confirmation',settingsReads===readsBeforeTap&&settingsReads>=2);
  await f.context.close();
 
- let stalledSettings;
- f=await fixture({settings:route=>{stalledSettings=route;}});
+ settingsReads=0;
+ f=await fixture({settings:route=>{
+   settingsReads++;
+   if(settingsReads===1)return route.fulfill({status:503,json:{}});
+   if(settingsReads===2)return route.fulfill({json:{external:{google:'unknown'}}});
+   return route.fulfill({json:{external:{google:true}}});
+ }});
+ await f.page.goto(origin+'/account.html?mode=signup',{waitUntil:'networkidle'});
+ check('An unavailable settings service hides Google while signup remains usable',await googleButton(f.page).isHidden()&&await f.page.locator('[name=password]').isEnabled());
+ await f.page.waitForResponse(response=>isSettings(response.request())&&response.status()===200);
+ check('A malformed setting cannot enable Google',await googleButton(f.page).isHidden());
+ await googleButton(f.page).waitFor();
+ check('Signup automatically recovers on the next positive response',settingsReads===3);
+ await f.context.close();
+
+ settingsReads=0;
+ f=await fixture({settings:route=>{
+   settingsReads++;
+   if(settingsReads===1)return route.fulfill({json:{external:{google:true}}});
+   // Keep the background recheck pending throughout the tap.
+ }});
  await f.page.goto(origin+'/account.html');
+ await googleButton(f.page).waitFor();
+ const recheck=f.page.waitForRequest(isSettings);
+ await f.page.evaluate(()=>window.dispatchEvent(new Event('online')));
+ await recheck;
  await googleButton(f.page).click();
- await f.page.waitForURL(origin+'/google-provider',{timeout:12000});
- check('A stalled settings request allows the Google handoff after the timeout',Boolean(stalledSettings));
- await stalledSettings.abort().catch(()=>{});
+ await f.page.waitForURL(origin+'/google-provider',{timeout:3000});
+ check('An in-flight background recheck does not hold up a tap or start a third check',settingsReads===2);
  await f.context.close();
 
- f=await fixture();await f.page.goto(origin+'/account.html');
+ settingsReads=0;
+ f=await fixture({settings:route=>{
+   settingsReads++;
+   return route.fulfill({json:{external:{google:true}}});
+ }});
+ await f.page.goto(origin+'/account.html');
  await googleButton(f.page).waitFor();
  await f.context.setOffline(true);
- await googleButton(f.page).click();
- await f.page.getByText(/You’re offline/).waitFor();
- check('Google stays available to retry while offline',await googleButton(f.page).isEnabled()&&await f.page.evaluate(()=>!window.oauthCalls));
+ await googleButton(f.page).waitFor({state:'hidden'});
+ check('Going offline hides Google',await f.page.locator('[data-google-signin]').isHidden());
  await f.context.setOffline(false);
+ await googleButton(f.page).waitFor();
  await googleButton(f.page).click();
  await f.page.waitForURL(origin+'/google-provider');
- check('Reconnecting allows Google sign-in without a page reload',true);
+ check('Reconnecting confirms Google in the background without a page reload',settingsReads===2);
  await f.context.close();
  f=await fixture();await f.page.goto(origin+'/account.html?next=shop.html%23checkout',{waitUntil:'networkidle'});
  await f.page.getByRole('button',{name:'Sign in with Google',exact:true}).waitFor();
