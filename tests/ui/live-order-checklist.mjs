@@ -53,7 +53,8 @@ async function openDashboard(direct = false) {
   const page=await context.newPage();
   page.on('pageerror', error=>errors.push(error.message));
   page.setDefaultTimeout(6000);
-  await page.clock.install();
+  // January 10 in Manila while the UTC date is still January 9.
+  await page.clock.install({time:new Date('2027-01-09T18:00:00Z')});
   await page.goto(origin+'/manage.html'+(direct ? '#checklist' : ''));
   if(!direct) await selectDashboardSection(page,'checklist');
   return {context,page};
@@ -61,13 +62,18 @@ async function openDashboard(direct = false) {
 
 const firstId = '00000000-0000-4000-8000-000000000001';
 const orders = [{
-  id:firstId, reference:'TLB-100', fulfillment_date:'2027-01-10', buyer:{name:'Mira Baker'},
+  id:firstId, reference:'TLB-100', fulfillment_date:'2027-01-10', method:'pickup', buyer:{name:'Mira Baker'},
   payment_status:'paid', prepared:false, content_key:'first-version',
   instructions:'Pack upright. Write Mira <3 on the box.',
   items:[{name:'Cocoa cake', quantity:2, description:'Blue buttercream',
     selection_labels:[{group:'Filling', label:'Salted caramel', quantity:1}, 'Birthday topper']},
     {name:'Cookie box',product_id:'cookie-box',quantity:1,selections:{flavors:{mango:2}}}],
 }];
+function delivery(reference, date) {
+  return {id:reference, reference, fulfillment_date:date, method:'delivery', buyer:{name:'Delivery client'},
+    payment_status:'paid', prepared:false, content_key:reference, items:[{name:'Tart', quantity:1}]};
+}
+orders.unshift(delivery('DEL-TODAY','2027-01-10'), delivery('DEL-YESTERDAY','2027-01-09'));
 let reads=0, writes=0, failNextRead=false, failNextSave=false, heldWrite;
 
 async function fixtureApi(action, payload) {
@@ -103,6 +109,15 @@ async function fixtureApi(action, payload) {
 function rowFor(page,id) {
   return page.locator('[data-checklist-order="'+id+'"]');
 }
+async function groupedOrders(page) {
+  return page.locator('[data-checklist-date]').evaluateAll(days=>days.map(day=>({
+    date:day.dataset.checklistDate,
+    methods:[...day.querySelectorAll('[data-checklist-method]')].map(section=>({
+      name:section.querySelector('h3').textContent.trim(),
+      orders:[...section.querySelectorAll('[data-checklist-order]')].map(row=>row.dataset.checklistOrder),
+    })),
+  })));
+}
 async function expectSettled(page,id,checked) {
   await page.waitForFunction(({id,checked})=>{
     const input=document.querySelector('[data-checklist-order="'+id+'"] input[type=checkbox]');
@@ -114,6 +129,14 @@ try {
   const {page}=await openDashboard();
   const first=rowFor(page,firstId);
   await first.waitFor();
+  const jan9={date:'2027-01-09',methods:[{name:'Delivery',orders:['DEL-YESTERDAY']}]};
+  const jan10={date:'2027-01-10',methods:[{name:'Pickup',orders:[firstId]},{name:'Delivery',orders:['DEL-TODAY']}]};
+  assert.deepEqual(await groupedOrders(page),[jan9,jan10],'All dates sort chronologically, with pickup before delivery inside each date');
+  for (const day of [jan9,jan10]) {
+    const section=page.locator('[data-checklist-date="'+day.date+'"]');
+    assert.ok(await section.locator('h2').isVisible(),'Every group has a visible date heading');
+    assert.match(await section.locator('h2').innerText(),new RegExp('\\b'+Number(day.date.slice(-2))+'\\b'));
+  }
   for(const detail of ['TLB-100','Mira Baker','Cocoa cake','Salted caramel','Birthday topper','Blue buttercream','Pack upright. Write Mira <3 on the box.']) {
     assert.ok((await first.innerText()).includes(detail),'Order details include '+detail);
   }
@@ -125,7 +148,7 @@ try {
 
   const nextId='00000000-0000-4000-8000-000000000002';
   orders.push({
-    id:nextId, reference:'TLB-101', fulfillment_date:'2027-01-11', buyer:{name:'Ari Sample'},
+    id:nextId, reference:'TLB-101', fulfillment_date:'2027-01-11', method:'pickup', buyer:{name:'Ari Sample'},
     payment_status:'awaiting_payment', prepared:false, content_key:'second-version',
     instructions:'Leave the ribbon loose.', items:[{name:'Custom pastry', quantity:1,
       description:'Purple glaze. Cake inscription: '+ 'Congratulations'.repeat(8)}],
@@ -148,6 +171,33 @@ try {
   }),'Long item details wrap inside the dashboard viewport');
   assert.equal(await checkedBox.evaluate(input=>input===document.activeElement),true,'Polling preserves staff keyboard focus');
 
+  const jan11={date:'2027-01-11',methods:[{name:'Pickup',orders:[nextId]}]};
+  assert.deepEqual(await groupedOrders(page),[jan9,jan10,jan11],'Polling creates a new date group');
+  const previousDay=page.getByRole('button',{name:'Previous day',exact:true});
+  const nextDay=page.getByRole('button',{name:'Next day',exact:true});
+  await page.getByRole('button',{name:'Single day',exact:true}).click();
+  assert.deepEqual(await groupedOrders(page),[jan10],'Single day starts on the Manila date');
+  await previousDay.click();
+  assert.deepEqual(await groupedOrders(page),[jan9]);
+  await nextDay.click();
+  await nextDay.click();
+  assert.deepEqual(await groupedOrders(page),[jan11]);
+  await nextDay.click();
+  assert.equal(await page.locator('[data-checklist-order]').count(),0,'An empty day cannot show orders from another day');
+  const picker=page.locator('.accounting-date-picker').filter({has:page.locator('[name=checklist_day]')});
+  await picker.locator('summary').click();
+  await picker.locator('[data-date-value="2027-01-10"]').click();
+  assert.deepEqual(await groupedOrders(page),[jan10]);
+
+  const arriving=orders.find(order=>order.id===nextId);
+  arriving.fulfillment_date='2027-01-10';
+  arriving.method='delivery';
+  await page.clock.fastForward(16000);
+  const dayDelivery=page.locator('[data-checklist-date="2027-01-10"] [data-checklist-method="delivery"]');
+  await dayDelivery.locator('[data-checklist-order="'+nextId+'"]').waitFor();
+  assert.equal(await next.count(),1,'Rescheduled orders move into the selected date and method exactly once');
+  assert.equal(await page.locator('[data-checklist-order]').count(),3);
+
   heldWrite={started:deferred(),release:deferred()};
   await checkedBox.click();
   await Promise.race([heldWrite.started.promise, new Promise((_, reject)=>{
@@ -159,10 +209,13 @@ try {
   await checkedBox.evaluate(input=>input.click());
   assert.equal(await checkedBox.isChecked(),true,'A duplicate click cannot flip a pending checkmark');
   assert.equal(writes,1);
+  await previousDay.click();
+  assert.deepEqual(await groupedOrders(page),[jan9],'Day navigation remains usable during a pending checkmark save');
   heldWrite.release.resolve();
+  await nextDay.click();
   await expectSettled(page,firstId,true);
   heldWrite=undefined;
-  assert.equal(orders[0].prepared,true);
+  assert.equal(orders.find(order=>order.id===firstId).prepared,true);
 
   const second=await openDashboard(true);
   await expectSettled(second.page,firstId,true);
@@ -171,15 +224,18 @@ try {
   await secondBox.click();
   await second.page.getByRole('alert').filter({hasText:/./}).first().waitFor();
   await expectSettled(second.page,firstId,true);
-  assert.equal(orders[0].prepared,true,'A failed save preserves the last stored value');
+  assert.equal(orders.find(order=>order.id===firstId).prepared,true,'A failed save preserves the last stored value');
   await secondBox.click();
   await expectSettled(second.page,firstId,false);
-  assert.equal(orders[0].prepared,false);
+  assert.equal(orders.find(order=>order.id===firstId).prepared,false);
   await second.context.close();
   await page.clock.fastForward(16000);
   await expectSettled(page,firstId,false);
 
-  orders.splice(1,1);
+  await page.getByRole('button',{name:'All dates',exact:true}).click();
+  assert.equal(await page.locator('[data-checklist-date="2027-01-11"]').count(),0,'An empty date group is removed after a reschedule');
+  await expectSettled(page,firstId,false);
+  orders.splice(orders.indexOf(arriving),1);
   await page.clock.fastForward(16000);
   await next.waitFor({state:'detached'});
   await selectDashboardSection(page,'orders');
@@ -187,7 +243,7 @@ try {
   await page.clock.fastForward(45000);
   assert.equal(reads,readsAfterLeaving,'Leaving Checklist stops its background polling');
   assert.deepEqual(errors,[]);
-  console.log('PASS staff checklist details, new orders without reload, shared checkmarks, save retry and polling cleanup');
+  console.log('PASS date and fulfillment groups, single-day calendar and navigation, live arrivals and rescheduling, shared checkmarks, and polling cleanup');
 } finally {
   await browser.close();
 }

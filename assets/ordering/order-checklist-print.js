@@ -1,6 +1,8 @@
 import { calendarAddress } from './order-calendar.js';
 
-const titles = { preparation: 'Preparation checklist', pickup: 'Pickup checklist', delivery: 'Delivery checklist' };
+import { checklistTitles } from './order-checklist-data.js?v=checklist-dates-20261119';
+
+const titles = { ...checklistTitles, preparation: 'Preparation checklist' };
 const dateFormat = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => entities[char]);
@@ -51,15 +53,16 @@ function detail(label, value) {
 }
 
 function orderRow(order, type) {
-  const preparation = type === 'preparation';
+  const detailed = type === 'orders' || type === 'preparation';
   const pickup = order.method === 'pickup';
   const buyer = order.buyer || {};
   const recipient = order.recipient || {};
   const timeWindow = order.window || (pickup ? order.pickup_hours : order.delivery_window);
-  const meta = [preparation ? (pickup ? 'Pickup' : 'Delivery') : '', timeWindow].filter(Boolean).join(' · ');
+  const status = type === 'orders' ? String(order.status || '').replaceAll('_', ' ') : '';
+  const meta = [type === 'preparation' ? (pickup ? 'Pickup' : 'Delivery') : '', timeWindow, status].filter(Boolean).join(' · ');
   let handoff = '';
   if (type === 'pickup') {
-    handoff = detail('Phone', buyer.phone) + detail('Pickup point', calendarAddress(order));
+    handoff = detail('Phone', buyer.phone);
   } else if (type === 'delivery') {
     handoff = detail('Recipient', [recipient.name, recipient.phone].filter(Boolean).join(' · ')) +
       detail('Deliver to', calendarAddress(order) || 'Address not recorded');
@@ -69,7 +72,7 @@ function orderRow(order, type) {
     <td class="checklist-mark"><span class="checklist-tick" aria-hidden="true"></span></td>
     <td class="checklist-order-body"><h3>${esc(buyer.name || recipient.name || 'Customer')} <span>${esc(reference(order))}</span></h3>
       ${meta ? `<p class="checklist-window">${esc(meta)}</p>` : ''}${handoff}
-      ${renderChecklistItems(order, preparation)}${detail('Instructions', order.instructions)}
+      ${renderChecklistItems(order, detailed)}${detail('Instructions', order.instructions)}
     </td></tr>`;
 }
 
@@ -85,9 +88,19 @@ export function renderOrderChecklist({ orders, type, periodLabel }) {
     const dayOrders = days.get(date).sort((a, b) => reference(a).localeCompare(reference(b), 'en', { numeric: true }));
     const day = new Date(date + 'T12:00:00Z');
     const dayLabel = Number.isFinite(day.getTime()) ? dateFormat.format(day) : 'Date not recorded';
+    const groups = new Map([['Pickup', []], ['Delivery', []], ['In-person sales', []]]);
+    if (type === 'orders') {
+      for (const order of dayOrders) {
+        const label = order.source === 'popup' ? 'In-person sales' : (order.method === 'delivery' ? 'Delivery' : 'Pickup');
+        groups.get(label).push(order);
+      }
+    }
+    const body = type === 'orders'
+      ? [...groups].filter(([, rows]) => rows.length).map(([label, rows]) => `<tbody><tr class="checklist-method"><th scope="rowgroup" colspan="2">${label}</th></tr>${rows.map(order => orderRow(order, type)).join('')}</tbody>`).join('')
+      : `<tbody>${dayOrders.map(order => orderRow(order, type)).join('')}</tbody>`;
     return `<table class="checklist-day" aria-label="${esc(dayLabel)}"><colgroup><col class="checklist-mark-column"><col></colgroup>
       <thead><tr><th colspan="2"><div class="checklist-day-heading"><h2>${esc(dayLabel)}</h2><span>${titles[type]} · ${orderCount(dayOrders.length)}</span></div></th></tr></thead>
-      <tbody>${dayOrders.map(order => orderRow(order, type)).join('')}</tbody></table>`;
+      ${body}</table>`;
   });
   return `<section class="order-checklist-sheet"><header class="checklist-heading"><div><h1>${titles[type]}</h1><p>${esc(periodLabel)} · ${orderCount(orders.length)}</p></div><strong>TLB Kitchen</strong></header>
     ${tables.join('') || '<p>No orders in this period.</p>'}</section>`;

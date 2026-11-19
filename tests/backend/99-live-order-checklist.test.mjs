@@ -21,6 +21,7 @@ export default async function ({ db, check, state }) {
     await check('Checklist: an active unpaid order appears immediately with only kitchen fields', async () => {
       assert.equal(first.prepared, false);
       assert.equal(first.fulfillment_date, '2099-01-15');
+      assert.equal(first.method, 'delivery');
       assert.equal(first.payment_status, 'awaiting_payment');
       assert.deepEqual(first.buyer, {name: data.buyer.name});
       assert.deepEqual(first.items[0].selection_labels, ['Chocolate']);
@@ -34,13 +35,52 @@ export default async function ({ db, check, state }) {
         for (const user of [null, ids.customer, ids.unverified]) {
           await assert.rejects(api('order_checklist', {}, user), /staff access|verify/i);
           await assert.rejects(mark(first.content_key, true, user), /staff access|verify/i);
+          await assert.rejects(api('order_checklist_period', {from:'2099-01-15',to:'2099-01-15'}, user), /staff access|verify/i);
         }
       } finally { await db.query('delete from tlb.staff where user_id=$1', [ids.unverified]); }
       for (const role of ['anon', 'authenticated', 'service_role']) {
         assert.equal(await h.scalar("select has_table_privilege($1,'tlb.order_preparation_checks','SELECT,INSERT,UPDATE,DELETE')",[role]), false);
         assert.equal(await h.scalar("select has_table_privilege($1,'tlb.order_checklist_rows','SELECT')",[role]), false);
         assert.equal(await h.scalar("select has_function_privilege($1,'tlb.order_checklist(text,jsonb)','EXECUTE')",[role]), false);
+        assert.equal(await h.scalar("select has_function_privilege($1,'tlb.order_checklist_period(jsonb)','EXECUTE')",[role]), false);
       }
+    })();
+    await check('Printed orders: the selected dates include every status and sales channel', async () => {
+      const read=(from,to)=>api('order_checklist_period',{from,to},ids.staff);
+      await db.exec('begin');
+      try {
+        const eventId=randomUUID(), prefix='CHECK-PRINT-'+eventId.slice(0,8)+'-';
+        await db.query("insert into tlb.pos_events(id,name,starts_on,ends_on,created_by) values($1,'Checklist test','2099-01-16','2099-01-16',$2)",[eventId,ids.owner]);
+        await db.query(`insert into tlb.orders(id,reference,access_digest,access_encrypted,fulfillment_date,method,payment_status,fulfillment_status,
+          refund_label,source,pos_event_id,payment_deadline,data,idempotency_key,request_hash)
+          select gen_random_uuid(),$1||f.label,uuid_send(gen_random_uuid()),uuid_send(gen_random_uuid()),f.d::date,'pickup',f.payment,f.status,
+            f.refund,f.source,case when f.source='popup' then $2::uuid end,
+            case when f.source<>'direct_message' then clock_timestamp()+interval '1 hour' end,
+            $3::jsonb||jsonb_build_object('source',f.source),gen_random_uuid(),'checklist-fixture'
+          from (values
+            ('before','2099-01-14','website','paid','confirmed',false),
+            ('cancelled','2099-01-15','website','cancelled','cancelled',false),
+            ('expired','2099-01-15','website','awaiting_payment','expired',false),
+            ('ready','2099-01-15','direct_message','paid','ready_for_pickup',false),
+            ('completed','2099-01-16','popup','paid','completed',false),
+            ('refunded','2099-01-16','website','paid','completed',true),
+            ('after','2099-01-17','direct_message','under_review','pending_confirmation',false)
+          ) as f(label,d,source,payment,status,refund)`,[prefix,eventId,JSON.stringify(data)]);
+        const {orders}=await read('2099-01-15','2099-01-16');
+        assert.deepEqual(orders.filter(o=>o.reference.startsWith(prefix)).map(o=>o.reference.slice(prefix.length)),['cancelled','expired','ready','completed','refunded']);
+        const unpaid=orders.find(order=>order.id===id);
+        assert.equal(unpaid.payment_status,'awaiting_payment');
+        assert.equal(unpaid.date,'2099-01-15');
+        assert.deepEqual(unpaid.buyer,{name:'Checklist Customer'});
+        assert.deepEqual(unpaid.items[0].selection_labels,['Chocolate']);
+        assert.equal(unpaid.items[0].description,'Blue icing');
+        assert.equal(unpaid.instructions,'Box separately');
+        assert.doesNotMatch(JSON.stringify(unpaid),/PRIVATE|price_cents|access_token|payment_reference|proof_path/);
+        assert.ok((await read('2099-01-15','2099-01-15')).orders.every(o=>o.date==='2099-01-15'));
+        assert.ok((await read('2099-01-01','2099-03-04')).orders.some(o=>o.id===id)); // 63 days
+      } finally {await db.exec('rollback');}
+      for(const [from,to] of [['2099-01-16','2099-01-15'],['2099-01-01','2099-03-05'],['invalid','2099-01-15']])
+        await assert.rejects(read(from,to),/fulfillment dates/i);
     })();
     await check('Checklist: set/undo is shared, retryable, and separate from order changes and notifications', async () => {
       const snapshot = () => h.scalar("select jsonb_build_array(to_jsonb(o),(select count(*) from tlb.outbox e where e.order_id=o.id)) from tlb.orders o where id=$1",[id]);
@@ -51,6 +91,15 @@ export default async function ({ db, check, state }) {
       assert.equal((await row()).prepared, false);
       await assert.rejects(mark(first.content_key,'false'),/valid order/i);
       assert.deepEqual(await snapshot(), before);
+    })();
+    await check('Checklist: a rescheduled delivery moves to its new pickup date with its preparation mark intact', async () => {
+      await mark(first.content_key, true);
+      await db.query("update tlb.orders set method='pickup', fulfillment_date='2099-01-16' where id=$1", [id]);
+      const rescheduled = await row();
+      assert.equal(rescheduled.fulfillment_date, '2099-01-16');
+      assert.equal(rescheduled.method, 'pickup');
+      assert.equal(rescheduled.prepared, true);
+      assert.equal(rescheduled.content_key, first.content_key);
     })();
     await check('Checklist: updated kitchen details invalidate a prior check and reject stale taps', async () => {
       await mark(first.content_key, true);
