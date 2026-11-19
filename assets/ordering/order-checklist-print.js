@@ -8,10 +8,23 @@ const orderCount = count => `${count} ${count === 1 ? 'order' : 'orders'}`;
 const reference = order => order.reference || order.id || 'Order';
 const dateOf = order => order.date || order.fulfillment_date || '';
 
-function optionsFor(item) {
+function rawChoices(item, products) {
+  if (!item.selections) return [];
+  const product = products.find(product => product.id === item.product_id);
+  return Object.entries(item.selections).flatMap(([groupId, counts]) => {
+    const group = product?.option_groups?.find(group => group.id === groupId);
+    return Object.entries(counts || {}).filter(([, count]) => Number(count) > 0).map(([choiceId, quantity]) => ({
+      group: group?.label || groupId,
+      label: group?.choices?.find(choice => choice.id === choiceId)?.label || choiceId,
+      quantity,
+    }));
+  });
+}
+
+function optionsFor(item, products) {
   const saved = Array.isArray(item.selection_labels) && item.selection_labels.length > 0;
-  const choices = saved ? item.selection_labels : item.flavor_contents;
-  if (!Array.isArray(choices)) return '';
+  const flavors = !saved && Array.isArray(item.flavor_contents) && item.flavor_contents.length > 0;
+  const choices = saved ? item.selection_labels : flavors ? item.flavor_contents : rawChoices(item, products);
   const labels = choices.map(choice => {
     if (typeof choice === 'string') return choice;
     const name = choice?.label || choice?.name;
@@ -19,17 +32,17 @@ function optionsFor(item) {
     const count = Number(choice.quantity ?? choice.count);
     return [choice.group, `${count > 1 ? count + ' × ' : ''}${name}`].filter(Boolean).join(' — ');
   }).filter(Boolean);
-  return labels.length ? `<span class="checklist-item-detail">${saved && Number(item.quantity) > 1 ? 'Per unit · ' : ''}${esc(labels.join(' · '))}</span>` : '';
+  return labels.length ? `<span class="checklist-item-detail">${!flavors && Number(item.quantity) > 1 ? 'Per unit · ' : ''}${esc(labels.join(' · '))}</span>` : '';
 }
 
-function itemsFor(order, preparation) {
+export function renderChecklistItems(order, preparation = true, products = []) {
   const items = Array.isArray(order.items) ? order.items.filter(Boolean) : [];
   if (!items.length) return '<p>Item details unavailable</p>';
   return `<ul class="${preparation ? 'checklist-prep-items' : 'checklist-handoff-items'}">${items.map(item => {
     const name = item.name || item.custom_name || 'Unnamed item';
     const description = item.description || item.custom_description;
     const label = `${esc(item.quantity ?? '?')} × ${esc(name)}`;
-    return preparation ? `<li><strong>${label}</strong>${description ? `<span class="checklist-item-detail">${esc(description)}</span>` : ''}${optionsFor(item)}</li>` : `<li>${label}</li>`;
+    return preparation ? `<li><strong>${label}</strong>${description ? `<span class="checklist-item-detail">${esc(description)}</span>` : ''}${optionsFor(item, products)}</li>` : `<li>${label}</li>`;
   }).join('')}</ul>`;
 }
 
@@ -56,7 +69,7 @@ function orderRow(order, type) {
     <td class="checklist-mark"><span class="checklist-tick" aria-hidden="true"></span></td>
     <td class="checklist-order-body"><h3>${esc(buyer.name || recipient.name || 'Customer')} <span>${esc(reference(order))}</span></h3>
       ${meta ? `<p class="checklist-window">${esc(meta)}</p>` : ''}${handoff}
-      ${itemsFor(order, preparation)}${detail('Instructions', order.instructions)}
+      ${renderChecklistItems(order, preparation)}${detail('Instructions', order.instructions)}
     </td></tr>`;
 }
 

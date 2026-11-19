@@ -20,6 +20,7 @@ import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needs
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { printOrderSlips } from './order-slips.js?v=order-workflow-20261113';
 import { mountOrderChecklists } from './order-checklists.js?v=order-checklists-20261119';
+import { mountLiveChecklist } from './live-checklist.js?v=live-checklist-20261119';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { duplicateProductDraft } from './product-duplicate.js?v=approved-20261002-1';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
@@ -79,6 +80,8 @@ let clearSalesChart = () => {};
 let calendarController=null;
 let productionController=null;
 let unmountOrderChecklists;
+let liveChecklist;
+if (location.hash === '#checklist') state.view = 'checklist';
 state.productionFilters={};
 if(location.hash==='#production')state.view='production';
 state.calendarFilters={};
@@ -96,10 +99,11 @@ function syncVisitorPolling() { visitorPoller.setActive(state.connected && state
 document.addEventListener('visibilitychange', syncVisitorPolling);
 window.addEventListener('pagehide', () => visitorPoller.setActive(false));
 window.addEventListener('pageshow', syncVisitorPolling);
-window.addEventListener('pageshow', event => {if(event.persisted&&['calendar','production'].includes(state.view))render();});
+window.addEventListener('pageshow', event => {if(event.persisted&&['calendar','production','checklist'].includes(state.view))render();});
 document.addEventListener('visibilitychange', syncPromoStatuses);
 window.addEventListener('pageshow', syncPromoStatuses);
 window.addEventListener('pagehide', () => {clearTimeout(promoStatusTimer);calendarController?.destroy();productionController?.destroy();maintenanceController?.destroy();});
+window.addEventListener('pagehide', () => liveChecklist?.destroy());
 const modal = $('#admin-dialog');
 window.addEventListener('beforeunload', event => {
   if (productUpload || catalogOrder?.dirty || catalogOrder?.busy || ['#pos-manager','#payment-options-editor','#homepage-manager','#newsletter-manager','#newsletter-offer-manager','#voucher-manager','#academy-manager', '#party-package-manager', '#party-cart-photo-manager'].some(selector => $(selector)?.dataset.dirty === 'true' || $(selector)?.dataset.busy === 'true')) { event.preventDefault(); event.returnValue = ''; }
@@ -212,6 +216,8 @@ async function refresh() {
 }
 const syncDashboardNav = bindDashboardNav();
 function render() {
+  liveChecklist?.destroy();
+  liveChecklist = null;
   unmountOrderChecklists?.();
   unmountOrderChecklists = null;
   maintenanceController?.destroy();maintenanceController=null;
@@ -243,7 +249,15 @@ function render() {
   const views = { maintenance:()=>'<div id="maintenance-manager"></div>', vouchers:()=>'<div id="voucher-manager"></div>', calendar:()=>'<div id="order-calendar-manager"></div>', homepage: () => '<div id="homepage-manager"></div>', newsletters: () => '<div id="newsletter-manager"></div>', academy: () => '<div id="academy-manager"></div>', accounting: () => '<div id="accounting-manager"></div>', overview: overviewView, analytics: analyticsView, pos: () => '<div id="pos-manager"></div>', orders: ordersView, products: productsView, inventory: inventoryView, promos: promosView, settings: settingsView, team: teamView, galleries: () => '<div id="gallery-manager"></div>', packages: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>', dessert: () => '<div id="party-package-manager"></div><div id="party-cart-photo-manager"></div>' };
   views.backups=()=>'<div id="backup-manager"></div>';
   views.production=()=>'<div id="production-manager"></div>';
+  views.checklist = () => state.connected ? '<div id="live-checklist"></div>' : '<p class="notice">Sign in with a staff account to see the order checklist.</p>';
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  if (state.view === 'checklist' && state.connected) {
+    liveChecklist = mountLiveChecklist($('#live-checklist'), {
+      products: state.products,
+      loadOrders: () => api('order_checklist'),
+      setPrepared: (order, prepared) => api('set_order_prepared', { order_id: order.id, prepared, content_key: order.content_key }),
+    });
+  }
   if (state.view === 'orders' && state.connected) {
     const panel = document.createElement('details');
     panel.className = 'panel order-checklist-panel';
@@ -307,7 +321,7 @@ function overviewView() {
     ${state.settings.paused ? '<p class="notice" style="margin-top:22px">New orders are paused. Existing order links and valid payment-proof uploads remain available.</p>' : ''}
     ${state.connected ? emailStatusCard() : ''}`;
 }
-function staffSignInUrl(){return 'account.html?next='+encodeURIComponent('manage.html'+(['pos','production'].includes(state.view)?'#'+state.view:''))}
+function staffSignInUrl(){return 'account.html?next='+encodeURIComponent('manage.html'+(['pos','production','checklist'].includes(state.view)?'#'+state.view:''))}
 function emailStatusCard() {
   const rows = Array.isArray(state.email_status) ? state.email_status : [];
   const counts = rows.reduce((result, row) => { result[row.status] = (result[row.status] || 0) + 1; return result; }, {});
@@ -1084,6 +1098,11 @@ document.addEventListener('click', async event => {
   if (view && $('#party-cart-photo-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved photo changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
   if (view && $('#party-package-manager')?.dataset.busy === 'true') { toast('Please wait for the package operation to finish.'); return; }
   if (view && $('#party-package-manager')?.dataset.dirty === 'true' && !await confirmDialog('Your unsaved package changes will be lost.',{title:'Discard your changes?',confirmLabel:'Discard changes',cancelLabel:'Keep editing',danger:true})) return;
+  if (view && (view.dataset.view === 'checklist' || location.hash === '#checklist')) {
+    const url = new URL(location.href);
+    url.hash = view.dataset.view === 'checklist' ? 'checklist' : '';
+    history.replaceState(history.state, '', url);
+  }
   if (view) { if(view.dataset.view==='orders')state.selectedOrderId=null;state.view = view.dataset.view; render(); if (state.view === 'analytics' && state.connected) { try { await refresh(); } catch (error) { toast('Analytics could not refresh. The last loaded figures are shown. ' + error.message, 'error'); } } if (state.view === 'team' && state.connected && state.role === 'owner') { try { await loadTeam(); } catch (error) { toast(error.message, 'error'); } } return; }
   const button = event.target.closest('[data-action]');
   if (!button) {
