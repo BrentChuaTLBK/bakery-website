@@ -10,7 +10,7 @@ test('POS currency parsing never rounds malformed or negative input into a sale'
 test('only active DM reservations may accept proof without a deadline',()=>{
  const dm={source:'direct_message',payment_deadline:null,payment_status:'awaiting_payment',fulfillment_status:'pending_confirmation'};
  assert.equal(paymentProofAllowed(dm),true);
- for(const p of [{source:'website'},{source:'popup'},{payment_status:'paid'},{fulfillment_status:'cancelled'},{fulfillment_status:'completed'},{payment_status:'under_review'}])assert.equal(paymentProofAllowed({...dm,...p}),false);
+ for(const p of [{source:'website'},{source:'popup'},{refund_label:true},{payment_status:'paid'},{fulfillment_status:'cancelled'},{fulfillment_status:'completed'},{payment_status:'under_review'}])assert.equal(paymentProofAllowed({...dm,...p}),false);
  assert.equal(paymentProofAllowed({...dm,source:'website',payment_deadline:'2026-10-01T00:00:00Z'},Date.parse('2026-09-30T23:59:00Z')),true);
  assert.equal(paymentProofAllowed({...dm,source:'website',payment_deadline:'2026-10-01T00:00:00Z'},Date.parse('2026-10-01T00:00:00Z')),false);
 });
@@ -20,7 +20,10 @@ test('POS links retain the private token and send customers to their order',()=>
 test('deferred delivery keeps product payment separate from the current fee and proof',()=>{
  const o={source:'direct_message',deferred_delivery:true,payment_status:'paid',delivery_payment_status:'awaiting_payment',fulfillment_status:'confirmed',total_cents:11550,delivery_cents:1550};
  assert.equal(productsDue(o),10000);assert.equal(paymentDue(o),1550);assert.equal(paymentProofAllowed(o),true);
- for(const extra of [{refund_label:true},{fulfillment_status:'cancelled'},{delivery_payment_status:'pending'},{delivery_payment_status:'paid'},{delivery_payment_status:'under_review'},{source:'website'}])assert.equal(deliveryProofAllowed({...o,...extra}),false);
+ const completed={...o,fulfillment_status:'completed'};
+ assert.equal(deliveryProofAllowed(completed),true);assert.equal(paymentProofAllowed(completed),true);assert.equal(paymentDue(completed),1550);
+ assert.equal(paymentProofAllowed({...completed,refund_label:true}),false);
+ for(const extra of [{refund_label:true},{fulfillment_status:'cancelled'},{fulfillment_status:'expired'},{delivery_payment_status:'pending'},{delivery_payment_status:'paid'},{delivery_payment_status:'under_review'},{source:'website'}])assert.equal(deliveryProofAllowed({...o,...extra}),false);
  assert.equal(paymentDue({...o,payment_status:'awaiting_payment'}),10000);
 });
 test('analytics counts separately collected delivery once and excludes a quoted unpaid fee',()=>{

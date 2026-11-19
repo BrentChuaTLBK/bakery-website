@@ -10,7 +10,8 @@ export function checklistSource(type) {
 }
 
 export function checklistOrders(rows, type) {
-  return type === 'orders' ? rows : rows.filter(row => row.method === type && handoffStatuses.has(row.status));
+  return rows.filter(row => !row.refund_label && row.status !== 'cancelled' && row.payment_status !== 'cancelled'
+    && (type === 'orders' || (row.method === type && handoffStatuses.has(row.status))));
 }
 
 export async function loadChecklistPeriod(api, type, from, to, isCurrent = () => true) {

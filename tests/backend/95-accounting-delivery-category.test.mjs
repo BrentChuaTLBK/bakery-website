@@ -26,7 +26,7 @@ export default async function({db,check,state}){
   await h.action('approve_payment',await h.order(o.id));const current=await h.order(o.id);
   await call('save_delivery',{order_id:o.id,order_revision:current.revision,revision:0,cost_date:today,amount_cents:22550,note:'Courier QA'});
   const rows=(await report()).entries.filter(e=>e.order_id===o.id&&e.category_id===delivery.id);assert.equal(rows.length,2);assert.equal(rows.find(e=>e.kind==='sale').amount_cents,15000);assert.equal(rows.find(e=>e.kind==='expense').amount_cents,22550);assert.equal(rows.find(e=>e.kind==='expense').entry_date,today);
-  await h.action('set_refund_label',current,{enabled:true});assert.equal((await report()).entries.some(e=>e.order_id===o.id),false);
+  await h.refund(current);assert.equal((await report()).entries.some(e=>e.order_id===o.id),false);
   assert.equal(await h.scalar('select amount_cents::int from tlb.accounting_delivery_costs where order_id=$1',[o.id]),22550,'Stored cost is retained even when excluded from the report');
  })();
  await check('merging an existing manual Delivery keeps amounts, kinds and audit history and is repeatable',async()=>{

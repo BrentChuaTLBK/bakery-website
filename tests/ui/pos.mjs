@@ -254,6 +254,17 @@ try{
   await page.locator('[name=method]').selectOption('delivery');await page.locator('[name=delivery_fee_pending]').check();assert.equal(await page.locator('#pos-sale-form [name=delivery_fee]').count(),0);
   await page.getByRole('button',{name:'Review order',exact:true}).click();await page.locator('[name=payment_state]').selectOption('paid');await page.locator('[data-pos-payment=gcash]').click();await page.getByRole('button',{name:'Create direct order',exact:true}).click();await page.locator('#pos-delivery-fee-form').waitFor();
   saved=await page.evaluate(()=>window.posOrders[0]);assert.equal(saved.paid_amount_cents,10000);assert.equal(saved.delivery_payment_status,'pending');
+  // Fulfillment can finish before a direct order's courier payment arrives.
+  const reopenDelivery = async () => {
+    await page.locator('[data-pos=section][data-section=orders]').click();
+    await page.locator(`[data-pos=receipt][data-id="${saved.id}"]`).click();
+    await page.locator('.pos-receipt').waitFor();
+  };
+  await page.evaluate(()=>{window.posOrders[0].fulfillment_status='completed';window.posOrders[0].refund_label=true;});
+  await reopenDelivery();
+  assert.equal(await page.locator('#pos-delivery-fee-form,#pos-delivery-payment-form').count(),0);
+  await page.evaluate(()=>{window.posOrders[0].refund_label=false;});
+  await reopenDelivery();
   await page.locator('#pos-delivery-fee-form [name=delivery_fee]').fill('15.50');await page.getByRole('button',{name:'Set exact delivery fee',exact:true}).click();await page.locator('#pos-delivery-payment-form').waitFor();
   assert.equal(await page.locator('#pos-payment-form').count(),0);assert.equal(await page.locator('#pos-delivery-payment-form [name=cash_received]').inputValue(),'15.50');await page.locator('#pos-delivery-payment-form [name=cash_received]').fill('20');assert.match(await page.locator('[data-change]').innerText(),/4\.50/);
   await page.getByRole('button',{name:'Confirm delivery payment received',exact:true}).click();await page.waitForFunction(()=>window.posOrders[0].delivery_payment_status==='paid');

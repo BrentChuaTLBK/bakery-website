@@ -20,7 +20,7 @@ function order(reference, offset, changes = {}) {
     id: reference.toLowerCase(), reference, source: 'website', method: 'pickup', date: day(offset), status: 'confirmed', payment_status:'paid',
     pickup_address: 'Fixture pickup counter',
     buyer: {name: 'Mira Sample', phone: '09170001111'}, instructions: 'Write “Mira <3” in icing.',
-    items: [{name: 'Cocoa cake', quantity: 2, selection_labels: [{group: 'Filling', label: 'Salted caramel', quantity: 1}]}],
+    items: [{name: 'Cocoa cake', quantity: 2, description: 'Blue buttercream', selection_labels: [{group: 'Filling', label: 'Salted caramel', quantity: 1}]}],
     window: '10 AM to 3 PM', total_cents: 129900, photo_share: 'PRIVATE-PHOTO-TOKEN',
     ...changes,
   };
@@ -38,9 +38,15 @@ const orders = [
   order('YESTERDAY', -1), order('OUTSIDE', 2), order('DONE', 0, {status: 'completed'}),
   order('UNPAID', 0, {status:'pending_confirmation', payment_status:'awaiting_payment'}),
   order('CANCELLED', 0, {status:'cancelled', payment_status:'cancelled'}),
+  order('CANCELLED-PAID', 0, {status:'cancelled'}),
+  order('CANCELLED-PAYMENT', 1, {method:'delivery', payment_status:'cancelled'}),
   order('EXPIRED', 0, {status:'expired', payment_status:'awaiting_payment'}),
   order('REFUND', 0, {status:'completed', refund_label:true}),
+  order('REFUND-PICKUP', 1, {refund_label:true}),
+  order('REFUND-DELIVERY', 1, {method:'delivery', refund_label:true}),
   order('POPUP', 0, {source:'popup', status:'completed'}),
+  order('ONLY-REFUNDED', 62, {refund_label:true}),
+  order('ONLY-CANCELLED', 62, {method:'delivery', status:'cancelled'}),
   order('LONG-RANGE-END', 63),
 ];
 
@@ -83,7 +89,8 @@ try {
       if (from === failFrom) throw Error('Fixture could not load this date range.');
       const matching = orders.filter(row => row.date >= from && row.date <= to);
       if (action === 'order_checklist_period') return {orders:matching};
-      return {orders:matching.filter(row=>row.payment_status==='paid' && !row.refund_label && row.source!=='popup'), connection:{connected:false}};
+      // Include flagged handoffs to exercise the shared print selector as well as the server-side filter.
+      return {orders:matching.filter(row=>row.source!=='popup'), connection:{connected:false}};
     }
     throw new Error('Unexpected checklist API action: ' + action);
   });
@@ -152,8 +159,14 @@ try {
         await preview.emulateMedia({media:'print'});
         assert.ok(await printButton.isHidden(),'The toolbar is hidden on paper');
         assert.ok(await sheet.locator('.checklist-tick').evaluateAll(ticks=>ticks.every(t=>{
-          const box=t.getBoundingClientRect();return box.width>0 && box.height>0;
+          const box=t.getBoundingClientRect();return box.width>=18 && box.height>=18;
         })),'Each order still has a visible check box in print media');
+        const rowMetrics=await sheet.locator('.checklist-order-body').first().evaluate(cell=>({
+          padding:parseFloat(getComputedStyle(cell).paddingTop),
+          windowDisplay:getComputedStyle(cell.querySelector('.checklist-window')).display,
+        }));
+        assert.equal(rowMetrics.windowDisplay,kind==='orders'?'inline':'block');
+        assert.ok(kind==='orders'?rowMetrics.padding<5:rowMetrics.padding>=7,'Only All Orders uses compact row padding');
         await preview.evaluate(()=>window.dispatchEvent(new Event('afterprint')));
         assert.deepEqual(await refs(),references.toSorted(),'Safari can still render the sheets after an early afterprint event');
         await preview.emulateMedia({media:'screen'});
@@ -180,18 +193,22 @@ try {
 
   await selectDate('checklist_from', today);
   assert.equal(await panel.locator('[name=checklist_to]').inputValue(), '');
-  const allToday=['PICK-ONE','DONE','UNPAID','CANCELLED','EXPIRED','REFUND','POPUP','PREPARED','ON-THE-WAY'];
+  const allToday=['PICK-ONE','DONE','UNPAID','EXPIRED','POPUP','PREPARED','ON-THE-WAY'];
   const single = await print('orders', allToday, true);
   assert.deepEqual(readCalls('order_checklist_period').at(-1), {from: today, to: today});
-  for (const detail of ['Cocoa cake', 'Salted caramel', 'Mira Sample', 'Mira <3']) assert.ok(single.text.includes(detail), detail);
+  for (const detail of ['2 × Cocoa cake', 'Blue buttercream', 'Salted caramel', 'Mira Sample', 'PICK-ONE', '10 AM to 3 PM', 'confirmed']) {
+    assert.ok(single.text.includes(detail), detail);
+  }
+  assert.doesNotMatch(single.markup, /Instructions|in icing/);
   await selectDate('checklist_to', day(1));
   await print('orders', [...allToday,'PICK-NEXT','DROP-NEXT']);
   const pickup=await print('pickup', ['PICK-ONE', 'PICK-NEXT', 'PREPARED'], true);
   assert.doesNotMatch(pickup.text,/pickup point|fixture pickup counter/i);
   assert.match(pickup.text,/09170001111/);
   assert.match(pickup.text,/10 AM to 3 PM/);
+  assert.match(pickup.text,/Mira <3/);
   const delivery = await print('delivery', ['DROP-NEXT', 'ON-THE-WAY']);
-  for (const detail of ['Rae Recipient', '09170002222', '23 Sample Street', 'Quezon City']) assert.ok(delivery.text.includes(detail), detail);
+  for (const detail of ['Rae Recipient', '09170002222', '23 Sample Street', 'Quezon City', 'Mira <3']) assert.ok(delivery.text.includes(detail), detail);
   assert.deepEqual(readCalls('calendar_list').at(-1), {from: today, to: day(1)});
 
   await type.selectOption('orders');
@@ -212,14 +229,14 @@ try {
   await selectDate('checklist_from', day(62));
   await selectDate('checklist_to', day(62));
   await panel.getByText(/no .*orders|no .*match/i).last().waitFor();
-  assert.ok(await submit.isDisabled(), 'An empty range cannot be printed');
+  assert.ok(await submit.isDisabled(), 'A range containing only refunded or cancelled orders cannot be printed');
   const reads = readCalls().length;
   await selectDate('checklist_to', today);
   assert.ok(await submit.isDisabled(), 'A reversed range cannot be printed');
   assert.equal(readCalls().length, reads, 'A reversed range must not fetch orders');
   assert.equal(previews, printed + 1);
   assert.deepEqual(errors, []);
-  console.log('PASS all statuses on the order checklist, separate handoffs, mobile print preview and retries, inclusive dates and complete range reads');
+  console.log('PASS cancelled and refunded order exclusions, separate handoffs, mobile print preview and retries, inclusive dates and complete range reads');
 } finally {
   await browser.close();
 }

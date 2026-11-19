@@ -107,7 +107,7 @@ export default async function({db,check,state}){
  await check('closed or refunded deliveries stay quiet and tracking migration replays without changing orders or emails',async()=>{
   for(const state of ['completed','cancelled','refunded']){
    let order=await delivery({paid:true});order=await edit(order,linkA);
-   if(state==='refunded')order=await action('set_refund_label',order,{enabled:true});
+   if(state==='refunded')order=await h.refund(order);
    else if(state==='cancelled')order=await action('cancel_order',order,{reason:'Local closed-order check',restore_stock:true});
    else order=await action('set_fulfillment',order,{status:'completed'});
    const count=(await events(order.id)).length;order=await edit(order,linkB);assert.equal((await events(order.id)).length,count);assert.equal(order.delivery_tracking_url,linkB);

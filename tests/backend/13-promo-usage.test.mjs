@@ -65,6 +65,9 @@ export default async function ({ db, check, state }) {
     await assertCounts(promo, 0, 1);
     assert.equal((await h.order(expired.id)).fulfillment_status, 'expired');
     assert.equal((await h.order(retained.id)).payment_status, 'under_review');
+    const refunded = await h.refund(await h.order(retained.id));
+    assert.equal(refunded.fulfillment_status, 'cancelled');
+    await assertCounts(promo, 0, 0);
   })();
 
   await check('paid cancellation and refund retain usage and code renaming keeps counts attached to the promo UUID', async () => {
@@ -77,7 +80,7 @@ export default async function ({ db, check, state }) {
     await assertCounts(promo, 2, 0);
     const cancelled = await action('cancel_order', paid, { reason: 'Local paid cancellation', restore_stock: true });
     await action('set_refund_label', cancelled, { enabled: true });
-    await action('set_refund_label', otherPaid, { enabled: true });
+    await h.refund(otherPaid);
     await assertCounts(promo, 2, 0);
 
     const renamed = await api('save_promo', { promo: { ...promo, code: `REN${randomUUID().slice(0, 8)}` } }, ids.owner);

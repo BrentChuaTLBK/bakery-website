@@ -16,7 +16,7 @@ My Account uses TLB's locally hosted Chelsea Market and Lobster fonts, with orde
 
 Existing newsletter codes appear in the wallet without reissuing them or changing their expiry. A verified account is required. Signed-in rewards belong to the account that earned them; guest rewards require the verified email used on the original checkout. Signing up after a guest purchase does not reset first-order eligibility.
 
-“Use at checkout” carries the code into the saved basket, removes it from the URL and leaves checkout to validate eligibility and calculate the actual discount. One personal code per order; delivery is excluded. Ordinary promo lifetime-use limits are unchanged. Personal welcome/thank-you codes release a cancelled or refunded redemption until their original expiry. An owner cannot undo a refund after the personal code has been reused on another retained order.
+“Use at checkout” carries the code into the saved basket, removes it from the URL and leaves checkout to validate eligibility and calculate the actual discount. One personal code per order; delivery is excluded. Ordinary promo lifetime-use limits are unchanged. Personal welcome/thank-you codes release a cancelled or refunded redemption until their original expiry. Clearing a refund mark leaves the order cancelled, so the code can still be used until its original expiry.
 
 ## Email and reporting
 

@@ -31,7 +31,7 @@ export default async function({db,check,state}) {
  await check('refund excludes original entries, reversals, discounts, courier expenses and delivery comparison across date ranges',async()=>{
   const o=await fixture(),baseline=await report();
   const dates=(await db.query('select distinct entry_date::text from tlb.accounting_ledger where order_id=$1',[o.id])).rows.map(r=>r.entry_date);
-  await h.action('set_refund_label',o,{enabled:true});
+  await h.refund(o);
   const after=await report();
   assert.equal(after.entries.some(e=>e.order_id===o.id),false);assert.equal(after.deliveries.some(e=>e.order_id===o.id),false);
   for(const date of dates)assert.equal((await report({start:date,end:date})).entries.some(e=>e.order_id===o.id),false);
@@ -43,8 +43,8 @@ export default async function({db,check,state}) {
   assert.equal(await h.scalar('select amount_cents::int from tlb.accounting_delivery_costs where order_id=$1',[o.id]),22550);
   assert.ok(await h.scalar('select count(*)>0 from tlb.accounting_ledger where order_id=$1',[o.id]));
   await h.action('set_refund_label',await h.order(o.id),{enabled:false});
-  const restored=await report();assert.equal(restored.entries.filter(e=>e.order_id===o.id&&e.category_id===category('website')).reduce((n,e)=>n+e.amount_cents,0),100000);
-  assert.ok(restored.entries.find(e=>e.order_id===o.id&&e.source==='Delivery cost'));
+  const unmarked=await report();assert.equal(unmarked.entries.some(e=>e.order_id===o.id),false);
+  assert.equal(unmarked.deliveries.some(e=>e.order_id===o.id),false);
  })();
  await check('cancelled order expenses stay excluded while independent manual entries and their totals remain',async()=>{
   const o=await fixture();

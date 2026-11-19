@@ -1,3 +1,5 @@
+import {isPaymentClosed} from './refund-status.js?v=refund-cancel-20261120';
+
 export const POS_METHODS = {cash:'Cash',gcash:'GCash',bdo:'BDO',eastwest:'EastWest'};
 export const salesSource = order => ({popup:'Pop-up',direct_message:'Direct message',website:'Website'}[order.source] || 'Website');
 export function pesoCents(value) {
@@ -53,18 +55,19 @@ export function posItemVariations(groups, quantity, selections) {
  return [...variations.values()];
 }
 export function paymentProofAllowed(order,now=Date.now()) {
- if(order.uploads_paused)return false;
+ if(order.uploads_paused||order.refund_label)return false;
  if(deliveryProofAllowed(order))return true;
  return order.payment_status==='awaiting_payment'&&order.fulfillment_status==='pending_confirmation'&&
   ((order.source==='direct_message'&&order.payment_deadline===null)||new Date(order.payment_deadline).getTime()>now);
 }
 export function deliveryProofAllowed(order) {
- return order.source==='direct_message'&&order.deferred_delivery===true&&order.payment_status==='paid'&&order.delivery_payment_status==='awaiting_payment'&&!order.refund_label&&!['cancelled','expired'].includes(order.fulfillment_status);
+ return order.source==='direct_message'&&order.deferred_delivery===true&&order.payment_status==='paid'&&order.delivery_payment_status==='awaiting_payment'&&!isPaymentClosed(order);
 }
 export const productsDue = order => Number(order.total_cents||0)-(order.deferred_delivery?Number(order.delivery_cents||0):0);
 export const paymentDue = order => deliveryProofAllowed(order)?Number(order.delivery_cents||0):productsDue(order);
 export function deliveryStatusText(order) {
  if(!order.deferred_delivery)return '';
+ if(order.delivery_payment_status!=='paid' && isPaymentClosed(order)) return 'Delivery payment closed';
  return {pending:'Delivery fee pending',awaiting_payment:'Delivery fee awaiting payment',under_review:'Delivery payment under review',paid:'Delivery fee paid'}[order.delivery_payment_status]||'Delivery fee pending';
 }
 export function posOrderUrl(order,siteUrl) {

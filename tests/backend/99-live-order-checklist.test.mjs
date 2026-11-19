@@ -45,7 +45,7 @@ export default async function ({ db, check, state }) {
         assert.equal(await h.scalar("select has_function_privilege($1,'tlb.order_checklist_period(jsonb)','EXECUTE')",[role]), false);
       }
     })();
-    await check('Printed orders: the selected dates include every status and sales channel', async () => {
+    await check('Printed orders: all channels and fulfillment dates omit cancelled and refunded orders', async () => {
       const read=(from,to)=>api('order_checklist_period',{from,to},ids.staff);
       await db.exec('begin');
       try {
@@ -58,8 +58,13 @@ export default async function ({ db, check, state }) {
             case when f.source<>'direct_message' then clock_timestamp()+interval '1 hour' end,
             $3::jsonb||jsonb_build_object('source',f.source),gen_random_uuid(),'checklist-fixture'
           from (values
+            ('old-completed','2020-01-15','website','paid','completed',false),
+            ('old-cancelled','2020-01-15','website','paid','cancelled',false),
+            ('old-refund','2020-01-15','direct_message','paid','completed',true),
             ('before','2099-01-14','website','paid','confirmed',false),
             ('cancelled','2099-01-15','website','cancelled','cancelled',false),
+            ('cancelled-payment','2099-01-15','direct_message','cancelled','pending_confirmation',false),
+            ('cancelled-paid','2099-01-15','website','paid','cancelled',false),
             ('expired','2099-01-15','website','awaiting_payment','expired',false),
             ('ready','2099-01-15','direct_message','paid','ready_for_pickup',false),
             ('completed','2099-01-16','popup','paid','completed',false),
@@ -67,7 +72,9 @@ export default async function ({ db, check, state }) {
             ('after','2099-01-17','direct_message','under_review','pending_confirmation',false)
           ) as f(label,d,source,payment,status,refund)`,[prefix,eventId,JSON.stringify(data)]);
         const {orders}=await read('2099-01-15','2099-01-16');
-        assert.deepEqual(orders.filter(o=>o.reference.startsWith(prefix)).map(o=>o.reference.slice(prefix.length)),['cancelled','expired','ready','completed','refunded']);
+        const fixtureReferences = rows => rows.filter(o=>o.reference.startsWith(prefix)).map(o=>o.reference.slice(prefix.length));
+        assert.deepEqual(fixtureReferences(orders),['expired','ready','completed']);
+        assert.deepEqual(fixtureReferences((await read('2020-01-15','2020-01-15')).orders),['old-completed']);
         const unpaid=orders.find(order=>order.id===id);
         assert.equal(unpaid.payment_status,'awaiting_payment');
         assert.equal(unpaid.date,'2099-01-15');
@@ -78,6 +85,24 @@ export default async function ({ db, check, state }) {
         assert.doesNotMatch(JSON.stringify(unpaid),/PRIVATE|price_cents|access_token|payment_reference|proof_path/);
         assert.ok((await read('2099-01-15','2099-01-15')).orders.every(o=>o.date==='2099-01-15'));
         assert.ok((await read('2099-01-01','2099-03-04')).orders.some(o=>o.id===id)); // 63 days
+
+        const ready=orders.find(o=>o.reference===prefix+'ready');
+        const appears = rows => rows.some(o=>o.id===ready.id);
+        async function checklistMembership() {
+          const range={from:'2099-01-15',to:'2099-01-16'};
+          return {
+            orders:appears((await api('order_checklist_period',range,ids.staff)).orders),
+            handoffs:appears((await api('calendar_list',range,ids.staff)).orders),
+            live:appears(await api('order_checklist',{},ids.staff)),
+          };
+        }
+        assert.deepEqual(await checklistMembership(),{orders:true,handoffs:true,live:true});
+        const refunded=await h.action('set_refund_label',{id:ready.id,revision:1},
+          {enabled:true,cancel_fulfillment:true,restore_stock:false,reason:'Fixture refund'});
+        assert.deepEqual(await checklistMembership(),{orders:false,handoffs:false,live:false});
+        const unmarked=await h.action('set_refund_label',refunded,{enabled:false,reason:'Fixture correction'});
+        assert.equal(unmarked.fulfillment_status,'cancelled');
+        assert.deepEqual(await checklistMembership(),{orders:false,handoffs:false,live:false});
       } finally {await db.exec('rollback');}
       for(const [from,to] of [['2099-01-16','2099-01-15'],['2099-01-01','2099-03-05'],['invalid','2099-01-15']])
         await assert.rejects(read(from,to),/fulfillment dates/i);
