@@ -19,8 +19,8 @@ import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=pos-2';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { printOrderSlips } from './order-slips.js?v=order-workflow-20261113';
-import { mountOrderChecklists } from './order-checklists.js?v=order-checklists-20261119';
-import { mountLiveChecklist } from './live-checklist.js?v=live-checklist-20261119';
+import { mountOrderChecklists } from './order-checklists.js?v=checklist-dates-20261119';
+import { mountLiveChecklist } from './live-checklist.js?v=checklist-dates-20261119';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { duplicateProductDraft } from './product-duplicate.js?v=approved-20261002-1';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
@@ -262,7 +262,7 @@ function render() {
     const panel = document.createElement('details');
     panel.className = 'panel order-checklist-panel';
     $('#workspace .order-view-tabs').before(panel);
-    unmountOrderChecklists = mountOrderChecklists(panel, { api, today: manilaDate(), initialDate: state.filters.date, formatDate });
+    unmountOrderChecklists = mountOrderChecklists(panel, { api, today: manilaDate(), initialDate: state.filters.date });
   }
   if(state.view==='backups'){
     const root=$('#backup-manager');root.textContent='Opening order backups…';
