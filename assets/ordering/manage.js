@@ -19,6 +19,7 @@ import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
 import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, needsPaymentReview } from './refund-status.js?v=pos-2';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { printOrderSlips } from './order-slips.js?v=order-workflow-20261113';
+import { mountOrderChecklists } from './order-checklists.js?v=order-checklists-20261119';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { duplicateProductDraft } from './product-duplicate.js?v=approved-20261002-1';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
@@ -77,6 +78,7 @@ let promoStatusTimer = null;
 let clearSalesChart = () => {};
 let calendarController=null;
 let productionController=null;
+let unmountOrderChecklists;
 state.productionFilters={};
 if(location.hash==='#production')state.view='production';
 state.calendarFilters={};
@@ -210,6 +212,8 @@ async function refresh() {
 }
 const syncDashboardNav = bindDashboardNav();
 function render() {
+  unmountOrderChecklists?.();
+  unmountOrderChecklists = null;
   maintenanceController?.destroy();maintenanceController=null;
   const maintenanceLink=$('[data-view=maintenance]');if(maintenanceLink)maintenanceLink.style.display=state.connected&&state.role==='owner'?'':'none';
   if(state.view==='maintenance'&&state.role!=='owner')state.view='overview';
@@ -240,6 +244,12 @@ function render() {
   views.backups=()=>'<div id="backup-manager"></div>';
   views.production=()=>'<div id="production-manager"></div>';
   $('#workspace').innerHTML = setupNotice() + views[state.view]();
+  if (state.view === 'orders' && state.connected) {
+    const panel = document.createElement('details');
+    panel.className = 'panel order-checklist-panel';
+    $('#workspace .order-view-tabs').before(panel);
+    unmountOrderChecklists = mountOrderChecklists(panel, { api, today: manilaDate(), initialDate: state.filters.date, formatDate });
+  }
   if(state.view==='backups'){
     const root=$('#backup-manager');root.textContent='Opening order backups…';
     Promise.all([import('./backup-manager.js?v=approved-20261002-1'),import('./client.js?v=approved-20261002-1')]).then(([view,client])=>{
