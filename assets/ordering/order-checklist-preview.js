@@ -1,6 +1,6 @@
 import { api, formatDate } from './client.js?v=approved-20261002-1';
-import { checklistOrders, checklistTitles, loadChecklistPeriod } from './order-checklist-data.js?v=checklist-dates-20261119';
-import { renderOrderChecklist } from './order-checklist-print.js?v=checklist-dates-20261119';
+import { checklistOrders, checklistTitles, loadChecklistPeriod } from './order-checklist-data.js?v=refund-cancel-20261120';
+import { renderOrderChecklist } from './order-checklist-print.js?v=compact-orders-20261120';
 
 const params = new URLSearchParams(location.search);
 const type = params.get('type');

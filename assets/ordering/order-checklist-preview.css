@@ -30,6 +30,23 @@
 .checklist-handoff-items li + li::before { content: ' · '; }
 .checklist-order .checklist-detail { margin-top: .8mm; white-space: pre-line; }
 
+.checklist-all-orders { line-height: 1.23; }
+.checklist-all-orders .checklist-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 2mm; margin-bottom: 2mm; }
+.checklist-all-orders .checklist-heading h1 { font-size: 16pt; }
+.checklist-all-orders .checklist-heading > strong { flex: none; }
+.checklist-all-orders .checklist-day { margin-bottom: 2mm; }
+.checklist-all-orders .checklist-day thead th { padding-block: 1mm; }
+.checklist-all-orders .checklist-day-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 2mm; }
+.checklist-all-orders .checklist-day-heading > span { flex: none; }
+.checklist-all-orders .checklist-method th { padding-block: 1mm .4mm; }
+.checklist-all-orders .checklist-order td { padding-block: 1mm; }
+.checklist-all-orders .checklist-order h3, .checklist-all-orders .checklist-window, .checklist-all-orders .checklist-item-detail { display: inline; }
+.checklist-all-orders .checklist-item-detail { margin-left: 0; }
+.checklist-all-orders .checklist-window::before, .checklist-all-orders .checklist-item-detail::before { content: ' · '; }
+.checklist-all-orders .checklist-order ul { margin-top: .35mm; }
+.checklist-all-orders .checklist-prep-items li { margin: 0; }
+.checklist-all-orders .checklist-prep-items li + li { margin-top: .4mm; }
+
 @media screen {
   .checklist-preview { background: #f7f3ec; }
   .checklist-preview-toolbar, #order-checklist-print, #preview-status { width: min(5.5in, calc(100% - 24px)); margin-inline: auto; }

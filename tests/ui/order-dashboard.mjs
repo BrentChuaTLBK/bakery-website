@@ -14,7 +14,12 @@ const browser=await chromium.launch({channel:'chrome',headless:true}),checks=[];
 await mkdir(out,{recursive:true});
 try{for(const width of[1440,390]){
  const orders=structuredClone(fixtures),calls=[],errors=[];const context=await browser.newContext({viewport:{width,height:1100},serviceWorkers:'block'});
- await context.route('**/*',async route=>{const url=new URL(route.request().url());if(url.origin!==origin)return route.abort();if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});if(url.pathname==='/fixture-api'){const{action,payload}=route.request().postDataJSON();calls.push({action,payload});let result;if(action==='admin_bootstrap')result={role:'owner',products:[],categories:[],orders,inventory:[],zones:[],staff:[],promos:[],settings:{paused:false,pickup_address:'Sample kitchen'}};else if(action==='get_order')result=orders.find(o=>o.id===payload.order_id);else if(action==='proof_url')result={url:origin+'/proof.svg'};else if(action==='approve_payment'||action==='set_fulfillment'){const o=orders.find(o=>o.id===payload.order_id);assert.equal(payload.revision,o.revision);assert(payload.idempotency_key);if(action==='approve_payment'){o.payment_status='paid';o.fulfillment_status='confirmed';o.paid_amount_cents=o.total_cents;}else o.fulfillment_status=payload.status;o.revision++;result=o;}else if(action==='accounting_get_delivery')result={cost:null,order_revision:1};else throw Error('Unexpected action '+action);return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});}if(url.pathname==='/proof.svg')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="white"/><text x="10" y="30">Fictional receipt</text></svg>'});try{return route.fulfill({contentType:({'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2'})[extname(url.pathname)]||'application/octet-stream',body:await readFile(join(root,url.pathname))})}catch{return route.fulfill({status:404,body:''})}});
+ await context.route('**/*',async route=>{const url=new URL(route.request().url());if(url.origin!==origin)return route.abort();if(url.pathname==='/assets/ordering/client.js')return route.fulfill({contentType:'text/javascript',body:mock});if(url.pathname==='/fixture-api'){const{action,payload}=route.request().postDataJSON();calls.push({action,payload});let result;if(action==='admin_bootstrap')result={role:'owner',products:[],categories:[],orders,inventory:[],zones:[],staff:[],promos:[],settings:{paused:false,pickup_address:'Sample kitchen'}};else if(action==='get_order')result=orders.find(o=>o.id===payload.order_id);else if(action==='proof_url')result={url:origin+'/proof.svg'};else if(action==='set_refund_label'){
+   const o=orders.find(o=>o.id===payload.order_id);assert.equal(payload.revision,o.revision);assert.ok(payload.idempotency_key);assert.ok(payload.reason);
+   if(payload.enabled){assert.equal(payload.cancel_fulfillment,true);assert.equal(typeof payload.restore_stock,'boolean');o.fulfillment_status='cancelled';}
+   else{assert.equal(o.fulfillment_status,'cancelled');assert.equal('restore_stock' in payload,false);}
+   o.refund_label=payload.enabled;o.revision++;result=o;
+  }else if(action==='approve_payment'||action==='set_fulfillment'){const o=orders.find(o=>o.id===payload.order_id);assert.equal(payload.revision,o.revision);assert(payload.idempotency_key);if(action==='approve_payment'){o.payment_status='paid';o.fulfillment_status='confirmed';o.paid_amount_cents=o.total_cents;}else o.fulfillment_status=payload.status;o.revision++;result=o;}else if(action==='accounting_get_delivery')result={cost:null,order_revision:1};else throw Error('Unexpected action '+action);return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});}if(url.pathname==='/proof.svg')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="white"/><text x="10" y="30">Fictional receipt</text></svg>'});try{return route.fulfill({contentType:({'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2'})[extname(url.pathname)]||'application/octet-stream',body:await readFile(join(root,url.pathname))})}catch{return route.fulfill({status:404,body:''})}});
  const page=await context.newPage();page.setDefaultTimeout(6000);page.on('pageerror',e=>errors.push(e.message));await page.goto(origin+'/manage.html#orders');await page.locator('.order-view-tabs').waitFor();
  assert.equal(await page.locator('#order-table .order-selected').count(),0);assert.equal(await page.locator('#order-quick-panel').isVisible(),false);assert.equal(await page.locator('.orders-dashboard.has-order-selection').count(),0);await page.screenshot({path:join(out,`orders-initial-${width}.png`),fullPage:true});
  await page.locator('[data-print-order=review]').check();assert.equal(await page.locator('#print-selection-count').innerText(),'1 selected');assert.equal(await page.locator('#order-quick-panel').isVisible(),false);await page.locator('[data-print-order=review]').uncheck();
@@ -38,5 +43,43 @@ try{for(const width of[1440,390]){
  // respect the newly completed record before offering any progress mutation.
  await page.locator('[data-action=select-order][data-id=ready]').click();orders.find(o=>o.id==='ready').fulfillment_status='completed';const writes=calls.filter(c=>c.action==='set_fulfillment').length;await page.locator('#order-quick-panel [data-intent=progress]').click();await page.locator('#print-order').waitFor();assert.equal(await page.locator('[data-form=order-progress]').count(),0);assert.equal(calls.filter(c=>c.action==='set_fulfillment').length,writes);await page.locator('#dialog-close').click();
  await page.locator('#order-search').fill('DELIVERY');assert.equal(await page.locator('#order-table tbody tr').count(),1);await page.locator('[data-action=select-order][data-id=delivery]').click();await page.locator('#order-quick-panel [data-intent=progress]').click();assert.equal(await page.locator('[data-form=order-progress]').getAttribute('data-status'),'out_for_delivery');await page.locator('[data-form=order-progress] [type=submit]').click();await page.locator('[data-form=order-progress]').waitFor({state:'detached'});await page.locator('#dialog-close').click();
- await page.locator('[data-action=clear-filters]').click();await page.locator('[data-order-view=all]').click();await page.locator('[data-action=select-order][data-id=delivery]').click();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.locator('#toast-region .notice').last().waitFor({state:'detached',timeout:10000});await page.screenshot({path:join(out,`orders-${width}.png`),fullPage:true});assert.deepEqual(errors,[]);checks.push(`${width}px: empty initial selection, row whitespace, separate print/full-order actions, keyboard selection, close/filter/reset, branded calendar, proof and explicit approval, fulfillment and refreshed-state safety passed`);await context.close();
+ await page.locator('[data-action=clear-filters]').click();await page.locator('[data-order-view=all]').click();
+ const dash=page.locator('#order-table'),modal=page.locator('#admin-dialog'),stock=modal.locator('[name=restore_stock]');
+ // A historical refund mark can hide a saved fulfillment status that is still active.
+ await dash.locator('[data-action=open-order][data-id=refund]').click();
+ await modal.getByRole('button',{name:'Remove refund mark'}).click();
+ assert.match(await modal.locator('form').innerText(),/saved fulfillment status \(Preparing\)/i);
+ await page.locator('#dialog-close').click();
+ assert.equal(calls.some(c=>c.action==='set_refund_label' && c.payload.order_id==='refund'),false);
+ // An ordinary paid order can be cancelled and marked for refund in one confirmation.
+ await dash.locator('[data-action=open-order][data-id=delivery]').click();
+ await modal.getByRole('button',{name:'Mark full refund',exact:true}).click();
+ assert.match(await modal.locator('form').innerText(),/cancel fulfillment.*manually/s);
+ assert.equal(await stock.isChecked(),false);
+ if(width===390) await stock.check();
+ await modal.getByLabel('Cancellation reason (visible to the customer)').fill('Customer requested a full refund');
+ await modal.locator('[type=submit]').click();
+ await modal.getByRole('button',{name:'Remove refund mark'}).waitFor();
+ assert.equal(calls.filter(c=>c.action==='set_refund_label').at(-1).payload.restore_stock,width===390);
+ assert.deepEqual(await modal.locator('.order-status-row .badge').allTextContents(),['Paid','Cancelled','Refund']);
+ assert.equal(await modal.locator('[data-action=fulfill-order], [data-action=reopen-order], [data-action=edit-order]').count(),0);
+ await page.locator('#dialog-close').click();
+ for(const filter of ['cancelled','refunded']){
+  await page.locator('[data-filter=fulfillment]').selectOption(filter);
+  assert.equal(await dash.locator('[data-order-row=delivery]').count(),1);
+ }
+ await dash.locator('[data-action=open-order][data-id=delivery]').click();
+ await modal.getByRole('button',{name:'Remove refund mark'}).click();
+ assert.match(await modal.locator('form').innerText(),/Fulfillment stays cancelled/);
+ assert.equal(await stock.count(),0);
+ await modal.getByLabel('Reason',{exact:true}).fill('Correcting the refund record');
+ await modal.locator('[type=submit]').click();
+ await modal.getByRole('button',{name:'Mark full refund'}).waitFor();
+ assert.deepEqual(await modal.locator('.order-status-row .badge').allTextContents(),['Paid','Cancelled']);
+ await page.locator('#dialog-close').click();
+ assert.equal(await dash.locator('[data-order-row=delivery]').count(),0);
+ await page.locator('[data-filter=fulfillment]').selectOption('cancelled');
+ assert.equal(await dash.locator('[data-order-row=delivery]').count(),1);
+ await page.locator('[data-action=clear-filters]').click();
+ await page.locator('[data-action=select-order][data-id=delivery]').click();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.locator('#toast-region .notice').last().waitFor({state:'detached',timeout:10000});await page.screenshot({path:join(out,`orders-${width}.png`),fullPage:true});assert.deepEqual(errors,[]);checks.push(`${width}px: empty initial selection, row whitespace, separate print/full-order actions, keyboard selection, close/filter/reset, branded calendar, proof and explicit approval, fulfillment and refreshed-state safety passed`);await context.close();
 }await writeFile(join(out,'results.json'),JSON.stringify(checks,null,2));checks.forEach(c=>console.log('PASS '+c));}finally{await browser.close()}

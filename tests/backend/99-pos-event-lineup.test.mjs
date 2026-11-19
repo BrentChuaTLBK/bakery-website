@@ -80,6 +80,27 @@ export default async function({db,check,state}) {
   await api('pos_void_sale',{order_id:retained.id,revision:retained.revision,idempotency_key:randomUUID(),reason:'QA stock retained',restore_stock:false},ids.owner);
   await refresh();assert.equal(event.custom_stock[0].remaining,5);
  })();
+ await check('Refunding a completed pop-up sale requires the verified owner and preserves the chosen event inventory disposition',async()=>{
+  for (const restore of [false, true]) {
+   const sold=await create(request([h.item(product,1,{flavor:{choc:2}}),customLine()]));
+   await refresh();
+   const stock=event.stock[0].remaining,customStock=event.custom_stock[0].remaining;
+   const payload={order_id:sold.id,revision:sold.revision,idempotency_key:randomUUID(),enabled:true,
+    cancel_fulfillment:true,restore_stock:restore,reason:'Refunded event order'};
+   await assert.rejects(api('set_refund_label',payload,ids.staff),/owner/i);
+   await assert.rejects(api('set_refund_label',{...payload,reason:'x'},ids.owner),/reason/i);
+   await db.query("insert into tlb.staff(user_id,role) values($1,'owner')",[ids.unverified]);
+   try {await assert.rejects(api('set_refund_label',payload,ids.unverified),/verify/i);}
+   finally {await db.query('delete from tlb.staff where user_id=$1',[ids.unverified]);}
+   const result=await api('set_refund_label',payload,ids.owner);
+   assert.equal(result.fulfillment_status,'cancelled');assert.equal(result.payment_status,'paid');assert.equal(result.refund_label,true);
+   assert.equal((await api('set_refund_label',payload,ids.owner)).revision,sold.revision+1);
+   assert.equal(await h.scalar('select sum(amount_cents)::int from tlb.accounting_ledger where order_id=$1',[sold.id]),0);
+   const unmarked=await h.action('set_refund_label',result,{enabled:false});
+   assert.equal((await api('set_refund_label',{order_id:sold.id,revision:unmarked.revision,idempotency_key:randomUUID(),enabled:true},ids.staff)).fulfillment_status,'cancelled');
+   await refresh();assert.equal(event.stock[0].remaining,stock+(restore?1:0));assert.equal(event.custom_stock[0].remaining,customStock+(restore?1:0));
+  }
+ })();
  await check('Direct orders: catalog prices including options cannot be overridden',async()=>{
   const payload=request([{...h.item(product,1,{flavor:{choc:2}}),unit_price_cents:1}],{source:'direct_message',fulfillment_date:await h.day(30),override_dates:true,override_reason:'QA date selection'});
   const q=await api('pos_quote',payload,ids.owner);

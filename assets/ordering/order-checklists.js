@@ -1,6 +1,6 @@
 import { accountingDatePicker } from './accounting-date-picker.js?v=production-calendar-20261015';
 import { isCalendarDate } from './date-calendar.js?v=daily-quantities-1';
-import { checklistOrders, checklistSource, loadChecklistPeriod } from './order-checklist-data.js?v=checklist-dates-20261119';
+import { checklistOrders, checklistSource, loadChecklistPeriod } from './order-checklist-data.js?v=refund-cancel-20261120';
 
 export function mountOrderChecklists(panel, { api, today, initialDate }) {
   panel.innerHTML = `<summary>Print checklists</summary>

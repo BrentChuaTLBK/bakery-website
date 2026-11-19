@@ -155,6 +155,7 @@ test('a full-refund label removes completed paid orders from sales and all deriv
   assert.equal(a.fullRefundOrderValueCents, 26000);
   assert.equal(a.pickupCount, 0);
   assert.deepEqual(a.topProducts, []);
+  assert.equal(a.cancelledCount, 1);
   assert.equal(a.trend.reduce((sum, bucket) => sum + bucket.currentOrderValueCents, 0), 0);
 });
 
@@ -177,9 +178,9 @@ test('active unpaid statuses are separate from expired and rejected reservations
   assert.equal(a.totalUnits, 0);
 });
 
-test('full refund excludes the latest edited total with delivery and discount; removing label restores it', () => {
+test('a full refund excludes the latest edited total with delivery and discount after the refund mark is removed', () => {
   const edited = order({total_cents: 47000, subtotal_cents: 39000, discount_cents: 2000, delivery_cents: 10000,
-    items: [item({quantity: 3, line_total_cents: 39000})], method: 'delivery', refund_label: true});
+    items: [item({quantity: 3, line_total_cents: 39000})], method: 'delivery', fulfillment_status: 'cancelled', refund_label: true});
   const refunded = buildAnalytics([edited], {today});
   assert.equal(refunded.fullRefundOrderValueCents, 47000);
   assert.equal(refunded.approvedPaymentsCents, 26000);
@@ -189,14 +190,12 @@ test('full refund excludes the latest edited total with delivery and discount; r
   assert.equal(refunded.currentDeliveryCents, 0);
   assert.equal(refunded.additionalPaymentCents, 0);
   assert.equal(refunded.deliveryCount, 0);
-  const restored = buildAnalytics([{...edited, refund_label: false}], {today});
-  assert.equal(restored.currentOrderValueCents, 47000);
-  assert.equal(restored.averageOrderValueCents, 47000);
-  assert.equal(restored.fullRefundOrderValueCents, 0);
-  assert.equal(restored.totalUnits, 3);
-  assert.equal(restored.deliveryCount, 1);
-  assert.equal(restored.currentProductValueCents - restored.currentDiscountCents + restored.currentDeliveryCents, 47000);
-  assert.equal(buildAnalytics([{...edited, refund_label: false, fulfillment_status: 'cancelled'}], {today}).currentOrderValueCents, 0);
+  const unmarked = buildAnalytics([{...edited, refund_label: false}], {today});
+  assert.equal(unmarked.currentOrderValueCents, 0);
+  assert.equal(unmarked.fullRefundOrderValueCents, 0);
+  assert.equal(unmarked.totalUnits, 0);
+  assert.equal(unmarked.deliveryCount, 0);
+  assert.equal(unmarked.cancelledCount, 1);
 });
 
 test('pickup and delivery count only kept paid orders, including completed orders', () => {

@@ -25,8 +25,8 @@ in paid order value still need their actual customer settlement handled separate
   even when the selected timeframe is earlier than the cancellation or refund.
 - Later amount changes for eligible orders append their differences on the change
   date. Internal audit records remain saved, but excluded orders do not contribute
-  to reports or Excel. Removing a Refund label restores inclusion only if the order
-  is still paid and in an eligible fulfillment status.
+  to reports or Excel. Marking an order refunded also cancels fulfillment.
+  Clearing the refund mark leaves it cancelled and excluded from accounting.
 - Existing paid orders are imported from their approval records and saved change
   history. An older order without history uses its current amounts on approval
   date and is disclosed in the dashboard. Reapplying the migration does not import twice.

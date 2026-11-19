@@ -51,6 +51,94 @@ export default async function ({ db, check, state }) {
     }
   })();
 
+  const cancellations = id => scalar("select count(*)::int from tlb.outbox where order_id=$1 and event_type='order_cancelled'", [id]);
+  const refundPayload = o => ({
+    order_id: o.id, revision: o.revision, idempotency_key: randomUUID(), reason: 'Customer cancelled before pickup',
+    enabled: true, cancel_fulfillment: true,
+  });
+
+  await check('recording a refund cancels unpaid fulfillment and review, and retries keep one audit, revision and cancellation notice', async () => {
+    for (const withProof of [false, true]) {
+      const { product, date, submitted } = await create();
+      const pending = withProof ? await proof(submitted) : submitted;
+      await db.query("select tlb.audit($1,$2,'edit_order','Earlier unrelated reason')", [pending.id, ids.staff]);
+      const payload = refundPayload(pending);
+      for (const user of [null, ids.customer]) await assert.rejects(api('set_refund_label', payload, user), /access/i);
+      for (const ack of [undefined, false, 'true']) {
+        await assert.rejects(api('set_refund_label', { ...payload, cancel_fulfillment: ack }, ids.staff), /refresh.*cancel/i);
+      }
+      await assert.rejects(api('set_refund_label', { ...payload, reason: '' }, ids.staff), /reason/i);
+      await assert.rejects(api('set_refund_label', { ...payload, revision: 0 }, ids.staff), /changed/i);
+      const result = await api('set_refund_label', payload, ids.staff);
+      assert.equal(result.fulfillment_status, 'cancelled');
+      assert.equal(result.payment_status, 'cancelled');
+      assert.equal(result.proof_submitted, withProof);
+      assert.equal(result.refund_label, true);
+      assert.equal(result.revision, pending.revision + 1);
+      assert.equal(await h.remaining(product, date), 3);
+      assert.equal((await api('set_refund_label', payload, ids.staff)).revision, result.revision);
+      await assert.rejects(api('set_refund_label', { ...payload, enabled: false }, ids.staff), /different request/i);
+      assert.equal(result.history.filter(entry => entry.action === 'set_refund_label').length, 1);
+      const history = await scalar("select payload#>'{order,history}' from tlb.outbox where order_id=$1 and event_type='order_cancelled'", [pending.id]);
+      assert.equal(history.at(-1).reason, payload.reason);
+      assert.equal(history.at(-1).action, 'set_refund_label');
+      const cleared = await action('set_refund_label', result, { enabled: false });
+      assert.equal(cleared.payment_status, 'cancelled');
+      assert.equal(cleared.fulfillment_status, 'cancelled');
+      assert.equal(cleared.refund_label, false);
+      assert.equal(await cancellations(pending.id), 1);
+      await assert.rejects(action('approve_payment', cleared), /active|review/i);
+    }
+  })();
+
+  await check('paid and completed refunds preserve payment and honor the explicit inventory decision exactly once', async () => {
+    for (const completed of [false, true]) {
+      for (const restore of [false, true]) {
+        const { product, date, submitted } = await create();
+        const paid = await action('approve_payment', await proof(submitted));
+        const current = completed ? await action('set_fulfillment', paid, { status: 'completed' }) : paid;
+        const payload = refundPayload(current);
+        for (const invalid of [undefined, 'false', null]) {
+          await assert.rejects(api('set_refund_label', { ...payload, restore_stock: invalid }, ids.staff), /sellable stock/i);
+        }
+        const beforePayments = (await db.query('select * from tlb.payments where order_id=$1', [paid.id])).rows;
+        const refunded = await api('set_refund_label', { ...payload, restore_stock: restore }, ids.staff);
+        assert.equal(refunded.payment_status, 'paid');
+        assert.equal(refunded.fulfillment_status, 'cancelled');
+        assert.equal(refunded.paid_amount_cents, paid.paid_amount_cents);
+        assert.deepEqual((await db.query('select * from tlb.payments where order_id=$1', [paid.id])).rows, beforePayments);
+        assert.deepEqual((await h.allocations(paid.id)).map(row => row.state), restore ? [] : ['retained']);
+        const cleared = await action('set_refund_label', refunded, { enabled: false });
+        await assert.rejects(action('reopen_order', cleared, { reason: 'Attempt to reopen' }), /completed order/i);
+        await h.refund(cleared, { restore_stock: !restore });
+        assert.equal(await h.remaining(product, date), restore ? 3 : 2);
+        assert.equal(await cancellations(paid.id), completed ? 0 : 1);
+      }
+    }
+  })();
+
+  await check('expired refunds close pending payment without sending a second closure notice; migration replay preserves historic labels', async () => {
+    const { product, date, submitted } = await create();
+    await db.query("update tlb.orders set payment_deadline=now()-interval '1 hour' where id=$1", [submitted.id]);
+    await db.query('select tlb.expire_orders()');
+    const expired = await order(submitted.id);
+    assert.equal(expired.fulfillment_status, 'expired');
+    const refunded = await h.refund(expired);
+    assert.equal(refunded.fulfillment_status, 'cancelled');
+    assert.equal(refunded.payment_status, 'cancelled');
+    assert.equal(await h.remaining(product, date), 3);
+    assert.equal(await cancellations(submitted.id), 0);
+    const legacy = (await create()).submitted;
+    await db.query('update tlb.orders set refund_label=true where id=$1', [legacy.id]);
+    const before = await order(legacy.id);
+    const refundMigration = await readFile(new URL('../../supabase/migrations/20261119210934_cancel_fulfillment_on_refund.sql', import.meta.url), 'utf8');
+    await db.exec(refundMigration);
+    assert.deepEqual(await order(legacy.id), before);
+    for (const role of ['anon','authenticated','service_role']) {
+      assert.equal(await scalar("select has_function_privilege($1,'tlb.cancel_fulfillment_on_refund(tlb.orders,uuid,jsonb)','execute')", [role]), false);
+    }
+  })();
+
   await check('repair closes legacy cancellations once, preserving paid/rejected orders and all financial records', async () => {
     const legacy = [];
     for (const withProof of [false, true]) {

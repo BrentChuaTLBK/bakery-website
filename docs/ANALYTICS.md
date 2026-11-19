@@ -27,7 +27,7 @@ Saving an order edit changes the quantities, sales, average and product ranking 
 
 Cancelling a paid order excludes it from sales, customer and repeat-customer counts, completed orders, promo performance, units, product rankings and the pickup/delivery breakdown.
 
-A **Refund label means a full refund for analytics**. It excludes the order from sales, customers, repeat customers, completed orders, promo performance, average order value, units, product rankings, trends and the pickup/delivery breakdown. Removing the label restores those figures if the order remains paid and is not cancelled or expired. A cancelled order is already excluded, so the label cannot deduct it twice.
+Marking an order **Refunded** also cancels fulfillment. Analytics excludes its full latest value, including discounts and delivery, and its units from the original placement period. Clearing the refund mark leaves the order cancelled and excluded.
 
 Original approval totals, refund-value totals, paid-with-refund counts and differences above/below original approvals are no longer shown in Analytics. Original payment records remain available in individual orders. Applying a refund label updates the original order-placement period, not a separate refund-date period.
 

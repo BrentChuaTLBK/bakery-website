@@ -53,6 +53,9 @@ export async function makeHarness(db) {
   const action = (name, o, extras = {}) => api(name, {
     order_id: o.id, revision: o.revision, idempotency_key: randomUUID(), ...extras,
   }, ids.owner);
+  const refund = (o, extras = {}) => action('set_refund_label', o, {
+    enabled: true, cancel_fulfillment: true, restore_stock: false, reason: 'Full refund recorded', ...extras,
+  });
   const proof = (o, extras = {}) => service('commit_proof', {
     order_id: o.id, token: o.access_token, user_id: null,
     path: `${o.id}/${randomUUID()}.png`, payment_reference: 'QA-PAYMENT-123', ...extras,
@@ -60,5 +63,5 @@ export async function makeHarness(db) {
   const remaining = (product, date) => scalar('select tlb.capacity_remaining($1::uuid, $2::date)', [product.id, date]);
   const allocations = (id) => db.query('select product_id::text, date::text, quantity, state from tlb.allocations where order_id=$1 order by product_id,date', [id]).then(r => r.rows);
 
-  return { ids, as, api, service, scalar, day, item, checkout, product, inventory, fixture, order, action, proof, remaining, allocations };
+  return { ids, as, api, service, scalar, day, item, checkout, product, inventory, fixture, order, action, refund, proof, remaining, allocations };
 }

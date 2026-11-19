@@ -59,10 +59,10 @@ export default async function({db,check,state}) {
     await db.query("update tlb.orders set data=data||'{\"subtotal_cents\":120000,\"discount_cents\":6000,\"delivery_cents\":18000,\"total_cents\":132000}'::jsonb where id=$1",[o.id]);
     assert.equal(await counts(o.id),6);
     assert.deepEqual(Object.fromEntries((await balance(o.id)).map(x=>[x.system_key,x.amount])),{website:120000,discount:6000,delivery_fee:18000});
-    const refunded=await h.action('set_refund_label',await h.order(o.id),{enabled:true});
+    const refunded=await h.refund(await h.order(o.id));
     assert.equal((await balance(o.id)).every(x=>x.amount===0),true);
-    await h.action('set_refund_label',refunded,{enabled:false});assert.equal((await balance(o.id)).find(x=>x.system_key==='website').amount,120000);
-    const cancelled=await h.action('cancel_order',await h.order(o.id),{reason:'Accounting fixture',restore_stock:true});
+    const cancelled=await h.action('set_refund_label',refunded,{enabled:false});
+    assert.equal(cancelled.fulfillment_status,'cancelled');
     assert.equal((await balance(o.id)).every(x=>x.amount===0),true);
     const count=await counts(o.id);await h.action('set_refund_label',cancelled,{enabled:true});assert.equal(await counts(o.id),count,'Cancel plus refund cannot reverse twice');
   })();
@@ -82,7 +82,7 @@ export default async function({db,check,state}) {
     const blank=await call('save_delivery',{...payload,revision:2,amount_cents:null});assert.equal(blank.amount_cents,null);
     assert.equal((await report()).entries.some(e=>e.id===o.id&&e.source==='Delivery cost'),false);
     await call('save_delivery',{...payload,revision:3});
-    await h.action('set_refund_label',paid,{enabled:true});
+    await h.refund(paid);
     assert.equal((await report()).entries.some(e=>e.id===o.id&&e.source==='Delivery cost'),false,'Refunded delivery expenses are excluded');
     assert.equal((await call('get_delivery',{order_id:o.id})).cost.amount_cents,22550,'Saved cost remains available in the private order record');
     await assert.rejects(call('save_delivery',{...payload,revision:4,amount_cents:10}),/order changed/i);
@@ -99,7 +99,7 @@ export default async function({db,check,state}) {
 
   await check('migration backfills approval snapshots and later history dates, then replays without duplicates',async()=>{
     const {o}=await newOrder();const paid=await h.action('approve_payment',o);
-    await h.action('set_refund_label',paid,{enabled:true});
+    await h.refund(paid);
     await db.query("update tlb.payments set approved_at='2024-02-29T16:30:00Z' where order_id=$1",[o.id]);
     await db.query("update tlb.history set at=case when action='approve_payment' then '2024-02-29T16:30:00Z'::timestamptz else '2024-03-03T01:00:00Z'::timestamptz end where order_id=$1 and after_data->>'payment_status'='paid'",[o.id]);
     await db.query('delete from tlb.accounting_ledger where order_id=$1',[o.id]);await db.query('delete from tlb.accounting_order_state where order_id=$1',[o.id]);

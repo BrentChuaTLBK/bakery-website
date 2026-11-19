@@ -90,11 +90,11 @@ export default async function({db,check,state}) {
     entry=(await report()).newsletter_promos.find(p=>p.id===subscriber.promo.id);
     assert.equal(entry.redeemed_count,1);assert.equal(entry.reserved_count,0);assert.equal(entry.sales_cents,28500);assert.equal(entry.discount_cents,1500);
     await assert.rejects(api('quote',h.checkout(product,date,{promo_code:subscriber.promo.code}),subscriber.user),/use limit/);
-    order=await h.action('set_refund_label',order,{enabled:true});
+    order=await h.refund(order);
     entry=(await report()).newsletter_promos.find(p=>p.id===subscriber.promo.id);
     assert.equal(entry.redeemed_count,0);assert.equal(entry.sales_cents,0);assert.equal(entry.discount_cents,0);
     order=await h.action('set_refund_label',order,{enabled:false});
-    await h.action('cancel_order',order,{reason:'QA cancellation',restore_stock:true});
+    assert.equal(order.fulfillment_status,'cancelled');
     entry=(await report()).newsletter_promos.find(p=>p.id===subscriber.promo.id);
     assert.equal(entry.redeemed_count,0);assert.equal(entry.sales_cents,0);
   })();

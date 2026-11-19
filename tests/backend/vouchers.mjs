@@ -81,14 +81,16 @@ export default async function({db,check,state}) {
   await assert.rejects(newsletter('queue',{id:draft.id,revision:draft.revision,confirm:true}),/regular promo|personal/i);
   assert.equal(await scalar('select count(*)::int from tlb.newsletter_broadcast_jobs where campaign_id=$1',[draft.id]),0);
  })();
- await check('Vouchers: redemption reserves once, refund releases it, restoring after reuse is rejected',async()=>{
+ await check('Vouchers: refund releases a redeemed voucher, and clearing the refund preserves its new reservation',async()=>{
   const {product,date}=await h.fixture(20,{price_cents:20000});const payload=()=>h.checkout(product,date,{promo_code:reward.code});
   let order=await api('create_order',payload(),eligible.id);assert.equal((await wallet(eligible)).vouchers[0].status,'reserved');
   await assert.rejects(api('create_order',payload(),eligible.id),/use limit/);
   order=await h.action('approve_payment',await h.proof(order));assert.equal((await wallet(eligible,'used')).vouchers[0].status,'used');
-  order=await h.action('set_refund_label',order,{enabled:true});assert.equal((await wallet(eligible)).vouchers[0].status,'available');
-  let next=await api('create_order',payload(),eligible.id);await assert.rejects(h.action('set_refund_label',order,{enabled:false}),/already been reused/i);
-  await h.action('cancel_order',next,{reason:'Test release'});await h.action('set_refund_label',order,{enabled:false});
+  order=await h.refund(order);assert.equal((await wallet(eligible)).vouchers[0].status,'available');
+  const next=await api('create_order',payload(),eligible.id);
+  const unmarked=await h.action('set_refund_label',order,{enabled:false});assert.equal(unmarked.fulfillment_status,'cancelled');
+  assert.equal((await wallet(eligible)).vouchers[0].status,'reserved');
+  await h.action('approve_payment',await h.proof(next));
   const stats=(await api('voucher_campaigns',{},ids.owner)).campaigns.find(c=>c.id===campaign.id).stats;
   assert.equal(stats.used,1);assert.equal(stats.sales_cents,17500);assert.equal(stats.discount_cents,2500);
  })();
@@ -112,7 +114,7 @@ export default async function({db,check,state}) {
   const expires=new Date(Date.now()+86400000).toISOString();let c=await save({name:'Repeat thank-you',terms:{...terms,trigger:'every_completed',kind:'percent',value:20,cap_cents:1500,customer_limit:2,expiry_mode:'fixed',expires_at:expires}});c=await save({...c,status:'active'});
   const u=await user();let o=await complete(await create(u));await complete(await create(u));await complete(await create(u));assert.equal((await wallet(u)).total,2);
   const v=(await wallet(u)).vouchers[0],{product,date}=await h.fixture(10,{price_cents:20000});assert.equal((await api('quote',h.checkout(product,date,{promo_code:v.code}),u.id)).discount_cents,1500);
-  o=await h.action('set_refund_label',o,{enabled:true});assert.equal((await wallet(u,'expired')).vouchers[0].status,'inactive');
+  o=await h.refund(o);assert.equal((await wallet(u,'expired')).vouchers[0].status,'inactive');
   const invalid=(await wallet(u,'expired')).vouchers[0];await assert.rejects(api('quote',h.checkout(product,date,{promo_code:invalid.code}),u.id),/qualifying|eligible|available/i);
   await db.query("update tlb.promos set data=jsonb_set(data,'{expires_at}',to_jsonb('2000-01-01T00:00:00Z'::text)) where id=$1",[v.id]);await assert.rejects(api('quote',h.checkout(product,date,{promo_code:v.code}),u.id),/expired/);
   await save({...c,status:'paused'});

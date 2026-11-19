@@ -121,8 +121,8 @@ export function buildAnalytics(orders = [], {start = '', end = '', today = manil
   result.totalOrders = rows.length;
   rows.forEach(({order}, index) => {
     const closed = CLOSED.has(order.fulfillment_status);
-    if (order.fulfillment_status === 'expired') result.expiredCount++;
-    if (order.fulfillment_status === 'cancelled') result.cancelledCount++;
+    if (order.fulfillment_status === 'cancelled' || order.refund_label === true) result.cancelledCount++;
+    else if (order.fulfillment_status === 'expired') result.expiredCount++;
     if (order.refund_label === true) result.refundFlaggedCount++;
     if (!closed && order.refund_label !== true && order.payment_status === 'awaiting_payment') result.awaitingPaymentCount++;
     if (!closed && order.refund_label !== true && order.payment_status === 'under_review') result.underReviewCount++;

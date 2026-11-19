@@ -72,7 +72,7 @@ function orderRow(order, type) {
     <td class="checklist-mark"><span class="checklist-tick" aria-hidden="true"></span></td>
     <td class="checklist-order-body"><h3>${esc(buyer.name || recipient.name || 'Customer')} <span>${esc(reference(order))}</span></h3>
       ${meta ? `<p class="checklist-window">${esc(meta)}</p>` : ''}${handoff}
-      ${renderChecklistItems(order, detailed)}${detail('Instructions', order.instructions)}
+      ${renderChecklistItems(order, detailed)}${type === 'orders' ? '' : detail('Instructions', order.instructions)}
     </td></tr>`;
 }
 
@@ -98,10 +98,11 @@ export function renderOrderChecklist({ orders, type, periodLabel }) {
     const body = type === 'orders'
       ? [...groups].filter(([, rows]) => rows.length).map(([label, rows]) => `<tbody><tr class="checklist-method"><th scope="rowgroup" colspan="2">${label}</th></tr>${rows.map(order => orderRow(order, type)).join('')}</tbody>`).join('')
       : `<tbody>${dayOrders.map(order => orderRow(order, type)).join('')}</tbody>`;
+    const countLabel = type === 'orders' ? orderCount(dayOrders.length) : `${titles[type]} · ${orderCount(dayOrders.length)}`;
     return `<table class="checklist-day" aria-label="${esc(dayLabel)}"><colgroup><col class="checklist-mark-column"><col></colgroup>
-      <thead><tr><th colspan="2"><div class="checklist-day-heading"><h2>${esc(dayLabel)}</h2><span>${titles[type]} · ${orderCount(dayOrders.length)}</span></div></th></tr></thead>
+      <thead><tr><th colspan="2"><div class="checklist-day-heading"><h2>${esc(dayLabel)}</h2><span>${countLabel}</span></div></th></tr></thead>
       ${body}</table>`;
   });
-  return `<section class="order-checklist-sheet"><header class="checklist-heading"><div><h1>${titles[type]}</h1><p>${esc(periodLabel)} · ${orderCount(orders.length)}</p></div><strong>TLB Kitchen</strong></header>
+  return `<section class="order-checklist-sheet${type === 'orders' ? ' checklist-all-orders' : ''}"><header class="checklist-heading"><div><h1>${titles[type]}</h1><p>${esc(periodLabel)} · ${orderCount(orders.length)}</p></div><strong>TLB Kitchen</strong></header>
     ${tables.join('') || '<p>No orders in this period.</p>'}</section>`;
 }

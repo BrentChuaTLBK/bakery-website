@@ -1,3 +1,4 @@
+import {fulfillmentStatus} from './refund-status.js?v=refund-cancel-20261120';
 import {mountVouchers} from './vouchers.js?v=approved-20261002-1';
 let voucherController=null;
 import {applyNewsletterOffer} from './newsletter-offer.js?v=newsletter-settings-1';
@@ -219,7 +220,7 @@ function signupNewsletterNotice(failed) {
 }
 
 function orderCard(order) {
-  return `<a class="account-order" href="shop.html#order=${encodeURIComponent(order.id)}"><div class="account-order-top"><strong>${esc(order.reference)}</strong><span class="badge">${esc(statusText(order.payment_status))}</span></div><div class="account-order-summary"><span>${esc(formatDate(order.fulfillment_date))}<small>${order.method==='delivery'?'Delivery':'Pickup'} · ${esc(statusText(order.fulfillment_status))}</small></span><strong class="account-order-total">${esc(money(order.total_cents))}</strong></div><p class="account-order-items">${esc((order.items||[]).map(item=>`${item.quantity} × ${item.name}`).join(' · '))}</p><span class="account-order-open">View order &amp; payment details <span aria-hidden="true">→</span></span></a>`;
+  return `<a class="account-order" href="shop.html#order=${encodeURIComponent(order.id)}"><div class="account-order-top"><strong>${esc(order.reference)}</strong><span class="badge">${esc(statusText(order.payment_status))}</span></div><div class="account-order-summary"><span>${esc(formatDate(order.fulfillment_date))}<small>${order.method==='delivery'?'Delivery':'Pickup'} · ${esc(statusText(fulfillmentStatus(order)))}${order.refund_label?' · Refund marked':''}</small></span><strong class="account-order-total">${esc(money(order.total_cents))}</strong></div><p class="account-order-items">${esc((order.items||[]).map(item=>`${item.quantity} × ${item.name}`).join(' · '))}</p><span class="account-order-open">View order &amp; payment details <span aria-hidden="true">→</span></span></a>`;
 }
 
 async function loadHistory(version) {
