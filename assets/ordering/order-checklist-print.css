@@ -1,0 +1,49 @@
+#order-checklist-print { display: none; }
+
+@page order-checklist {
+  size: auto;
+  margin: 14mm;
+}
+
+@media print {
+  body.order-checklist-printing {
+    page: order-checklist;
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+  body.order-checklist-printing > :not(#order-checklist-print) { display: none !important; }
+  body.order-checklist-printing > #order-checklist-print {
+    display: block !important;
+    color: #171717;
+    font: 10pt/1.35 Arial, sans-serif;
+    overflow-wrap: anywhere;
+  }
+  .order-checklist-sheet :is(h1, h2, h3, p, ul) { margin: 0; padding: 0; color: inherit; font-family: inherit; letter-spacing: normal; }
+  .checklist-heading, .checklist-day-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 5mm; }
+  .checklist-heading { margin-bottom: 6mm; }
+  .checklist-heading h1 { font-size: 20pt; line-height: 1.15; }
+  .checklist-heading p { margin-top: 1mm; }
+  .checklist-heading > strong, .checklist-day-heading > span { font-size: 9pt; white-space: nowrap; }
+  .checklist-day { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 0 0 4mm; text-align: left; }
+  .checklist-mark-column { width: 9mm; }
+  .checklist-day thead { display: table-header-group; }
+  .checklist-day th { border-block: 1pt solid #444; padding: 2mm 0; font-weight: normal; }
+  .checklist-day-heading h2 { font-size: 12pt; }
+  .checklist-order { break-inside: avoid; page-break-inside: avoid; }
+  .checklist-order td { vertical-align: top; border-bottom: 0.5pt solid #aaa; padding: 2.5mm 0; }
+  .checklist-tick { display: block; width: 5.5mm; height: 5.5mm; border: 1.2pt solid #222; border-radius: 0.6mm; box-sizing: border-box; }
+  .checklist-order h3 { font-size: 11pt; line-height: 1.3; }
+  .checklist-order h3 span { display: inline-block; margin-left: 2mm; font: normal 9pt/1.4 Arial, sans-serif; }
+  .checklist-order .checklist-window { font-size: 9pt; margin-top: 0.5mm; }
+  .checklist-order ul { list-style: none; margin: 1.2mm 0 0; }
+  .checklist-prep-items li { margin-top: 1mm; break-inside: avoid; }
+  .checklist-item-detail { display: block; margin-left: 3mm; font-size: 9pt; white-space: pre-line; }
+  .checklist-handoff-items li { display: inline; }
+  .checklist-handoff-items li + li::before { content: ' · '; }
+  .checklist-order .checklist-detail { margin-top: 1mm; white-space: pre-line; }
+}
