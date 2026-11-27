@@ -16,7 +16,7 @@ import { api, auth, ready, configured, money, escapeHtml, manilaDate, formatDate
 import { prepareOrderSave, normalizeOrderEditReason } from './order-edit-save.js?v=custom-confirmation-1';
 import { confirmOrderTotalChange } from './order-edit-confirmation.js?v=custom-confirmation-1';
 import { socialContactMessage } from './checkout-fields.js?v=social-contact-1';
-import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, isPaymentClosed, needsPaymentReview } from './refund-status.js?v=refund-cancel-20261120';
+import { displayPaymentStatus, fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, isPaymentClosed, needsPaymentReview } from './refund-status.js?v=website-editor-20261127';
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { printOrderSlips } from './order-slips.js?v=order-workflow-20261113';
 import { mountOrderChecklists } from './order-checklists.js?v=refund-cancel-20261120';
@@ -43,7 +43,7 @@ import { mountPartyPackageManager } from './party-package-manager.js?v=brand-202
 import { mountOrderPhotos, orderPhotosMarkup } from './order-photos.js?v=order-workflow-20261113';
 import {mountCalendar} from './calendar-manager.js?v=unpaid-calendar-20261127';
 import {mountProduction} from './production-manager.js?v=production-summary-20261015';
-import {mountPOS} from './pos-manager.js?v=refund-cancel-20261120';
+import {mountPOS} from './pos-manager.js?v=website-editor-20261127';
 import {salesSource,deliveryStatusText,posOrderUrl} from './pos.js?v=refund-cancel-20261120';
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -51,7 +51,7 @@ const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)]
 const esc = escapeHtml;
 const clone = value => JSON.parse(JSON.stringify(value));
 const uid = () => crypto.randomUUID();
-const PAYMENT = ['awaiting_payment', 'under_review', 'paid', 'rejected', 'cancelled'];
+const PAYMENT = ['awaiting_payment', 'under_review', 'paid', 'rejected', 'cancelled', 'expired'];
 const FULFILLMENT = ['pending_confirmation', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'completed', 'refunded', 'cancelled', 'expired'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const state = { view: location.hash === '#dessert' ? 'dessert' : location.hash === '#packages' ? 'packages' : 'overview', role: null, connected: false, products: [], categories: [], inventory: [], promos: [], zones: [], orders: [], settings: {}, staff: [], filters: { search: '', payment: '', fulfillment: '', date: '', method: '', refund: '', upcoming: false }, inventoryDates: [manilaDate()], inventoryDrafts: {} };
@@ -168,6 +168,7 @@ function showDialog(title, content, { preserveScroll = false, focusSelector } = 
   if (!modal.open) modalReturnFocus = document.activeElement;
   $('#dialog-title').textContent = title;
   $('#dialog-body').innerHTML = content;
+  modal.classList.toggle('website-order-editor', Boolean($('[data-form="order-edit"]', modal)));
   if (!modal.open) modal.showModal();
   const renderedBody = $('#dialog-body').firstElementChild;
   modal.scrollTop = scrollTop;
@@ -338,11 +339,11 @@ function emailStatusCard() {
 function filteredOrders() {
   const f = state.filters;
   const query = f.search.toLowerCase();
-  return state.orders.filter(o => matchesOrderView(o,state.orderView,manilaDate()) && (!query || `${o.reference} ${o.buyer?.name || ''} ${o.buyer?.email || ''} ${o.buyer?.phone || ''}`.toLowerCase().includes(query)) && (!f.payment || (f.payment === 'under_review' ? needsPaymentReview(o) : o.payment_status === f.payment)) && matchesFulfillmentStatus(o, f.fulfillment) && (!f.date || o.fulfillment_date === f.date) && (!f.method || o.method === f.method) && (!f.refund || Boolean(o.refund_label) === (f.refund === 'yes')) && (!f.upcoming || matchesUpcomingOrder(o,manilaDate()))).sort((a, b) => f.upcoming ? a.fulfillment_date.localeCompare(b.fulfillment_date) : b.created_at.localeCompare(a.created_at));
+  return state.orders.filter(o => matchesOrderView(o,state.orderView,manilaDate()) && (!query || `${o.reference} ${o.buyer?.name || ''} ${o.buyer?.email || ''} ${o.buyer?.phone || ''}`.toLowerCase().includes(query)) && (!f.payment || (f.payment === 'under_review' ? needsPaymentReview(o) : displayPaymentStatus(o) === f.payment)) && matchesFulfillmentStatus(o, f.fulfillment) && (!f.date || o.fulfillment_date === f.date) && (!f.method || o.method === f.method) && (!f.refund || Boolean(o.refund_label) === (f.refund === 'yes')) && (!f.upcoming || matchesUpcomingOrder(o,manilaDate()))).sort((a, b) => f.upcoming ? a.fulfillment_date.localeCompare(b.fulfillment_date) : b.created_at.localeCompare(a.created_at));
 }
 function orderTable(orders, compact = false) {
   if (!orders.length) return empty('No orders to show', 'Orders matching your filters will appear here.');
-  return `<div class="table-wrap"><table class="data-table"><thead><tr>${compact ? '' : '<th class="order-select-cell"><input type="checkbox" id="select-print-orders" aria-label="Select all shown orders for printing"></th>'}<th>Order / customer</th><th>Fulfillment</th><th>Payment</th>${compact ? '' : '<th>Next step</th>'}<th>Total</th></tr></thead><tbody>${orders.map(order => `<tr ${!compact?`data-order-row="${esc(order.id)}" class="${order.id===state.selectedOrderId?'order-selected':''}"`:''}>${compact ? '' : `<td class="order-select-cell"><input type="checkbox" data-print-order="${esc(order.id)}" aria-label="Select ${esc(order.reference)} for printing" ${state.printSelection.has(order.id) ? 'checked' : ''}></td>`}<td><button class="table-link" data-action="open-order" data-id="${esc(order.id)}">${esc(order.reference)}</button><small>${esc(order.buyer?.name || 'Client not recorded')} · ${esc(salesSource(order))}${order.refund_label ? ' · Refund label' : ''}</small></td><td>${esc(humanDate(order.fulfillment_date))}${isOverdueOrder(order,manilaDate())?'<small><strong>Overdue</strong></small>':''}<small>${esc(order.source==='popup'?'In-person sale':label(order.method))}</small></td><td>${badge(order.payment_status)}${order.deferred_delivery?`<small>${esc(deliveryStatusText(order))}</small>`:''}</td>${compact ? '' : `<td><span class="order-next-heading">${esc(orderNextStep(order).title)}</span>${badge(fulfillmentStatus(order))}<button type="button" class="table-link order-select-action" data-action="select-order" data-id="${esc(order.id)}" aria-label="Quick actions for ${esc(order.reference)}" aria-controls="order-quick-panel" aria-expanded="${order.id===state.selectedOrderId}">Quick actions →</button></td>`}<td>${money(order.total_cents)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="data-table"><thead><tr>${compact ? '' : '<th class="order-select-cell"><input type="checkbox" id="select-print-orders" aria-label="Select all shown orders for printing"></th>'}<th>Order / customer</th><th>Fulfillment</th><th>Payment</th>${compact ? '' : '<th>Next step</th>'}<th>Total</th></tr></thead><tbody>${orders.map(order => `<tr ${!compact?`data-order-row="${esc(order.id)}" class="${order.id===state.selectedOrderId?'order-selected':''}"`:''}>${compact ? '' : `<td class="order-select-cell"><input type="checkbox" data-print-order="${esc(order.id)}" aria-label="Select ${esc(order.reference)} for printing" ${state.printSelection.has(order.id) ? 'checked' : ''}></td>`}<td><button class="table-link" data-action="open-order" data-id="${esc(order.id)}">${esc(order.reference)}</button><small>${esc(order.buyer?.name || 'Client not recorded')} · ${esc(salesSource(order))}${order.refund_label ? ' · Refund label' : ''}</small></td><td>${esc(humanDate(order.fulfillment_date))}${isOverdueOrder(order,manilaDate())?'<small><strong>Overdue</strong></small>':''}<small>${esc(order.source==='popup'?'In-person sale':label(order.method))}</small></td><td>${badge(displayPaymentStatus(order))}${order.deferred_delivery?`<small>${esc(deliveryStatusText(order))}</small>`:''}</td>${compact ? '' : `<td><span class="order-next-heading">${esc(orderNextStep(order).title)}</span>${badge(fulfillmentStatus(order))}<button type="button" class="table-link order-select-action" data-action="select-order" data-id="${esc(order.id)}" aria-label="Quick actions for ${esc(order.reference)}" aria-controls="order-quick-panel" aria-expanded="${order.id===state.selectedOrderId}">Quick actions →</button></td>`}<td>${money(order.total_cents)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function syncOrderPrintSelection() {
   if (state.view !== 'orders') return;
@@ -767,8 +768,9 @@ function renderOrderDialog(view = {}) {
         <p class="help-text sr-only" role="status"></p>
       </div>` : '';
   const trackingEditor = canEditDeliveryTracking(o) ? orderTrackingEditor(o) : '';
+  const editOrderButton = !isPOS && open ? '<button type="button" class="button button-secondary no-print" data-action="edit-order">Edit order</button>' : '';
   const dialogView = privateOrderLink && !view.preserveScroll ? { focusSelector: '#order-dialog-summary', ...view } : view;
-  showDialog(o.reference, `<div id="print-order"><p id="order-dialog-summary" class="muted" tabindex="-1">${esc(salesSource(o))} · Placed ${esc(dateTime(o.created_at))} · Revision ${o.revision}</p><div class="order-status-row">${badge(o.payment_status)} ${badge(fulfillmentStatus(o))}${o.refund_label ? ' ' + badge('refund') : ''}</div><div class="order-detail-grid"><section class="detail-section"><h3>Buyer</h3><p><strong>${esc(o.buyer?.name)}</strong>\n${esc(o.buyer?.email)}\n${esc(o.buyer?.phone)}</p>${o.buyer?.social_username ? `<p>${esc(o.buyer.social_platform?.toLowerCase() === 'na' ? 'Social contact' : label(o.buyer.social_platform))}: ${esc(o.buyer.social_username)}</p>` : ''}</section><section class="detail-section"><h3>${esc(o.source==='popup'?'In-person sale':label(o.method))} · ${esc(humanDate(o.fulfillment_date))}</h3>${o.method === 'delivery' ? `<p><strong>${esc(o.recipient?.name)}</strong>\n${esc(o.recipient?.phone)}\n${esc(address)}</p>` : `<p>${esc((o.source==='popup'?o.event_location:o.pickup_address || state.settings.pickup_address) || '')}</p>`}${o.method === 'delivery' && o.delivery_zone_description ? `<p class="zone-description">${esc(o.delivery_zone_description)}</p>` : ''}${deliveryTrackingLink(o, esc)}${o.instructions ? `<p>Instructions: ${esc(o.instructions)}</p>` : ''}</section></div>${itemTable(o.items)}${totals(o)}${privateOrderLink}${o.source === 'direct_message' ? orderPhotosMarkup() : ''}${!o.deferred_delivery && o.payment_status === 'paid' && !o.refund_label ? '<p class="muted">Any difference after an order edit is settled directly with the customer. The original payment record and current fulfillment progress are retained.</p>' : ''}<section class="detail-section proof-block"><h3>${o.proof_stage==='delivery'?'Delivery payment':'Initial payment'}</h3><p>Reference: ${esc((o.proof_stage==='delivery'?o.delivery_payment_reference:o.payment_reference) || 'Not provided')}</p>${o.proof_path ? '<button class="button button-secondary" data-action="view-proof">View private payment proof ↗</button>' : `<p class="muted">${o.payment_status === 'awaiting_payment' && open ? o.source==='direct_message'?'Reservation stays active until cancelled.':`Proof deadline: ${esc(dateTime(o.payment_deadline))}` : 'No payment proof on this order.'}</p>`}<div id="proof-viewer"></div></section>${o.refund_label ? '<p class="notice">Fulfillment is cancelled. The full refund is marked for your records. The kitchen handles the money transfer manually.</p>' : ''}<div class="order-toolbar">${isPOS ? '<button class="button" data-action="pos-open-order">Open POS order</button>' : ''}${!isPOS && needsPaymentReview(o) ? '<button class="button" data-action="payment-approve">Approve full payment</button><button class="button button-secondary" data-action="payment-reject">Reject payment</button>' : ''}${canReopen ? '<button class="button button-secondary" data-action="reopen-order">Return to paid</button>' : ''}${canProgress ? `<select id="next-fulfillment" aria-label="Fulfillment status">${options(statuses, o.fulfillment_status, null)}</select><button class="button button-secondary" data-action="fulfill-order">Update progress</button>` : ''}${isPOS ? (open?'<button class="button button-quiet" data-action="cancel-order">Cancel order</button>':'') : open ? '<button class="button button-secondary" data-action="edit-order">Edit order</button><button class="button button-quiet" data-action="cancel-order">Cancel order</button>' : '<button class="button button-secondary" data-action="edit-contact">Edit contact details</button>'}${canMarkRefund ? `<button class="button button-quiet" data-action="refund-label">${o.refund_label ? 'Remove refund mark' : 'Mark full refund'}</button>` : ''}<button class="button button-quiet" data-action="print-order">Print summary</button></div>${renderPickupReminder(o, { escapeHtml: esc, dateTime, connected: state.connected })}${trackingEditor}${state.role === 'owner' && state.connected && o.method === 'delivery' ? '<details class="delivery-accounting private-staff"><summary>Delivery accounting</summary><div class="delivery-accounting-content"></div></details>' : ''}<section class="private-staff"><h3>Private staff notes</h3>${notes.map(note => `<p class="muted">${esc(typeof note === 'string' ? note : note.note || note.text || '')}</p>`).join('')}<form data-form="staff-note">${formError}${textarea('note', 'Add a private note', '', 'Visible only to authorized team members.', 'required maxlength="4000"')}<button type="submit" class="button button-secondary">Save note</button></form></section><section class="subsection history-block"><h3>Order history</h3><ol class="history">${(o.history || []).slice().reverse().map(event => `<li><strong>${esc(label(event.action))}</strong>${event.reason ? ` — ${esc(event.reason)}` : ''}<small>${esc(dateTime(event.at || event.created_at))} · ${esc(typeof event.actor === 'object' ? event.actor.email || event.actor.id || 'Team member' : event.actor || 'System')}</small>${event.before || event.after ? `<details><summary>View recorded changes</summary><div class="change-grid"><div><strong>Before</strong>${historySnapshot(event.before)}</div><div><strong>After</strong>${historySnapshot(event.after)}</div></div></details>` : ''}</li>`).join('') || '<li>Order history is recorded as changes are made.</li>'}</ol></section></div>`, dialogView);
+  showDialog(o.reference, `<div id="print-order"><p id="order-dialog-summary" class="muted" tabindex="-1">${esc(salesSource(o))} · Placed ${esc(dateTime(o.created_at))} · Revision ${o.revision}</p><div ${editOrderButton ? 'class="website-order-detail-heading"' : ''}><div class="order-status-row">${badge(displayPaymentStatus(o))} ${badge(fulfillmentStatus(o))}${o.refund_label ? ' ' + badge('refund') : ''}</div>${editOrderButton}</div><div class="order-detail-grid"><section class="detail-section"><h3>Buyer</h3><p><strong>${esc(o.buyer?.name)}</strong>\n${esc(o.buyer?.email)}\n${esc(o.buyer?.phone)}</p>${o.buyer?.social_username ? `<p>${esc(o.buyer.social_platform?.toLowerCase() === 'na' ? 'Social contact' : label(o.buyer.social_platform))}: ${esc(o.buyer.social_username)}</p>` : ''}</section><section class="detail-section"><h3>${esc(o.source==='popup'?'In-person sale':label(o.method))} · ${esc(humanDate(o.fulfillment_date))}</h3>${o.method === 'delivery' ? `<p><strong>${esc(o.recipient?.name)}</strong>\n${esc(o.recipient?.phone)}\n${esc(address)}</p>` : `<p>${esc((o.source==='popup'?o.event_location:o.pickup_address || state.settings.pickup_address) || '')}</p>`}${o.method === 'delivery' && o.delivery_zone_description ? `<p class="zone-description">${esc(o.delivery_zone_description)}</p>` : ''}${deliveryTrackingLink(o, esc)}${o.instructions ? `<p>Instructions: ${esc(o.instructions)}</p>` : ''}</section></div>${itemTable(o.items)}${totals(o)}${privateOrderLink}${o.source === 'direct_message' ? orderPhotosMarkup() : ''}${!o.deferred_delivery && o.payment_status === 'paid' && !o.refund_label ? '<p class="muted">Any difference after an order edit is settled directly with the customer. The original payment record and current fulfillment progress are retained.</p>' : ''}<section class="detail-section proof-block"><h3>${o.proof_stage==='delivery'?'Delivery payment':'Initial payment'}</h3><p>Reference: ${esc((o.proof_stage==='delivery'?o.delivery_payment_reference:o.payment_reference) || 'Not provided')}</p>${o.proof_path ? '<button class="button button-secondary" data-action="view-proof">View private payment proof ↗</button>' : `<p class="muted">${o.payment_status === 'awaiting_payment' && open ? o.source==='direct_message'?'Reservation stays active until cancelled.':`Proof deadline: ${esc(dateTime(o.payment_deadline))}` : 'No payment proof on this order.'}</p>`}<div id="proof-viewer"></div></section>${o.refund_label ? '<p class="notice">Fulfillment is cancelled. The full refund is marked for your records. The kitchen handles the money transfer manually.</p>' : ''}<div class="order-toolbar">${isPOS ? '<button class="button" data-action="pos-open-order">Open POS order</button>' : ''}${!isPOS && needsPaymentReview(o) ? '<button class="button" data-action="payment-approve">Approve full payment</button><button class="button button-secondary" data-action="payment-reject">Reject payment</button>' : ''}${canReopen ? '<button class="button button-secondary" data-action="reopen-order">Return to paid</button>' : ''}${canProgress ? `<select id="next-fulfillment" aria-label="Fulfillment status">${options(statuses, o.fulfillment_status, null)}</select><button class="button button-secondary" data-action="fulfill-order">Update progress</button>` : ''}${isPOS ? (open?'<button class="button button-quiet" data-action="cancel-order">Cancel order</button>':'') : open ? '<button class="button button-quiet" data-action="cancel-order">Cancel order</button>' : '<button class="button button-secondary" data-action="edit-contact">Edit contact details</button>'}${canMarkRefund ? `<button class="button button-quiet" data-action="refund-label">${o.refund_label ? 'Remove refund mark' : 'Mark full refund'}</button>` : ''}<button class="button button-quiet" data-action="print-order">Print summary</button></div>${renderPickupReminder(o, { escapeHtml: esc, dateTime, connected: state.connected })}${trackingEditor}${state.role === 'owner' && state.connected && o.method === 'delivery' ? '<details class="delivery-accounting private-staff"><summary>Delivery accounting</summary><div class="delivery-accounting-content"></div></details>' : ''}<section class="private-staff"><h3>Private staff notes</h3>${notes.map(note => `<p class="muted">${esc(typeof note === 'string' ? note : note.note || note.text || '')}</p>`).join('')}<form data-form="staff-note">${formError}${textarea('note', 'Add a private note', '', 'Visible only to authorized team members.', 'required maxlength="4000"')}<button type="submit" class="button button-secondary">Save note</button></form></section><section class="subsection history-block"><h3>Order history</h3><ol class="history">${(o.history || []).slice().reverse().map(event => `<li><strong>${esc(label(event.action))}</strong>${event.reason ? ` — ${esc(event.reason)}` : ''}<small>${esc(dateTime(event.at || event.created_at))} · ${esc(typeof event.actor === 'object' ? event.actor.email || event.actor.id || 'Team member' : event.actor || 'System')}</small>${event.before || event.after ? `<details><summary>View recorded changes</summary><div class="change-grid"><div><strong>Before</strong>${historySnapshot(event.before)}</div><div><strong>After</strong>${historySnapshot(event.after)}</div></div></details>` : ''}</li>`).join('') || '<li>Order history is recorded as changes are made.</li>'}</ol></section></div>`, dialogView);
   const linkSection = $('[data-private-order-link]', modal);
   if (linkSection) mountPrivateOrderLink(linkSection, o.id);
   const photos = $('[data-order-photos]', modal);
@@ -854,32 +856,172 @@ function captureEdit() {
   editDraft.items.forEach((item, index) => { item.quantity = Number(fieldValue(form, `qty_${index}`)); const product = state.products.find(p => p.id === item.product_id); if (!product || item.preserve_configuration) return; (product.option_groups || []).forEach((group, gi) => { if (group.required_count === 1) { const choice = fieldValue(form, `selection_${index}_${gi}`); item.selections[group.id] = choice ? { [choice]: 1 } : {}; } else { item.selections[group.id] = Object.fromEntries(group.choices.map((choice, ci) => [choice.id, Number(fieldValue(form, `mix_${index}_${gi}_${ci}`))]).filter(([, count]) => count > 0)); } }); });
 }
 function startEditOrder() {
-  editDraft = clone({ fulfillment_date: activeOrder.fulfillment_date, method: activeOrder.method, buyer: activeOrder.buyer || {}, recipient: activeOrder.recipient || {}, address: activeOrder.address || {}, instructions: activeOrder.instructions || '', delivery_tracking_url: activeOrder.delivery_tracking_url || '', delivery_cents: activeOrder.delivery_cents || 0, items: activeOrder.items.map(item => ({ product_id: item.product_id, quantity: item.quantity, selections: item.selections || {}, preserve_configuration: true })), reason: '' });
+  editDraft = clone({
+    fulfillment_date: activeOrder.fulfillment_date,
+    method: activeOrder.method,
+    buyer: activeOrder.buyer || {},
+    recipient: activeOrder.recipient || {},
+    address: activeOrder.address || {},
+    instructions: activeOrder.instructions || '',
+    delivery_tracking_url: activeOrder.delivery_tracking_url || '',
+    delivery_cents: activeOrder.delivery_cents || 0,
+    items: activeOrder.items.map(item => ({
+      product_id: item.product_id, quantity: item.quantity, selections: item.selections || {}, preserve_configuration: true,
+    })),
+    reason: '',
+  });
   renderEditOrder();
 }
+
+function editCatalogMarkup(query = '') {
+  const term = query.trim().toLowerCase();
+  const products = state.products
+    .filter(product => product.active && product.name.toLowerCase().includes(term))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (!products.length) return '<p class="muted">No matching products.</p>';
+  return products.map(product =>
+    `<button type="button" class="pos-product" data-action="add-edit-item" data-id="${esc(product.id)}" aria-label="Add ${esc(product.name)}">
+      <strong>${esc(product.name)}</strong>
+      <span>${money(product.price_cents)}</span>
+      ${product.pickup_only ? '<small>Pickup only</small>' : ''}
+    </button>`
+  ).join('');
+}
+
+function editItemConfiguration(item, index, product, original) {
+  const groups = product?.option_groups || [];
+  if (item.preserve_configuration) {
+    const saved = selectionText(original || item);
+    const changeOptions = product?.active && (groups.length || Object.keys(item.selections).length);
+    return `${saved ? `<small class="pos-cart-description">${esc(saved)}</small>` : ''}
+      ${changeOptions ? `<button type="button" class="button button-quiet" data-action="change-edit-options" data-index="${index}">Change options</button>` : ''}`;
+  }
+  return groups.map((group, gi) => {
+    const picked = item.selections[group.id] || {};
+    const controls = group.required_count === 1
+      ? select(`selection_${index}_${gi}`, 'Selected choice', group.choices.map(choice =>
+        option(choice.id, `${choice.label} (+${money(choice.surcharge_cents)})${choice.active === false ? ' · unavailable' : ''}`,
+          Object.keys(picked).find(key => picked[key] > 0))).join(''), 'data-edit-value')
+      : `<div class="mix-fields">${group.choices.map((choice, ci) =>
+        input(`mix_${index}_${gi}_${ci}`, `${choice.label} · +${money(choice.surcharge_cents)}`, picked[choice.id] || 0, 'number',
+          `required min="0" max="${group.required_count}" step="1" data-edit-value`)).join('')}</div>`;
+    return `<div><strong>${esc(group.label)} · ${group.required_count} per unit</strong>${controls}</div>`;
+  }).join('');
+}
+
 function editItemMarkup(item, index) {
   const product = state.products.find(p => p.id === item.product_id);
   const original = activeOrder.items.find(i => configKey(i) === configKey(item)) || activeOrder.items.find(i => i.product_id === item.product_id);
-  const groups = product?.option_groups || [];
-  const configuration = item.preserve_configuration
-    ? `<p class="muted"><strong>Saved configuration</strong><br>${esc(selectionText(original || item) || 'No additional options')}</p>${product && (groups.length || Object.keys(item.selections).length) ? `<button type="button" class="button button-quiet" data-action="change-edit-options" data-index="${index}">Choose a different configuration</button>` : ''}`
-    : groups.map((group, gi) => `<div><h3>${esc(group.label)} · ${group.required_count} selection${group.required_count === 1 ? '' : 's'} per unit</h3>${group.required_count === 1 ? select(`selection_${index}_${gi}`, 'Selected choice', group.choices.map(choice => option(choice.id, `${choice.label} (+${money(choice.surcharge_cents)})${choice.active === false ? ' · unavailable' : ''}`, Object.keys(item.selections[group.id] || {}).find(key => item.selections[group.id][key] > 0))).join(''), 'data-edit-value') : `<div class="mix-fields">${group.choices.map((choice, ci) => input(`mix_${index}_${gi}_${ci}`, `${choice.label} · +${money(choice.surcharge_cents)}`, item.selections[group.id]?.[choice.id] || 0, 'number', `required min="0" max="${group.required_count}" step="1" data-edit-value`)).join('')}</div>`}</div>`).join('');
-  return `<div class="edit-item"><div class="edit-item-top">${select(`product_${index}`, 'Product', `${product ? '' : option(item.product_id, original?.name || 'Archived product', item.product_id)}${state.products.map(p => option(p.id, p.name + (p.active ? '' : ' (hidden)'), item.product_id)).join('')}`, `data-edit-product="${index}" required`)}${input(`qty_${index}`, 'Units', item.quantity, 'number', 'required min="1" max="9999" step="1" data-edit-value')}<button type="button" class="icon-button" data-action="remove-edit-item" data-index="${index}" aria-label="Remove item">×</button></div>${configuration}<p class="line-price" id="edit-price-${index}">${money(editItemPrice(item))} per unit · ${money(editItemPrice(item) * item.quantity)}</p></div>`;
+  const name = esc(item.preserve_configuration ? original?.name || product?.name || 'Saved product' : product?.name || original?.name || 'Saved product');
+  return `<li data-edit-item="${index}" tabindex="-1">
+    <div class="website-order-line">
+      <div class="pos-cart-info"><strong>${name}</strong><div id="edit-price-${index}" class="website-order-line-price"></div></div>
+      <div class="pos-cart-controls">
+        <span class="pos-quantity">
+          <button type="button" data-action="edit-item-quantity" data-index="${index}" data-delta="-1" aria-label="Decrease ${name} quantity">−</button>
+          <input name="qty_${index}" aria-label="${name} quantity" value="${esc(item.quantity)}" type="number" inputmode="numeric" min="1" max="9999" step="1" required data-edit-value>
+          <button type="button" data-action="edit-item-quantity" data-index="${index}" data-delta="1" aria-label="Increase ${name} quantity">+</button>
+        </span>
+        <button type="button" class="button button-secondary website-order-remove" data-action="remove-edit-item" data-index="${index}" aria-label="Remove ${name}">×</button>
+      </div>
+    </div>
+    <div class="website-order-options">${editItemConfiguration(item, index, product, original)}</div>
+  </li>`;
 }
-function renderEditOrder() {
-  const d = editDraft;
-  const localityOptions = [...new Set([...state.zones.filter(z => z.active).flatMap(z => z.localities), d.address?.locality].filter(Boolean))];
-  showDialog(`Edit ${activeOrder.reference}`, `<form data-form="order-edit">${formError}
-    <p class="notice">Admin edits bypass product lead times. Changes to items or the date must still fit the affected daily quantities and fulfillment availability. Saved unit prices stay with unchanged configurations.</p>
-    <div class="field-row">${input('fulfillment_date', 'Fulfillment date', d.fulfillment_date, 'date', 'required')}${select('method', 'Method', option('pickup', 'Pickup', d.method) + option('delivery', 'Delivery', d.method), 'id="edit-method"')}</div>
-    <h3>Items & configurations</h3>${d.items.map(editItemMarkup).join('')}
-    <button type="button" class="button button-secondary" data-action="add-edit-item" ${state.products.length ? '' : 'disabled'}>+ Add product</button>
-    <div class="subsection"><h3>Buyer details</h3><div class="field-row three">${input('buyer_name', 'Name', d.buyer.name, 'text', 'required')}${input('buyer_email', 'Email', d.buyer.email, 'email', 'required')}${input('buyer_phone', 'Contact number', d.buyer.phone, 'tel', 'required')}</div>${socialFields(d.buyer)}</div>
-    <div class="subsection" id="edit-delivery" ${d.method === 'pickup' ? 'hidden' : ''}><h3>Delivery recipient & address</h3><div class="field-row">${input('recipient_name', 'Recipient name', d.recipient?.name, 'text', d.method === 'delivery' ? 'required' : '')}${input('recipient_phone', 'Recipient contact number', d.recipient?.phone, 'tel', d.method === 'delivery' ? 'required' : '')}</div>${select('locality', 'Covered city / barangay', option('', 'Select location', d.address?.locality) + localityOptions.map(locality => option(locality, locality, d.address?.locality)).join(''), `id="edit-locality" ${d.method === 'delivery' ? 'required' : ''}`)}${input('line1', 'Street address / building', d.address?.line1, 'text', d.method === 'delivery' ? 'required' : '')}<div class="field-row">${input('line2', 'Unit / floor / additional address', d.address?.line2)}${input('postal_code', 'Postal code', d.address?.postal_code)}</div>${d.method === 'delivery' ? trackingField(d.delivery_tracking_url) : ''}</div>
-    <div class="subsection">${textarea('instructions', 'Fulfillment instructions', d.instructions)}${input('delivery_fee', 'Delivery fee override · PHP', amount(d.method === 'pickup' ? 0 : d.delivery_cents), 'number', 'required min="0" step="0.01" data-edit-value', 'The zone fee is suggested when the location changes. You may adjust it for this order.')}<div id="edit-totals"></div><p class="help-text">The total shown is an estimate. Save changes checks prices and availability automatically. If the total changes, you’ll be asked to confirm the old and new totals. Paid-order differences are settled directly with the customer.</p><div id="edit-save-notice"></div>${textarea('reason', 'Reason for these changes · optional', d.reason, 'Leave blank if no note is needed. N/A will be recorded; the changes, staff member, and time are still kept in history.', 'maxlength="4000"')}</div>
-    <div class="dialog-actions"><button type="button" class="button button-secondary" data-action="back-order">Back</button><button type="submit" class="button" id="save-order-edit">Save changes</button></div></form>`);
+
+function showEditPane(pane) {
+  const form = $('[data-form="order-edit"]', modal);
+  form.dataset.pane = pane;
+  for (const button of $$('[data-action="edit-order-pane"]', form)) {
+    button.setAttribute('aria-pressed', String(button.dataset.pane === pane));
+  }
+}
+
+function renderEditItems() {
+  $('#edit-items').innerHTML = editDraft.items.map(editItemMarkup).join('') || '<li class="pos-empty">Choose products to add to the order.</li>';
+  $('#edit-save-notice').replaceChildren();
   updateEditPreview();
 }
+
+function addEditProduct(id) {
+  const product = state.products.find(p => p.id === id && p.active);
+  if (!product) return;
+  captureEdit();
+  const item = { product_id: id, quantity: product.min_quantity || 1, selections: newSelections(product) };
+  const hasOptions = Boolean(product.option_groups?.length);
+  const existing = hasOptions ? -1 : editDraft.items.findIndex(line => configKey(line) === configKey(item));
+  if (existing === -1) editDraft.items.push(item);
+  else {
+    const line = editDraft.items[existing];
+    if (line.quantity >= 9999) throw new Error('The quantity cannot exceed 9,999 per line.');
+    line.quantity = Math.max(1, line.quantity + 1);
+  }
+  renderEditItems();
+  if (hasOptions) {
+    showEditPane('order');
+    $(`[data-edit-item="${editDraft.items.length - 1}"]`, modal).focus();
+  }
+}
+
+function renderEditOrder() {
+  const d = editDraft, delivery = d.method === 'delivery';
+  const localityOptions = [...new Set([...state.zones.filter(z => z.active).flatMap(z => z.localities), d.address?.locality].filter(Boolean))];
+  const deliveryRequired = 'data-edit-delivery-required' + (delivery ? ' required' : '');
+  const rendered = showDialog(`Edit ${activeOrder.reference}`, `<form class="website-order-form" data-form="order-edit" data-pane="order">
+    <div class="website-order-panes" role="group" aria-label="Order editor view">
+      <button type="button" class="button button-secondary" data-action="edit-order-pane" data-pane="products" aria-pressed="false">Products</button>
+      <button type="button" class="button button-secondary" data-action="edit-order-pane" data-pane="order" aria-pressed="true">Order <span id="edit-item-count"></span></button>
+    </div>
+    ${formError}
+    <div class="pos-layout website-order-layout">
+      <section class="panel pos-products-panel" aria-labelledby="website-edit-products">
+        <h3 id="website-edit-products">Products</h3>
+        <label class="field">Find a product<input type="search" data-edit-product-search autocomplete="off" placeholder="Search products"></label>
+        <div class="pos-catalog" id="edit-product-results">${editCatalogMarkup()}</div>
+      </section>
+      <section class="panel pos-basket-panel" aria-labelledby="website-edit-order">
+        <h3 id="website-edit-order">Order</h3>
+        <ul class="pos-cart" id="edit-items"></ul>
+        <div id="edit-totals"></div>
+        <div class="field-row website-order-fulfillment">
+          ${input('fulfillment_date', 'Fulfillment date', d.fulfillment_date, 'date', 'required')}
+          ${select('method', 'Fulfillment', option('pickup', 'Pickup', d.method) + option('delivery', 'Delivery', d.method), 'id="edit-method"')}
+        </div>
+        <details class="website-order-details"><summary>Buyer details</summary>
+          ${input('buyer_name', 'Name', d.buyer.name, 'text', 'required')}
+          <div class="field-row">${input('buyer_email', 'Email', d.buyer.email, 'email', 'required')}${input('buyer_phone', 'Contact number', d.buyer.phone, 'tel', 'required')}</div>
+          ${socialFields(d.buyer)}
+        </details>
+        <details class="website-order-details" id="edit-delivery" open ${delivery ? '' : 'hidden'}><summary>Delivery recipient &amp; address</summary>
+          <div class="field-row">${input('recipient_name', 'Recipient name', d.recipient.name, 'text', deliveryRequired)}${input('recipient_phone', 'Recipient contact number', d.recipient.phone, 'tel', deliveryRequired)}</div>
+          ${select('locality', 'Covered city / barangay', option('', 'Select location', d.address.locality) + localityOptions.map(locality => option(locality, locality, d.address.locality)).join(''), 'id="edit-locality" ' + deliveryRequired)}
+          ${input('line1', 'Street address / building', d.address.line1, 'text', deliveryRequired)}
+          <div class="field-row">${input('line2', 'Unit / floor / additional address', d.address.line2)}${input('postal_code', 'Postal code', d.address.postal_code)}</div>
+          ${input('delivery_fee', 'Delivery fee override · PHP', amount(delivery ? d.delivery_cents : 0), 'number', 'min="0" step="0.01" data-edit-value ' + deliveryRequired, 'The zone fee is suggested when the location changes.')}
+          <div data-edit-tracking-field>${delivery ? trackingField(d.delivery_tracking_url) : ''}</div>
+        </details>
+        <details class="website-order-details"><summary>Instructions and edit reason</summary>
+          ${textarea('instructions', 'Fulfillment instructions', d.instructions)}
+          ${textarea('reason', 'Reason for these changes · optional', d.reason, 'The edit and staff member are recorded in order history.', 'maxlength="4000"')}
+        </details>
+        <div id="edit-save-notice"></div>
+      </section>
+    </div>
+    <div class="dialog-actions website-order-actions">
+      <button type="button" class="button button-secondary" data-action="back-order">Back</button>
+      <button type="submit" class="button" id="save-order-edit">Save changes</button>
+    </div>
+  </form>`);
+  if (!rendered) return;
+  renderEditItems();
+  const form = $('[data-form="order-edit"]', modal);
+  form.addEventListener('invalid', event => {
+    showEditPane('order');
+    const details = event.target.closest('details.website-order-details');
+    if (details) details.open = true;
+  }, true);
+}
+
 function editChanges() {
   const draft = clone(editDraft);
   if (draft.method === 'pickup') { draft.recipient = null; draft.address = null; draft.delivery_cents = 0; draft.delivery_tracking_url = ''; } else draft.delivery_tracking_url = deliveryTrackingUrlForSave(draft.delivery_tracking_url || '');
@@ -908,7 +1050,15 @@ function updateEditPreview() {
   const subtotal = editDraft.items.reduce((sum, item) => sum + editItemPrice(item) * item.quantity, 0);
   const discount = savedPromoDiscount(subtotal);
   const fee = editDraft.method === 'pickup' ? 0 : editDraft.delivery_cents;
-  editDraft.items.forEach((item, index) => { const element = $(`#edit-price-${index}`); if (element) element.textContent = `${money(editItemPrice(item))} per unit · ${money(editItemPrice(item) * item.quantity)}`; });
+  editDraft.items.forEach((item, index) => {
+    const card = $(`[data-edit-item="${index}"]`, modal);
+    const price = editItemPrice(item);
+    $(`#edit-price-${index}`, card).textContent = `${money(price)} each${item.quantity > 1 ? ' · ' + money(price * item.quantity) + ' total' : ''}`;
+    $('[data-delta="-1"]', card).disabled = item.quantity <= 1;
+    $('[data-delta="1"]', card).disabled = item.quantity >= 9999;
+  });
+  const count = editDraft.items.reduce((total, item) => total + (item.quantity || 0), 0);
+  $('#edit-item-count').textContent = `(${count})`;
   $('#edit-totals').innerHTML = totals({ ...activeOrder, subtotal_cents: subtotal, discount_cents: discount, delivery_cents: fee, total_cents: subtotal - discount + fee });
 }
 
@@ -1082,9 +1232,33 @@ state.productFilters = { search: '', status: '', category: '' };
     }
     case 'edit-order': startEditOrder(); break;
     case 'edit-contact': contactDialog(); break;
-    case 'change-edit-options': captureEdit(); { const item = editDraft.items[index]; const product = state.products.find(p => p.id === item.product_id); item.preserve_configuration = false; item.selections = newSelections(product); } renderEditOrder(); break;
-    case 'add-edit-item': captureEdit(); { const product = state.products.find(p => p.active) || state.products[0]; editDraft.items.push({ product_id: product.id, quantity: product.min_quantity || 1, selections: newSelections(product) }); } renderEditOrder(); break;
-    case 'remove-edit-item': captureEdit(); editDraft.items.splice(index, 1); renderEditOrder(); break;
+    case 'edit-order-pane': showEditPane(button.dataset.pane); break;
+    case 'change-edit-options': {
+      captureEdit();
+      const item = editDraft.items[index];
+      const product = state.products.find(p => p.id === item.product_id);
+      item.preserve_configuration = false;
+      item.selections = newSelections(product);
+      renderEditItems();
+      $(`[data-edit-item="${index}"]`, modal).focus();
+      break;
+    }
+    case 'add-edit-item': addEditProduct(id); break;
+    case 'edit-item-quantity': {
+      const quantity = $(`[name="qty_${index}"]`, modal);
+      const next = Number(quantity.value) + Number(button.dataset.delta);
+      if (Number.isInteger(next) && next >= 1 && next <= 9999) {
+        quantity.value = String(next);
+        quantity.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      break;
+    }
+    case 'remove-edit-item': {
+      captureEdit();
+      editDraft.items.splice(index, 1);
+      renderEditItems();
+      break;
+    }
     case 'pos-open-order': state.posOrderId=activeOrder.id;modal.close();state.view='pos';render();break;
     case 'print-order': await printOrderSlips(activeOrder, { products: state.products, settings: state.settings }); break;
     case 'export-orders': exportOrders(); break;
@@ -1099,7 +1273,7 @@ function exportOrders() {
   const orders = filteredOrders();
   if (!orders.length) { toast('There are no matching orders to export.'); return; }
   const rows = [['Order reference', 'Placed at (Asia/Manila)', 'Fulfillment date', 'Method', 'Payment status', 'Fulfillment status', 'Refund label', 'Buyer name', 'Buyer email', 'Buyer phone', 'Recipient name', 'Recipient phone', 'Address', 'Items', 'Subtotal PHP', 'Discount PHP', 'Delivery PHP', 'Current total PHP', 'Originally approved PHP', 'Payment reference', 'Instructions']];
-  orders.forEach(o => rows.push([o.reference, dateTime(o.created_at), o.fulfillment_date, label(o.method), label(o.payment_status), label(fulfillmentStatus(o)), o.refund_label ? 'Yes' : 'No', o.buyer?.name, o.buyer?.email, o.buyer?.phone, o.recipient?.name, o.recipient?.phone, [o.address?.line1, o.address?.line2, o.address?.locality, o.address?.postal_code].filter(Boolean).join(', '), o.items.map(item => `${item.name} × ${item.quantity}${selectionText(item) ? ` (${selectionText(item)})` : ''}`).join('; '), amount(o.subtotal_cents), amount(o.discount_cents), amount(o.delivery_cents), amount(o.total_cents), o.paid_amount_cents == null ? '' : amount(o.paid_amount_cents), o.payment_reference, o.instructions]));
+  orders.forEach(o => rows.push([o.reference, dateTime(o.created_at), o.fulfillment_date, label(o.method), label(displayPaymentStatus(o)), label(fulfillmentStatus(o)), o.refund_label ? 'Yes' : 'No', o.buyer?.name, o.buyer?.email, o.buyer?.phone, o.recipient?.name, o.recipient?.phone, [o.address?.line1, o.address?.line2, o.address?.locality, o.address?.postal_code].filter(Boolean).join(', '), o.items.map(item => `${item.name} × ${item.quantity}${selectionText(item) ? ` (${selectionText(item)})` : ''}`).join('; '), amount(o.subtotal_cents), amount(o.discount_cents), amount(o.delivery_cents), amount(o.total_cents), o.paid_amount_cents == null ? '' : amount(o.paid_amount_cents), o.payment_reference, o.instructions]));
   const blob = new Blob(['\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a'); link.href = url; link.download = `tlb-orders-${manilaDate()}.csv`; link.click();
@@ -1150,6 +1324,10 @@ document.addEventListener('input', event => {
     target.placeholder = 'No limit';
     $('[data-quantity-status]', target.closest('[data-quantity-product]')).textContent = quantityStatus(quantitySelection(id, state.inventoryDates, state.inventory, state.inventoryDrafts), state.inventoryDates);
     $('#quantity-save-summary').textContent = inventorySaveSummary();
+  }
+  if (target.hasAttribute('data-edit-product-search')) {
+    $('#edit-product-results').innerHTML = editCatalogMarkup(target.value);
+    return;
   }
   if (target.closest('[data-form="order-edit"]')) $('#edit-save-notice').innerHTML = '';
   if (target.dataset.productFilter === 'search') {
@@ -1238,17 +1416,17 @@ document.addEventListener('change', async event => {
         if (productDraft === draft && form.isConnected) renderProductDialog({preserveScroll:true,focusSelector:productPhotoError?'#product-photo-status':undefined});
       }
     }
-    if (target.hasAttribute('data-edit-product')) {
-      captureEdit();
-      const index = Number(target.dataset.editProduct);
-      const product = state.products.find(p => p.id === target.value);
-      editDraft.items[index] = { product_id: product.id, quantity: product.min_quantity || 1, selections: newSelections(product) };
-      renderEditOrder();
-    }
     if (target.id === 'edit-method') {
       captureEdit();
-      editDraft.delivery_cents = editDraft.method === 'pickup' ? 0 : state.zones.find(zone => zone.active && zone.localities.includes(editDraft.address.locality))?.fee_cents || 0;
-      renderEditOrder();
+      const delivery = editDraft.method === 'delivery';
+      const fields = $('#edit-delivery', target.form);
+      fields.hidden = !delivery;
+      if (delivery) fields.open = true;
+      for (const field of $$('[data-edit-delivery-required]', fields)) field.required = delivery;
+      $('[data-edit-tracking-field]', fields).innerHTML = delivery ? trackingField(editDraft.delivery_tracking_url) : '';
+      editDraft.delivery_cents = delivery ? state.zones.find(zone => zone.active && zone.localities.includes(editDraft.address.locality))?.fee_cents || 0 : 0;
+      $('[name="delivery_fee"]', target.form).value = amount(editDraft.delivery_cents);
+      updateEditPreview();
     }
     if (target.id === 'edit-locality') {
       captureEdit();

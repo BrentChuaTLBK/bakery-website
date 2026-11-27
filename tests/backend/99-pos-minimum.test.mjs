@@ -77,15 +77,40 @@ export default async function({db,check,state}) {
    await assert.rejects(api('pos_quote',direct(simple),ids.staff),/unavailable/i);
    await h.inventory(simple,date,12,true);
   })();
-  await check('POS minimum: staff access, production dates and pickup restrictions remain enforced',async()=>{
+  await check('POS: authorized staff and fulfillment dates are still validated',async()=>{
    for(const user of [null,ids.customer,ids.unverified])await assert.rejects(api('pos_quote',direct(simple),user),/access|verify/i);
    await assert.rejects(api('pos_quote',{...direct(simple),fulfillment_date:today},ids.staff),/same-day|override/i);
    await db.query("update tlb.settings set data=jsonb_set(data,'{blocked_dates}',$1::jsonb) where id",[JSON.stringify([date])]);
    await assert.rejects(api('pos_quote',direct(simple),ids.staff),/closed/i);
    await db.query("update tlb.settings set data=jsonb_set(data,'{blocked_dates}','[]'::jsonb) where id");
-   const pickupOnly=await h.product({name:'POS minimum pickup-only',min_quantity:2,pickup_only:true});
-   await assert.rejects(api('pos_quote',{...direct(pickupOnly),method:'delivery'},ids.staff),/pickup only/i);
    for(const role of ['anon','authenticated','service_role'])assert.equal(await h.scalar("select has_function_privilege($1,'tlb.pos_quote(jsonb,uuid,uuid)','EXECUTE')",[role]),false);
+  })();
+  await check('POS: staff can deliver a pickup-only product in new and existing direct orders',async()=>{
+   const product=await h.product({name:'Pickup-only fixture cake',pickup_only:true,price_cents:365000});
+   await h.inventory(product,date,3);
+   const delivery={...direct(product),method:'delivery',delivery_cents:25000,address:{line1:'1 Sample Street'}};
+   const newOrder=await create(delivery);
+   assert.equal(newOrder.source,'direct_message');
+   assert.equal(newOrder.method,'delivery');
+   assert.equal(newOrder.total_cents,390000);
+
+   const pickup=await create(direct(product),true);
+   const edit={...delivery,order_id:pickup.id,revision:pickup.revision};
+   const quote=await api('pos_preview_edit',edit,ids.staff);
+   assert.equal(quote.method,'delivery');
+   assert.equal(quote.total_cents,390000);
+   assert.equal((await h.order(pickup.id)).method,'pickup');
+   const saved=await api('pos_update_order',{...edit,expected_quote:quote,idempotency_key:randomUUID()},ids.staff);
+   assert.equal(saved.id,pickup.id);
+   assert.equal(saved.method,'delivery');
+   assert.equal(saved.payment_status,'paid');
+   assert.equal(saved.paid_amount_cents,pickup.paid_amount_cents);
+   assert.equal(saved.access_token,pickup.access_token);
+   assert.equal(await h.remaining(product,date),1);
+   assert.equal((await h.allocations(saved.id))[0].state,'committed');
+   assert.equal((await api('catalog')).products.find(p=>p.id===product.id).pickup_only,true);
+   const website=h.checkout(product,date,{method:'delivery',source:'direct_message',address:{line1:'1 Sample Street',locality:'QA City / QA Barangay'}});
+   for(const action of ['quote','create_order'])await assert.rejects(api(action,website),/Pickup-only fixture cake is pickup only/i);
   })();
   await check('POS minimum: migration replay preserves the function and website minimum policy',async()=>{
    const definition=await h.scalar("select pg_get_functiondef('tlb.pos_quote(jsonb,uuid,uuid)'::regprocedure)");

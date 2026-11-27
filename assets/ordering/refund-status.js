@@ -3,6 +3,10 @@ export function fulfillmentStatus(order) {
   return order.refund_label ? 'cancelled' : order.fulfillment_status;
 }
 
+export function displayPaymentStatus(order) {
+  return order.fulfillment_status === 'expired' && order.payment_status === 'awaiting_payment' ? 'expired' : order.payment_status;
+}
+
 export function matchesFulfillmentStatus(order, selected) {
   if (selected === 'refunded') return Boolean(order.refund_label);
   return !selected || fulfillmentStatus(order) === selected;

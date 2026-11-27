@@ -54,7 +54,7 @@ Website-product prices, including option surcharges, are fixed in direct orders 
 
 Client name, phone, email, social-media platform/profile, recipient and delivery address are all optional. Add or correct them later under **Client details**. An email is required only when email updates are selected. If the delivery address is blank, the review screen reminds you to add it before arranging a courier.
 
-Choose pickup or delivery, a fulfillment date and any delivery fee. The owner can explicitly override closed dates or production lead times with a reason. Overrides do not bypass stock limits or pickup-only restrictions.
+Choose pickup or delivery, a fulfillment date and any delivery fee. Staff can select delivery for pickup-only products in direct orders. The pickup-only setting applies to website orders. The owner can explicitly override closed dates or production lead times. Stock limits still apply.
 
 Choose either **Awaiting payment** or **Full payment already received**. Awaiting-payment orders reserve stock until the team manually cancels the order; there is no automatic payment deadline. Customers can use the private link to copy payment details and upload proof. Staff review that proof and record the received full payment. The product payment must be made in full; deposits are not supported.
 
