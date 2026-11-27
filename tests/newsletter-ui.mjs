@@ -7,7 +7,8 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
 import { once } from 'node:events';
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE_ROOT ? join(process.env.PLAYWRIGHT_PACKAGE_ROOT, 'playwright') : 'playwright');
+const { chromium, webkit, devices } = require(process.env.PLAYWRIGHT_PACKAGE_ROOT ? join(process.env.PLAYWRIGHT_PACKAGE_ROOT, 'playwright') : 'playwright');
+const useWebKit = process.env.BROWSER_ENGINE === 'webkit';
 const root = resolve(import.meta.dirname, '..');
 const mockClient = `
 export const ready = Promise.resolve(), configured = true, initializationError = null, authLink = {};
@@ -40,10 +41,11 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const errors = [], forbidden = [], claims = new Set();
 let browser;
 try {
-  browser = await chromium.launch({ executablePath:process.env.BROWSER_EXECUTABLE_PATH || undefined, headless:true });
+  browser = useWebKit ? await webkit.launch() : await chromium.launch({ executablePath:process.env.BROWSER_EXECUTABLE_PATH || undefined, headless:true });
   async function fixture({ user = null, initial = 'not_subscribed', failSubscribe = false, storageBlocked = false } = {}) {
     const state = {status:initial, failSubscribe, calls:[]};
-    const context = await browser.newContext({viewport:{width:390,height:844}, serviceWorkers:'block'});
+    const mobile = useWebKit ? devices['iPhone 15 Pro Max'] : {viewport:{width:390,height:844}};
+    const context = await browser.newContext({...mobile, serviceWorkers:'block'});
     await context.addInitScript(({user}) => { window.testUser = user; }, {user});
     if (storageBlocked) await context.addInitScript(() => { Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage disabled in this test'); } }); });
     await context.route('**/*', async route => {
@@ -79,8 +81,18 @@ try {
   }
   const advance = async page => { await page.waitForFunction(() => window.authReads > 0); await page.clock.fastForward(5100); };
   let f = await fixture();
+  await f.page.addInitScript(() => {
+    window.newsletterFades = {open:0, close:0};
+    document.addEventListener('transitionstart', event => {
+      if (event.target.id === 'newsletter-dialog' && event.propertyName === 'opacity') {
+        // The dialog receives its own opacity event and the backdrop's event.
+        window.newsletterFades[event.target.inert ? 'close' : 'open']++;
+      }
+    });
+  });
   await f.page.goto(origin + '/shop.html'); await advance(f.page);
   await f.page.locator('#newsletter-dialog').waitFor({state:'visible'});
+  assert.equal(await f.page.locator('#newsletter-dialog').evaluate(el => getComputedStyle(el).borderTopLeftRadius),'18px');
   const invitation=await f.page.locator('#newsletter-dialog').textContent();
   for(const term of ['5%','welcome code by email','newsletter subscribers'])assert(invitation.includes(term),'Invitation includes '+term);
   assert.equal(await f.page.locator('#newsletter-popup-title strong').textContent(),'5% OFF');
@@ -89,13 +101,34 @@ try {
   assert.equal(await f.page.evaluate(() => localStorage.getItem('tlb-newsletter-popup-shown')), 'true', 'Mark shown immediately, before dismissal');
   assert.equal(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Popup fits mobile width');
   await mkdir(join(root,'work'),{recursive:true});
+  await f.page.locator('#newsletter-dialog').evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
   await f.page.screenshot({path:join(root,'work/newsletter-popup-mobile.png'),fullPage:true});
   await f.page.keyboard.press('Escape');
   await f.page.locator('#newsletter-dialog').waitFor({state:'detached'});
+  assert.deepEqual(await f.page.evaluate(() => window.newsletterFades), {open:2, close:2}, 'The panel and backdrop both fade in and out');
   assert.equal(await f.page.locator('#newsletter-dialog').count(),0);
   await f.page.reload(); await advance(f.page);
   assert.equal(await f.page.locator('#newsletter-dialog').count(),0,'No repeat after reload');
   await f.context.close();
+
+  for (const reducedMotion of ['no-preference', 'reduce']) {
+    f = await fixture();
+    await f.page.setViewportSize({width:1440,height:900});
+    await f.page.emulateMedia({reducedMotion});
+    await f.page.goto(origin+'/index.html'); await advance(f.page);
+    const popup = f.page.locator('#newsletter-dialog');
+    await popup.waitFor();
+    const duration = reducedMotion === 'reduce' ? '0s' : '0.24s';
+    assert.deepEqual(await popup.evaluate(el => [
+      getComputedStyle(el).borderTopLeftRadius,
+      getComputedStyle(el).transitionDuration.split(',')[0],
+      getComputedStyle(el,'::backdrop').transitionDuration,
+    ]), ['24px',duration,duration]);
+    if (reducedMotion === 'reduce') await popup.getByRole('button',{name:'Maybe later'}).click();
+    else await f.page.mouse.click(2,2);
+    await popup.waitFor({state:'detached'});
+    await f.context.close();
+  }
 
   f = await fixture();
   await f.page.goto(origin + '/shop.html'); await f.page.locator('#open-checkout').click(); await advance(f.page);

@@ -78,6 +78,7 @@ export function mountNewsletterForms(scope = document) {
         rememberPreference('subscribed');
         const dialog = form.closest('#newsletter-dialog');
         if (dialog) {
+          if (!dialog.open || dialog.inert) return;
           dialog.querySelector('#newsletter-popup-title').textContent = 'You’re in!';
           const copy = dialog.querySelector('#newsletter-popup-copy');
           copy.setAttribute('role', 'status');
@@ -236,9 +237,22 @@ async function setupShopPopup() {
       document.body.append(dialog);
       await applyNewsletterOffer(dialog);
       mountNewsletterForms(dialog);
-      dialog.querySelector('.newsletter-close').onclick = () => dialog.close();
-      dialog.querySelector('[data-newsletter-dismiss]').onclick = () => dialog.close();
-      dialog.addEventListener('click', event => { if (event.target === dialog) { const box = dialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close(); } });
+      const dismiss = async () => {
+        if (dialog.inert) return;
+        // Keep the native backdrop in place while the popup fades out.
+        dialog.inert = true;
+        const transitions = dialog.getAnimations?.() || [];
+        await Promise.allSettled(transitions.map(transition => transition.finished));
+        dialog.close();
+      };
+      dialog.querySelector('.newsletter-close').onclick = dismiss;
+      dialog.querySelector('[data-newsletter-dismiss]').onclick = dismiss;
+      dialog.addEventListener('cancel', event => { event.preventDefault(); dismiss(); });
+      dialog.addEventListener('click', event => {
+        if (event.target !== dialog) return;
+        const { left, right, top, bottom } = dialog.getBoundingClientRect();
+        if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) dismiss();
+      });
       dialog.addEventListener('close', () => dialog.remove(), { once: true });
       const showOnce = () => {
         if (seenHere() || !normalShop() || blocked() || !markShown(!user)) return false;
