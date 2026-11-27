@@ -18,16 +18,16 @@
 dialog.newsletter-dialog{width:min(460px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:38px 30px 28px;border:1px solid #e8dfd3;border-radius:clamp(18px,3vw,24px);background:#fffdf8;box-shadow:0 30px 100px #24180e33}
 .newsletter-dialog::backdrop{background:#241a146b;backdrop-filter:blur(3px)}
 @media (prefers-reduced-motion: no-preference) {
-  .newsletter-dialog[open] {
+  :where(#product-dialog, .newsletter-dialog)[open] {
     transition: opacity 240ms ease-in-out, transform 240ms cubic-bezier(.45, 0, .55, 1);
   }
-  .newsletter-dialog[open]::backdrop { transition: opacity 240ms ease-in-out; }
+  :where(#product-dialog, .newsletter-dialog)[open]::backdrop { transition: opacity 240ms ease-in-out; }
   @starting-style {
-    .newsletter-dialog[open] { opacity: 0; transform: translateY(5px) scale(.98); }
-    .newsletter-dialog[open]::backdrop { opacity: 0; }
+    :where(#product-dialog, .newsletter-dialog)[open] { opacity: 0; transform: translateY(5px) scale(.98); }
+    :where(#product-dialog, .newsletter-dialog)[open]::backdrop { opacity: 0; }
   }
-  .newsletter-dialog[open][inert] { opacity: 0; transform: translateY(5px) scale(.98); }
-  .newsletter-dialog[open][inert]::backdrop { opacity: 0; }
+  :where(#product-dialog, .newsletter-dialog)[open][inert] { opacity: 0; transform: translateY(5px) scale(.98); }
+  :where(#product-dialog, .newsletter-dialog)[open][inert]::backdrop { opacity: 0; }
 }
 .newsletter-close{padding:0;line-height:1;position:absolute;right:12px;top:12px;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#764b25;font-size:27px;cursor:pointer}
 .newsletter-dialog .newsletter-title{font-size:34px;max-width:340px}.newsletter-dialog .newsletter-button{width:100%}.newsletter-dialog .newsletter-button-secondary{margin-top:10px}

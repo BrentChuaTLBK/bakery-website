@@ -7,9 +7,10 @@ import {resolve,join,extname} from 'node:path';
 import {completeClientFixture} from '../helpers/client-fixture.mjs';
 
 const require=createRequire(import.meta.url),dependencies=process.env.PLAYWRIGHT_PACKAGE_ROOT;
-const {chromium}=require(dependencies?join(dependencies,'playwright'):'playwright');
+const {chromium,webkit,devices}=require(dependencies?join(dependencies,'playwright'):'playwright');
 const sharp=require(dependencies?join(dependencies,'sharp'):'sharp');
-const root=resolve(import.meta.dirname,'../..'),out=join(root,'tests/artifacts/shop-photo-fit'),origin='https://shop-photo-fit.test';
+const iPhone=process.env.BROWSER_ENGINE==='webkit'?devices['iPhone 15 Pro Max']:null;
+const root=resolve(import.meta.dirname,'../..'),out=join(root,'tests/artifacts/shop-photo-fit',iPhone?'webkit':''),origin='https://shop-photo-fit.test';
 const now=Date.now(),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 const future=new Date(today+'T12:00:00Z');future.setUTCDate(future.getUTCDate()+7);const date=future.toISOString().slice(0,10);
 const corners=[[225,25,25],[25,180,25],[25,92,225],[225,189,25]];
@@ -24,13 +25,13 @@ const products=[gallery,product('single',[portrait]),product('missing',[]),produ
 const catalog={products,categories:[],inventory:products.map(p=>({product_id:p.id,date,capacity:100,remaining:100,available:true})),zones:[],settings:{paused:false,production_weekdays:[0,1,2,3,4,5,6],fulfillment_weekdays:[0,1,2,3,4,5,6],nonproduction_dates:[],blocked_dates:[],pickup_blocked_dates:[],delivery_blocked_dates:[],pickup_address:'Local fixture kitchen',pickup_hours:'9 AM–6 PM',delivery_window:'9 AM–6 PM'}};
 const source=await readFile(join(root,'assets/ordering/client.js'),'utf8'),helpers=source.slice(source.indexOf('export function money('));
 const mock=completeClientFixture(source,`export const configured=true,ready=Promise.resolve(),auth={getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})};export async function api(action,payload={}){const response=await fetch('/fixture-api',{method:'POST',body:JSON.stringify({action,payload})});const result=await response.json();if(!response.ok)throw Error(result.error);return result}${helpers}`);
-const browser=await chromium.launch({channel:'chrome',headless:true}),results=[];
+const browser=iPhone?await webkit.launch():await chromium.launch({channel:'chrome',headless:true}),results=[];
 await mkdir(out,{recursive:true});
 
 try{
- for(const width of [1440,820,390,320]){
-  const touch=width<=390,errors=[],calls=[],checks=[];
-  const context=await browser.newContext({viewport:{width,height:touch?844:1000},hasTouch:touch,isMobile:touch,deviceScaleFactor:1,serviceWorkers:'block'});
+ for(const width of iPhone?[iPhone.viewport.width]:[1440,820,390,320]){
+  const touch=Boolean(iPhone)||width<=390,errors=[],calls=[],checks=[];
+  const context=await browser.newContext({...iPhone,viewport:iPhone?.viewport||{width,height:touch?844:1000},hasTouch:touch,isMobile:touch,serviceWorkers:'block'});
   await context.addInitScript(({now,date})=>{
    const NativeDate=Date;globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
    localStorage.setItem('tlb-checkout-v1',JSON.stringify({items:[],fulfillment_date:date,method:'pickup',saved_at:now}));
@@ -52,8 +53,13 @@ try{
   const page=await context.newPage();page.setDefaultTimeout(10000);page.on('pageerror',error=>errors.push(error.message));
   page.on('dialog',dialog=>{errors.push('Unexpected browser dialog: '+dialog.message());dialog.dismiss();});
   const dialog=page.locator('#product-dialog'),image=()=>dialog.locator('#detail-photo'),trigger=()=>dialog.locator('.product-photo-toggle');
-  const openProduct=async id=>{await page.locator('[data-product="'+id+'"]').click();await dialog.locator('#product-title').waitFor();assert.equal(await dialog.evaluate(el=>el.open),true);};
   const tapOrClick=async locator=>touch?locator.tap():locator.click();
+  const openProduct=async id=>{
+   await tapOrClick(page.locator('[data-product="'+id+'"]'));
+   await dialog.locator('#product-title').waitFor();
+   assert.equal(await dialog.evaluate(el=>el.open),true);
+   await dialog.evaluate(el=>Promise.allSettled(el.getAnimations().map(animation=>animation.finished)));
+  };
   const state=()=>dialog.evaluate(el=>({quantity:el.querySelector('#product-quantity').value,premium:el.querySelector('[data-group="finish"][data-choice="premium"]').checked,vanilla:el.querySelector('#choice-flavors-vanilla').value,cocoa:el.querySelector('#choice-flavors-cocoa').value,price:el.querySelector('#detail-price').textContent,add:el.querySelector('#add-to-cart').textContent}));
   const assertMode=async mode=>{
    assert.equal(await image().evaluate(el=>getComputedStyle(el).objectFit),mode,'The photo uses the selected fit mode');
@@ -75,7 +81,7 @@ try{
    });
    assert.equal(rect.fit,'contain',name+' uses contain');assert(rect.width>0&&rect.height>0,name+' is visible');
    assert(rect.left>=-1&&rect.top>=-1&&rect.left+rect.width<=rect.viewport.width+1&&rect.top+rect.height<=rect.viewport.height+1,name+' fully fits the viewport');
-   const buffer=await page.screenshot({path:join(out,name+'-'+width+'.png'),animations:'disabled'});
+   const buffer=await page.screenshot({path:join(out,name+'-'+width+'.png'),scale:'css',animations:'disabled'});
    const {data,info}=await sharp(buffer).removeAlpha().raw().toBuffer({resolveWithObject:true});
    const points=[[40,40],[rect.naturalWidth-40,40],[40,rect.naturalHeight-40],[rect.naturalWidth-40,rect.naturalHeight-40]];
    for(let i=0;i<points.length;i++){
@@ -130,6 +136,52 @@ try{
     for(const id of ['missing','unsafe']){await openProduct(id);assert.equal(await trigger().count(),0);assert.equal(await image().count(),0);await dialog.locator('.close-button').click();}
     await openProduct('broken');await image().evaluate(img=>img.decode().catch(()=>{}));await tapOrClick(trigger());await assertMode('contain');
     await tapOrClick(trigger());await assertMode('cover');await dialog.locator('.close-button').click();await dialog.waitFor({state:'hidden'});
+   });
+   await check('Opening, dismissing, adding and editing all animate the product and its backdrop',async()=>{
+    await page.evaluate(()=>{
+     window.productTransitions={open:[],close:[]};
+     document.addEventListener('transitionstart',event=>{
+      if(event.target.id==='product-dialog')window.productTransitions[event.target.inert?'close':'open'].push(event.propertyName);
+     });
+    });
+    const settled=()=>dialog.evaluate(el=>Promise.allSettled(el.getAnimations().map(animation=>animation.finished)));
+    for(const dismiss of [
+     ()=>tapOrClick(dialog.getByRole('button',{name:'Close product'})),
+     ()=>touch?page.touchscreen.tap(2,2):page.mouse.click(2,2),
+     ()=>page.keyboard.press('Escape'),
+    ]){
+     await openProduct('single');
+     assert.deepEqual(await dialog.evaluate(el=>[getComputedStyle(el).transitionDuration,getComputedStyle(el,'::backdrop').transitionDuration]),['0.24s, 0.24s','0.24s']);
+     await dismiss();await dialog.waitFor({state:'hidden'});
+    }
+    await openProduct('single');
+    // Invoke both taps within the same frame, while the closing panel is still present.
+    await dialog.locator('#add-to-cart').evaluate(button=>{button.click();button.click();});
+    await dialog.waitFor({state:'hidden'});
+    const items=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('tlb-checkout-v1')).items);
+    assert.deepEqual((await items()).map(item=>[item.product_id,item.quantity]),[['gallery',3],['single',1]]);
+    const edit=page.locator('[data-edit="1"]');
+    await tapOrClick(edit);await settled();
+    await dialog.locator('#product-quantity').fill('2');
+    await tapOrClick(dialog.getByRole('button',{name:/Save changes/}));await dialog.waitFor({state:'hidden'});
+    assert.equal((await items())[1].quantity,2);
+    assert(await edit.evaluate(button=>document.activeElement===button),'Focus returns to the edited item');
+    const observed=await page.evaluate(()=>window.productTransitions);
+    for(const direction of ['open','close']){
+     assert.equal(observed[direction].filter(name=>name==='opacity').length,10,'Panel and backdrop fade on every '+direction);
+     assert.equal(observed[direction].filter(name=>name==='transform').length,5,'The panel moves slightly on every '+direction);
+    }
+   });
+   await check('A quick dismissal can reopen cleanly and Reduce Motion skips both transitions',async()=>{
+    const card=page.locator('[data-product="single"]');
+    await card.evaluate(button=>{button.click();document.querySelector('#product-dialog .close-button').click();});
+    await dialog.waitFor({state:'hidden'});
+    await openProduct('single');assert.equal(await dialog.evaluate(el=>el.inert),false);
+    await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await openProduct('single');
+    assert.deepEqual(await dialog.evaluate(el=>[getComputedStyle(el).transitionDuration,getComputedStyle(el,'::backdrop').transitionDuration]),['0s','0s']);
+    assert(await dialog.evaluate(el=>{el.querySelector('.close-button').click();return !el.open&&!el.inert;}),'Reduced motion closes immediately');
    });
    await check('No browser errors, viewport overflow or order/network writes occur',async()=>{
     assert.deepEqual(errors,[]);assert(calls.length>0&&calls.every(call=>['catalog','site_status'].includes(call.action)),'Only fixture catalog/site-status reads occurred');
