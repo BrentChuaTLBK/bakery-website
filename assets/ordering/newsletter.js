@@ -1,4 +1,5 @@
 import {applyNewsletterOffer,getNewsletterOffer,offerLabel} from './newsletter-offer.js?v=newsletter-settings-1';
+import {closeAfterTransition} from './dialog-motion.js';
 // Capture and remove private newsletter link data before importing auth or
 // making any request. A page view never confirms or cancels a subscription.
 const landing = document.getElementById('newsletter-root');
@@ -237,14 +238,7 @@ async function setupShopPopup() {
       document.body.append(dialog);
       await applyNewsletterOffer(dialog);
       mountNewsletterForms(dialog);
-      const dismiss = async () => {
-        if (dialog.inert) return;
-        // Keep the native backdrop in place while the popup fades out.
-        dialog.inert = true;
-        const transitions = dialog.getAnimations?.() || [];
-        await Promise.allSettled(transitions.map(transition => transition.finished));
-        dialog.close();
-      };
+      const dismiss = () => closeAfterTransition(dialog);
       dialog.querySelector('.newsletter-close').onclick = dismiss;
       dialog.querySelector('[data-newsletter-dismiss]').onclick = dismiss;
       dialog.addEventListener('cancel', event => { event.preventDefault(); dismiss(); });
