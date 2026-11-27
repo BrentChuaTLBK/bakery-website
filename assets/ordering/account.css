@@ -7,10 +7,22 @@ body[data-account-page="account"] h1,body[data-account-page="account"] h2{font-f
 .account-welcome-note{color:var(--muted);margin:0 0 18px}
 .account-identity{display:flex;align-items:center;gap:12px;flex-wrap:wrap;overflow-wrap:anywhere;font-size:13px}
 .account-identity>span:first-child{min-width:0;max-width:100%}
+.account-identity .badge{padding:4px 9px;border:1px solid #dfcfb9;border-radius:999px;background:#fffaf3;color:#654329;font-size:11px}
 .account-welcome-bottom{margin-top:26px;padding-top:18px;border-top:1px solid #dfccb3;gap:12px}
-.account-welcome-bottom .dialog-actions{margin:0;padding:0;border:0;gap:8px}
-.account-section-links{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13px}
-.account-section-links a{padding-block:9px;text-underline-offset:4px}
+.account-section-links,.account-dashboard-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
+.account-dashboard-actions{margin-inline-start:auto;justify-content:flex-end}
+.account-shortcut{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:44px;padding:10px 13px;border:1px solid #dfcfb9;border-radius:9px;
+  background:#faf3e9;color:#654329;font:inherit;font-size:13px;line-height:1.4;
+  text-align:center;text-decoration:none;cursor:pointer;
+}
+.account-nav-icon{width:17px;height:17px;flex:none}
+.account-dashboard-actions .account-shortcut{background:#fffaf3;border-color:#cfb99c}
+.account-dashboard-actions #sign-out{background:transparent}
+.account-welcome-bottom .account-shortcut:hover,.account-welcome-bottom #sign-out:hover{background:#f3e6d3;border-color:#ab8055;color:#493020}
+.account-shortcut:disabled{opacity:.6;cursor:wait}
+.account-shop-link{flex-shrink:0;gap:18px;min-height:46px}
 .account-content-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:start}
 .account-content-grid>.panel{margin:0;min-width:0;padding:26px;border-radius:14px;scroll-margin-top:20px}
 .account-content-grid h2{font-size:27px;font-weight:400;margin:4px 0 8px}
@@ -38,4 +50,12 @@ body[data-account-page="account"] h1,body[data-account-page="account"] h2{font-f
 .account-dashboard .empty-state h3{font-size:23px;font-weight:400}
 .account-dashboard :focus-visible{outline:2px solid #936535;outline-offset:4px}
 @media(max-width:820px){.account-content-grid{grid-template-columns:1fr}.account-welcome{padding:24px}.account-welcome-main{gap:18px}.account-welcome-bottom{align-items:flex-start}}
-@media(max-width:480px){.account-dashboard{padding-top:20px}.account-welcome,.account-content-grid>.panel,.account-dashboard .newsletter-preferences{padding:20px}.account-order{padding:14px}.account-welcome-main>.button{width:100%;text-align:center}.account-section-links{gap:4px 14px}.account-welcome-bottom .dialog-actions{width:100%;justify-content:flex-end}.account-content-grid{gap:18px}.account-dashboard .voucher-actions{gap:8px}.account-dashboard .voucher-tabs{gap:4px}}
+@media(max-width:760px){
+  .account-welcome-bottom{flex-direction:column;align-items:stretch}
+  .account-section-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:6px}
+  .account-section-links .account-shortcut{display:grid;grid-template-rows:19px 1fr;justify-items:center;gap:5px;min-height:70px;padding:9px 4px;font-size:12px}
+  .account-section-links .account-nav-icon{width:19px;height:19px}
+  .account-dashboard-actions{align-items:stretch;margin:0;padding-top:12px;border-top:1px solid #dfccb3}
+  .account-dashboard-actions .account-shortcut{flex:1 1 110px;min-width:0;padding-inline:8px}
+}
+@media(max-width:480px){.account-dashboard{padding-top:20px}.account-welcome,.account-content-grid>.panel,.account-dashboard .newsletter-preferences{padding:20px}.account-order{padding:14px}.account-welcome-main>.button{width:100%;text-align:center}.account-content-grid{gap:18px}.account-dashboard .voucher-actions{gap:8px}.account-dashboard .voucher-tabs{gap:4px}}

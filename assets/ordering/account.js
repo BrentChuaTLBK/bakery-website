@@ -237,6 +237,10 @@ async function loadHistory(version) {
   } finally { area.setAttribute('aria-busy', 'false'); }
 }
 
+function accountIcon(content) {
+  return `<svg class="account-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${content}</svg>`;
+}
+
 async function renderAccount() {
   const version = ++renderVersion;
   voucherController?.destroy();voucherController=null;
@@ -249,7 +253,28 @@ async function renderAccount() {
   stopGoogleSignInCheck = null;
   const verified = Boolean(user.email_confirmed_at);
   root.classList.add('account-dashboard');
-  root.innerHTML = `<header class="account-welcome"><div class="account-welcome-main"><div><p class="eyebrow">Your little corner</p><h1>Welcome back</h1><p class="account-welcome-note">Your orders, little treats, and everything TLB.</p><p class="account-identity"><span>${esc(user.email)}</span><span class="badge">${verified?'Email verified':'Verification pending'}</span></p></div><a class="button" href="${esc(next)}">${esc(returnLabel)} <span aria-hidden="true">↗</span></a></div><div class="account-welcome-bottom"><nav class="account-section-links" aria-label="Your account"><a href="#account-orders">Your orders</a><a href="#account-vouchers">My vouchers</a><a href="#newsletter-preferences">Email preferences</a></nav><div class="dialog-actions"><a class="button button-quiet" id="staff-link" href="manage.html" hidden>Staff dashboard</a><button class="button button-quiet" id="sign-out" type="button">Sign out</button></div></div></header><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified?'':'<div class="notice"><p>Verify your email to view personal vouchers and use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<div class="account-content-grid"><section id="account-orders" class="panel" aria-labelledby="orders-title"><div class="section-heading"><div><p class="eyebrow">From our kitchen</p><h2 id="orders-title">Your orders</h2></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div><p class="account-guest-note muted">Placed an order as a guest? Open the secure link from your confirmation email.</p></section><section id="account-vouchers" class="panel" aria-label="My vouchers"></section></div>`;
+  const profileReturnLabel = new URL(next, location.href).href === new URL('shop.html', location.href).href ? 'Explore the shop' : returnLabel;
+  root.innerHTML = `<header class="account-welcome">
+    <div class="account-welcome-main">
+      <div><p class="eyebrow">Your TLB account</p><h1>Welcome back</h1>
+        <p class="account-welcome-note">Your orders, little treats, and everything TLB.</p>
+        <p class="account-identity"><span>${esc(user.email)}</span><span class="badge">${verified?'Email verified':'Verification pending'}</span></p>
+      </div>
+      <a class="button account-shop-link" href="${esc(next)}">${esc(profileReturnLabel)} <span aria-hidden="true">↗</span></a>
+    </div>
+    <div class="account-welcome-bottom">
+      <nav class="account-section-links" aria-label="Your account">
+        <a class="account-shortcut" href="#account-orders">${accountIcon('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6"/>')}<span>Your orders</span></a>
+        <a class="account-shortcut" href="#account-vouchers">${accountIcon('<path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4V6Zm11 0v2m0 3v2m0 3v2"/>')}<span>My vouchers</span></a>
+        <a class="account-shortcut" href="#newsletter-preferences">${accountIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>')}<span>Email preferences</span></a>
+      </nav>
+      <div class="account-dashboard-actions">
+        <a class="account-shortcut" id="recipe-link" href="recipes.html" hidden>${accountIcon('<path d="M12 6c-3-2-6-2-10-1v14c4-1 7-1 10 1 3-2 6-2 10-1V5c-4-1-7-1-10 1Zm0 0v14"/>')}<span>Recipe library</span></a>
+        <a class="account-shortcut" id="staff-link" href="manage.html" hidden>${accountIcon('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>')}<span>Staff dashboard</span></a>
+        <button class="account-shortcut" id="sign-out" type="button">${accountIcon('<path d="M10 4H5v16h5m4-12 4 4-4 4m-6-4h10"/>')}<span>Sign out</span></button>
+      </div>
+    </div>
+  </header><div id="account-notice" role="status" tabindex="-1" hidden></div>${verified?'':'<div class="notice"><p>Verify your email to view personal vouchers and use promo codes.</p><button class="button button-secondary" type="button" id="resend-signed-in">Resend verification email</button></div>'}<div class="account-content-grid"><section id="account-orders" class="panel" aria-labelledby="orders-title"><div class="section-heading"><div><p class="eyebrow">From our kitchen</p><h2 id="orders-title">Your orders</h2></div><button class="button button-quiet" id="refresh-orders" type="button">Refresh</button></div><div id="order-history" class="account-orders" aria-live="polite"><p class="muted">Loading your orders…</p></div><p class="account-guest-note muted">Placed an order as a guest? Open the secure link from your confirmation email.</p></section><section id="account-vouchers" class="panel" aria-label="My vouchers"></section></div>`;
   voucherController=mountVouchers(document.getElementById('account-vouchers'));
   const academyCard=document.createElement('section');
   academyCard.className='panel';
@@ -262,9 +287,10 @@ async function renderAccount() {
   preferences.setAttribute('aria-label', 'Email preferences');
   root.append(preferences);
   document.getElementById('sign-out').addEventListener('click', async event => {
-    event.currentTarget.disabled = true;
+    const button = event.currentTarget;
+    button.disabled = true;
     const { error } = await auth.signOut({ scope: 'local' });
-    if (error) { event.target.disabled = false; notice('We could not sign you out. Please try again.', 'danger'); return; }
+    if (error) { button.disabled = false; notice('We could not sign you out. Please try again.', 'danger'); return; }
     currentUser = null;
     renderSignedOut();
     // Only Supabase's session is removed. Never clear the saved checkout.
@@ -286,7 +312,12 @@ async function renderAccount() {
     (async()=>{
       const {checkRecipeAccess}=await import('./recipe-access-check.js');
       const access=await checkRecipeAccess(auth);if(version!==renderVersion)return;
-      const link=document.createElement('a');link.className='button button-quiet';link.href=access.role==='kitchen'?'recipes.html?view=kitchen':'recipes.html';link.textContent=access.role==='kitchen'?'Kitchen recipes':'Recipe library';document.getElementById('staff-link')?.before(link);
+      const link = document.getElementById('recipe-link');
+      if (access.role === 'kitchen') {
+        link.href = 'recipes.html?view=kitchen';
+        link.querySelector('span').textContent = 'Kitchen recipes';
+      }
+      link.hidden = false;
     })(),
   ]);
 }
