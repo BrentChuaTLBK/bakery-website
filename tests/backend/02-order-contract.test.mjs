@@ -86,6 +86,26 @@ export default async function ({ db, check, state }) {
     assert.equal((await api('my_orders', {}, ids.customer)).some(o => o.id === guest.id), false);
   })();
 
+  await check('verified staff can copy the saved website token without editing an order', async () => {
+    const { product, date } = await fixture();
+    const guest = await api('create_order', checkout(product, date));
+    const registered = await api('create_order', checkout(product, date), ids.customer);
+    for (const submitted of [guest, registered]) {
+      const request = { order_id: submitted.id };
+      const snapshot = () => h.scalar("select jsonb_build_array(to_jsonb(o),(select count(*) from tlb.outbox e where e.order_id=o.id)) from tlb.orders o where id=$1", [submitted.id]);
+      const before = await snapshot();
+      for (const who of [ids.owner, ids.staff]) {
+        const link = await api('staff_order_link', request, who);
+        assert.deepEqual(link, { id: submitted.id, access_token: submitted.access_token });
+        assert.equal((await api('get_order', request, null, link.access_token)).id, submitted.id);
+      }
+      for (const who of [null, ids.customer, ids.stranger, ids.unverified]) {
+        await assert.rejects(api('staff_order_link', request, who), /staff access|verify/i);
+      }
+      assert.deepEqual(await snapshot(), before);
+    }
+  })();
+
   await check('timely proof stops expiry indefinitely; approval commits once and retry is idempotent', async () => {
     const { product, date } = await fixture(5);
     const submitted = await api('create_order', checkout(product, date, { items: [item(product, 2)] }));

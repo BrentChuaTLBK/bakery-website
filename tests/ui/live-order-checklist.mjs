@@ -86,7 +86,18 @@ async function fixtureApi(action, payload) {
     }
     return structuredClone(orders);
   }
-  if(action==='set_order_prepared') {
+  if(action==='set_order_prep_note') {
+    const order=orders.find(order=>order.id===payload.order_id);
+    assert.ok(order);
+    const currentVersion=order.prep_note_version ?? 0;
+    if(payload.note_version!==currentVersion) {
+      return {note:order.prep_note || '',note_version:currentVersion,conflict:true};
+    }
+    order.prep_note=payload.note;
+    order.prep_note_version=currentVersion+1;
+    return {note:order.prep_note,note_version:order.prep_note_version};
+  }
+  if(action==='set_order_prepared' || action==='set_order_item_prepared') {
     writes++;
     const order=orders.find(order=>order.id===payload.order_id);
     assert.ok(order, 'Writes identify an existing order');
@@ -100,8 +111,17 @@ async function fixtureApi(action, payload) {
       heldWrite.started.resolve();
       await heldWrite.release.promise;
     }
-    order.prepared=payload.prepared;
-    return {prepared:order.prepared};
+    if(action==='set_order_prepared') {
+      order.prepared=payload.prepared;
+      order.prepared_items=payload.prepared ? order.items.map((_,i)=>i+1) : [];
+      return {prepared:order.prepared};
+    }
+    const checks=new Set(order.prepared_items);
+    if(payload.prepared) checks.add(payload.item_number);
+    else checks.delete(payload.item_number);
+    order.prepared_items=[...checks];
+    order.prepared=checks.size===order.items.length;
+    return {prepared:order.prepared,prepared_items:order.prepared_items};
   }
   throw Error('Unexpected staff action '+action);
 }
@@ -219,7 +239,7 @@ try {
 
   const second=await openDashboard(true);
   await expectSettled(second.page,firstId,true);
-  const secondBox=rowFor(second.page,firstId).getByRole('checkbox');
+  const secondBox=rowFor(second.page,firstId).locator('[data-order-prepared]');
   failNextSave=true;
   await secondBox.click();
   await second.page.getByRole('alert').filter({hasText:/./}).first().waitFor();
@@ -235,6 +255,54 @@ try {
   await page.getByRole('button',{name:'All dates',exact:true}).click();
   assert.equal(await page.locator('[data-checklist-date="2027-01-11"]').count(),0,'An empty date group is removed after a reschedule');
   await expectSettled(page,firstId,false);
+
+  const cake=first.locator('[data-checklist-item="1"]');
+  const cookies=first.locator('[data-checklist-item="2"]');
+  await cake.click();
+  await expectSettled(page,firstId,false);
+  assert.ok(await cake.isChecked());
+  assert.equal(await cookies.isChecked(),false);
+  assert.equal(await checkedBox.evaluate(input=>input.indeterminate),true);
+  assert.equal(await first.locator('[data-item-progress]').innerText(),'1 of 2 items');
+  assert.match(await page.locator('.live-checklist-summary').innerText(),/^0 of /,'Partial items do not count as completed orders');
+
+  const notes=first.locator('.live-checklist-notes');
+  const editor=notes.getByRole('textbox',{name:'Private prep note'});
+  assert.equal(await editor.isVisible(),false);
+  await notes.locator('summary').click();
+  await editor.fill('Cake chilled.\nCookies still in the oven.');
+  await notes.getByRole('button',{name:'Save note'}).click();
+  await notes.getByText('Note saved.',{exact:true}).waitFor();
+  await expectSettled(page,firstId,false);
+  const teammate=await openDashboard(true);
+  const shared=rowFor(teammate.page,firstId);
+  await shared.waitFor();
+  assert.ok(await shared.locator('[data-checklist-item="1"]').isChecked());
+  assert.equal(await shared.locator('[data-checklist-item="2"]').isChecked(),false);
+  await shared.locator('.live-checklist-notes summary').click();
+  const teammateNote=shared.getByRole('textbox',{name:'Private prep note'});
+  assert.equal(await teammateNote.inputValue(),'Cake chilled.\nCookies still in the oven.');
+  await editor.fill('Draft I am still typing');
+  await teammateNote.fill('Team update.\nCookies are cooling.');
+  await shared.getByRole('button',{name:'Save note'}).click();
+  await shared.getByText('Note saved.',{exact:true}).waitFor();
+  await shared.locator('[data-checklist-item="2"]').click();
+  await expectSettled(teammate.page,firstId,true);
+  await page.clock.fastForward(16000);
+  await expectSettled(page,firstId,true);
+  const loadSaved=notes.getByRole('button',{name:'Load saved note'});
+  await loadSaved.waitFor();
+  assert.equal(await editor.inputValue(),'Draft I am still typing');
+  assert.ok(await notes.getByRole('button',{name:'Save note'}).isDisabled());
+  await loadSaved.click();
+  assert.equal(await editor.inputValue(),'Team update.\nCookies are cooling.');
+  await checkedBox.click();
+  await expectSettled(page,firstId,false);
+  assert.equal(await cake.isChecked(),false);
+  assert.equal(await cookies.isChecked(),false);
+  assert.equal(await editor.inputValue(),'Team update.\nCookies are cooling.');
+  await teammate.context.close();
+
   orders.splice(orders.indexOf(arriving),1);
   await page.clock.fastForward(16000);
   await next.waitFor({state:'detached'});
@@ -243,7 +311,7 @@ try {
   await page.clock.fastForward(45000);
   assert.equal(reads,readsAfterLeaving,'Leaving Checklist stops its background polling');
   assert.deepEqual(errors,[]);
-  console.log('PASS date and fulfillment groups, single-day calendar and navigation, live arrivals and rescheduling, shared checkmarks, and polling cleanup');
+  console.log('PASS date groups, live arrivals, order and item checkmarks, shared prep notes, draft conflicts, and polling cleanup');
 } finally {
   await browser.close();
 }

@@ -1,4 +1,4 @@
-import {matchesOrderView,matchesUpcomingOrder,isOverdueOrder,orderNextStep,orderQuickPanel} from './order-dashboard.js?v=refund-cancel-20261120';
+import {matchesOrderView,matchesUpcomingOrder,isOverdueOrder,orderNextStep,orderQuickPanel,canEditDeliveryTracking} from './order-dashboard.js?v=checklist-items-20261127';
 import {brandName} from './brand.js?v=brand-20261001';
 import {mountMaintenance} from './maintenance-admin.js?v=approved-20261002-1';
 let maintenanceController=null;
@@ -20,7 +20,7 @@ import { fulfillmentStatus, matchesFulfillmentStatus, isActiveFulfillment, isPay
 import { renderProductPhotos, bindProductPhotoOrder } from './product-photos.js?v=photo-order-1';
 import { printOrderSlips } from './order-slips.js?v=order-workflow-20261113';
 import { mountOrderChecklists } from './order-checklists.js?v=refund-cancel-20261120';
-import { mountLiveChecklist } from './live-checklist.js?v=checklist-dates-20261119';
+import { mountLiveChecklist } from './live-checklist.js?v=checklist-items-20261127';
 import { productLabelSettings, labelTextColor, MAX_LABEL_LENGTH } from './product-label.js';
 import { duplicateProductDraft } from './product-duplicate.js?v=approved-20261002-1';
 import { dateCalendar, bindDateCalendars, calendarDates } from './date-calendar.js?v=schedule-crossout-1';
@@ -41,7 +41,7 @@ import { eventPage } from './event-page.js?v=dessert-bar-1';
 import { mountPartyPackageManager } from './party-package-manager.js?v=brand-20261001';
 
 import { mountOrderPhotos, orderPhotosMarkup } from './order-photos.js?v=order-workflow-20261113';
-import {mountCalendar} from './calendar-manager.js?v=order-workflow-20261113';
+import {mountCalendar} from './calendar-manager.js?v=unpaid-calendar-20261127';
 import {mountProduction} from './production-manager.js?v=production-summary-20261015';
 import {mountPOS} from './pos-manager.js?v=refund-cancel-20261120';
 import {salesSource,deliveryStatusText,posOrderUrl} from './pos.js?v=refund-cancel-20261120';
@@ -254,7 +254,10 @@ function render() {
     liveChecklist = mountLiveChecklist($('#live-checklist'), {
       products: state.products,
       loadOrders: () => api('order_checklist'),
-      setPrepared: (order, prepared) => api('set_order_prepared', { order_id: order.id, prepared, content_key: order.content_key }),
+      setPrepared: (order, prepared, item) => api(item === null ? 'set_order_prepared' : 'set_order_item_prepared', {
+        order_id: order.id, prepared, content_key: order.content_key, ...(item === null ? {} : { item_number: item }),
+      }),
+      setPrepNote: (order, note, noteVersion) => api('set_order_prep_note', { order_id: order.id, note, note_version: noteVersion }),
     });
   }
   if (state.view === 'orders' && state.connected) {
@@ -397,7 +400,8 @@ function selectQuickOrder(id){
 async function quickOrderAction(id,intent){
  if(!state.connected||!['owner','staff'].includes(state.role))return;
  // Fetch the current record before showing any existing approval/progress flow.
- activeOrder=null;await openOrder(id);if(activeOrder?.id!==id)return;
+ activeOrder=null;await openOrder(id,{showTracking:intent==='tracking'});if(activeOrder?.id!==id)return;
+ if(intent==='tracking')return;
  const next=orderNextStep(activeOrder);
  if(intent==='proof'){
   const proof=$('[data-action="view-proof"]',modal);if(proof)await onAction(proof);return;
@@ -682,7 +686,7 @@ function itemTable(items) {
 function totals(order) {
   return `<div class="order-total"><div><span>Product subtotal</span><span>${money(order.subtotal_cents)}</span></div><div><span>Discount${order.promo_snapshot?.code ? ` · ${esc(order.promo_snapshot.code)}` : ''}</span><span>− ${money(order.discount_cents)}</span></div><div><span>Delivery fee</span><span>${order.deferred_delivery&&order.delivery_payment_status==='pending'?(isPaymentClosed(order)?'Fee not set':'Fee pending'):money(order.delivery_cents)}</span></div><div class="grand-total"><span>Current total</span><span>${money(order.total_cents)}</span></div>${order.payment_status === 'paid' ? `<div><span>Original approved payment</span><span>${money(order.paid_amount_cents)}</span></div>` : ''}${order.deferred_delivery?`<div><span>${esc(deliveryStatusText(order))}</span><span>${order.delivery_paid_cents?money(order.delivery_paid_cents):''}</span></div>`:''}</div>`;
 }
-function mountDirectOrderLink(section, orderId) {
+function mountPrivateOrderLink(section, orderId) {
   const input = $('input', section);
   const button = $('button', section);
   const status = $('[role="status"]', section);
@@ -693,7 +697,7 @@ function mountDirectOrderLink(section, orderId) {
     input.placeholder = 'Loading link…';
     status.textContent = 'Loading link…';
     try {
-      const order = await api('pos_order_link', { order_id: orderId });
+      const order = await api('staff_order_link', { order_id: orderId });
       if (!order?.access_token) throw new Error('Missing order link');
       input.value = posOrderUrl(order, state.settings.site_url || document.baseURI);
       input.removeAttribute('placeholder');
@@ -729,11 +733,15 @@ function mountDirectOrderLink(section, orderId) {
   void loadLink();
 }
 
-async function openOrder(id, { showPhotos = false } = {}) {
+async function openOrder(id, { showPhotos = false, showTracking = false } = {}) {
   showDialog('Opening order', '<p class="loading-text">Loading the saved order and its history…</p>');
   try {
     activeOrder = await api('get_order', { order_id: id });
-    renderOrderDialog(showPhotos ? { focusSelector: '[data-order-photos]' } : {});
+    const view = showPhotos ? { focusSelector: '[data-order-photos]' } : {};
+    if (showTracking && canEditDeliveryTracking(activeOrder)) Object.assign(view, {
+      preserveScroll: true, focusSelector: '[data-form="delivery-tracking"] input',
+    });
+    renderOrderDialog(view);
     if (showPhotos) requestAnimationFrame(() => $('[data-order-photos]', modal)?.scrollIntoView({ block: 'nearest' }));
   } catch (error) {
     showDialog('Unable to open order', `<p class="notice danger">${esc(error.message)}</p>`);
@@ -749,8 +757,8 @@ function renderOrderDialog(view = {}) {
   const statuses = ['confirmed', 'preparing', o.method === 'pickup' ? 'ready_for_pickup' : 'out_for_delivery', 'completed'];
   const address = o.address ? [o.address.line1, o.address.line2, o.address.locality, o.address.postal_code].filter(Boolean).join('\n') : '';
   const notes = o.staff_notes || (o.history || []).filter(event => event.action === 'staff_note').map(event => ({ note: event.reason }));
-  const directOrderLink = o.source === 'direct_message' && state.connected
-    ? `<div class="field direct-order-link no-print" data-direct-order-link>
+  const privateOrderLink = ['website', 'direct_message'].includes(o.source || 'website') && state.connected
+    ? `<div class="field direct-order-link no-print" data-private-order-link>
         <label for="direct-order-url">Private order link</label>
         <div class="direct-order-link-row">
           <input id="direct-order-url" type="text" readonly>
@@ -758,10 +766,11 @@ function renderOrderDialog(view = {}) {
         </div>
         <p class="help-text sr-only" role="status"></p>
       </div>` : '';
-  const dialogView = directOrderLink && !view.preserveScroll ? { focusSelector: '#order-dialog-summary', ...view } : view;
-  showDialog(o.reference, `<div id="print-order"><p id="order-dialog-summary" class="muted" tabindex="-1">${esc(salesSource(o))} · Placed ${esc(dateTime(o.created_at))} · Revision ${o.revision}</p><div class="order-status-row">${badge(o.payment_status)} ${badge(fulfillmentStatus(o))}${o.refund_label ? ' ' + badge('refund') : ''}</div><div class="order-detail-grid"><section class="detail-section"><h3>Buyer</h3><p><strong>${esc(o.buyer?.name)}</strong>\n${esc(o.buyer?.email)}\n${esc(o.buyer?.phone)}</p>${o.buyer?.social_username ? `<p>${esc(o.buyer.social_platform?.toLowerCase() === 'na' ? 'Social contact' : label(o.buyer.social_platform))}: ${esc(o.buyer.social_username)}</p>` : ''}</section><section class="detail-section"><h3>${esc(o.source==='popup'?'In-person sale':label(o.method))} · ${esc(humanDate(o.fulfillment_date))}</h3>${o.method === 'delivery' ? `<p><strong>${esc(o.recipient?.name)}</strong>\n${esc(o.recipient?.phone)}\n${esc(address)}</p>` : `<p>${esc((o.source==='popup'?o.event_location:o.pickup_address || state.settings.pickup_address) || '')}</p>`}${o.method === 'delivery' && o.delivery_zone_description ? `<p class="zone-description">${esc(o.delivery_zone_description)}</p>` : ''}${deliveryTrackingLink(o, esc)}${o.instructions ? `<p>Instructions: ${esc(o.instructions)}</p>` : ''}</section></div>${itemTable(o.items)}${totals(o)}${directOrderLink}${o.source === 'direct_message' ? orderPhotosMarkup() : ''}${!o.deferred_delivery && o.payment_status === 'paid' && !o.refund_label ? '<p class="muted">Any difference after an order edit is settled directly with the customer. The original payment record and current fulfillment progress are retained.</p>' : ''}<section class="detail-section proof-block"><h3>${o.proof_stage==='delivery'?'Delivery payment':'Initial payment'}</h3><p>Reference: ${esc((o.proof_stage==='delivery'?o.delivery_payment_reference:o.payment_reference) || 'Not provided')}</p>${o.proof_path ? '<button class="button button-secondary" data-action="view-proof">View private payment proof ↗</button>' : `<p class="muted">${o.payment_status === 'awaiting_payment' && open ? o.source==='direct_message'?'Reservation stays active until cancelled.':`Proof deadline: ${esc(dateTime(o.payment_deadline))}` : 'No payment proof on this order.'}</p>`}<div id="proof-viewer"></div></section>${o.refund_label ? '<p class="notice">Fulfillment is cancelled. The full refund is marked for your records. The kitchen handles the money transfer manually.</p>' : ''}<div class="order-toolbar">${isPOS ? '<button class="button" data-action="pos-open-order">Open POS order</button>' : ''}${!isPOS && needsPaymentReview(o) ? '<button class="button" data-action="payment-approve">Approve full payment</button><button class="button button-secondary" data-action="payment-reject">Reject payment</button>' : ''}${canReopen ? '<button class="button button-secondary" data-action="reopen-order">Return to paid</button>' : ''}${canProgress ? `<select id="next-fulfillment" aria-label="Fulfillment status">${options(statuses, o.fulfillment_status, null)}</select><button class="button button-secondary" data-action="fulfill-order">Update progress</button>` : ''}${isPOS ? (open?'<button class="button button-quiet" data-action="cancel-order">Cancel order</button>':'') : open ? '<button class="button button-secondary" data-action="edit-order">Edit order</button><button class="button button-quiet" data-action="cancel-order">Cancel order</button>' : '<button class="button button-secondary" data-action="edit-contact">Edit contact details</button>'}${canMarkRefund ? `<button class="button button-quiet" data-action="refund-label">${o.refund_label ? 'Remove refund mark' : 'Mark full refund'}</button>` : ''}<button class="button button-quiet" data-action="print-order">Print summary</button></div>${renderPickupReminder(o, { escapeHtml: esc, dateTime, connected: state.connected })}${state.role === 'owner' && state.connected && o.method === 'delivery' ? '<details class="delivery-accounting private-staff"><summary>Delivery accounting</summary><div class="delivery-accounting-content"></div></details>' : ''}<section class="private-staff"><h3>Private staff notes</h3>${notes.map(note => `<p class="muted">${esc(typeof note === 'string' ? note : note.note || note.text || '')}</p>`).join('')}<form data-form="staff-note">${formError}${textarea('note', 'Add a private note', '', 'Visible only to authorized team members.', 'required maxlength="4000"')}<button type="submit" class="button button-secondary">Save note</button></form></section><section class="subsection history-block"><h3>Order history</h3><ol class="history">${(o.history || []).slice().reverse().map(event => `<li><strong>${esc(label(event.action))}</strong>${event.reason ? ` — ${esc(event.reason)}` : ''}<small>${esc(dateTime(event.at || event.created_at))} · ${esc(typeof event.actor === 'object' ? event.actor.email || event.actor.id || 'Team member' : event.actor || 'System')}</small>${event.before || event.after ? `<details><summary>View recorded changes</summary><div class="change-grid"><div><strong>Before</strong>${historySnapshot(event.before)}</div><div><strong>After</strong>${historySnapshot(event.after)}</div></div></details>` : ''}</li>`).join('') || '<li>Order history is recorded as changes are made.</li>'}</ol></section></div>`, dialogView);
-  const linkSection = $('[data-direct-order-link]', modal);
-  if (linkSection) mountDirectOrderLink(linkSection, o.id);
+  const trackingEditor = canEditDeliveryTracking(o) ? orderTrackingEditor(o) : '';
+  const dialogView = privateOrderLink && !view.preserveScroll ? { focusSelector: '#order-dialog-summary', ...view } : view;
+  showDialog(o.reference, `<div id="print-order"><p id="order-dialog-summary" class="muted" tabindex="-1">${esc(salesSource(o))} · Placed ${esc(dateTime(o.created_at))} · Revision ${o.revision}</p><div class="order-status-row">${badge(o.payment_status)} ${badge(fulfillmentStatus(o))}${o.refund_label ? ' ' + badge('refund') : ''}</div><div class="order-detail-grid"><section class="detail-section"><h3>Buyer</h3><p><strong>${esc(o.buyer?.name)}</strong>\n${esc(o.buyer?.email)}\n${esc(o.buyer?.phone)}</p>${o.buyer?.social_username ? `<p>${esc(o.buyer.social_platform?.toLowerCase() === 'na' ? 'Social contact' : label(o.buyer.social_platform))}: ${esc(o.buyer.social_username)}</p>` : ''}</section><section class="detail-section"><h3>${esc(o.source==='popup'?'In-person sale':label(o.method))} · ${esc(humanDate(o.fulfillment_date))}</h3>${o.method === 'delivery' ? `<p><strong>${esc(o.recipient?.name)}</strong>\n${esc(o.recipient?.phone)}\n${esc(address)}</p>` : `<p>${esc((o.source==='popup'?o.event_location:o.pickup_address || state.settings.pickup_address) || '')}</p>`}${o.method === 'delivery' && o.delivery_zone_description ? `<p class="zone-description">${esc(o.delivery_zone_description)}</p>` : ''}${deliveryTrackingLink(o, esc)}${o.instructions ? `<p>Instructions: ${esc(o.instructions)}</p>` : ''}</section></div>${itemTable(o.items)}${totals(o)}${privateOrderLink}${o.source === 'direct_message' ? orderPhotosMarkup() : ''}${!o.deferred_delivery && o.payment_status === 'paid' && !o.refund_label ? '<p class="muted">Any difference after an order edit is settled directly with the customer. The original payment record and current fulfillment progress are retained.</p>' : ''}<section class="detail-section proof-block"><h3>${o.proof_stage==='delivery'?'Delivery payment':'Initial payment'}</h3><p>Reference: ${esc((o.proof_stage==='delivery'?o.delivery_payment_reference:o.payment_reference) || 'Not provided')}</p>${o.proof_path ? '<button class="button button-secondary" data-action="view-proof">View private payment proof ↗</button>' : `<p class="muted">${o.payment_status === 'awaiting_payment' && open ? o.source==='direct_message'?'Reservation stays active until cancelled.':`Proof deadline: ${esc(dateTime(o.payment_deadline))}` : 'No payment proof on this order.'}</p>`}<div id="proof-viewer"></div></section>${o.refund_label ? '<p class="notice">Fulfillment is cancelled. The full refund is marked for your records. The kitchen handles the money transfer manually.</p>' : ''}<div class="order-toolbar">${isPOS ? '<button class="button" data-action="pos-open-order">Open POS order</button>' : ''}${!isPOS && needsPaymentReview(o) ? '<button class="button" data-action="payment-approve">Approve full payment</button><button class="button button-secondary" data-action="payment-reject">Reject payment</button>' : ''}${canReopen ? '<button class="button button-secondary" data-action="reopen-order">Return to paid</button>' : ''}${canProgress ? `<select id="next-fulfillment" aria-label="Fulfillment status">${options(statuses, o.fulfillment_status, null)}</select><button class="button button-secondary" data-action="fulfill-order">Update progress</button>` : ''}${isPOS ? (open?'<button class="button button-quiet" data-action="cancel-order">Cancel order</button>':'') : open ? '<button class="button button-secondary" data-action="edit-order">Edit order</button><button class="button button-quiet" data-action="cancel-order">Cancel order</button>' : '<button class="button button-secondary" data-action="edit-contact">Edit contact details</button>'}${canMarkRefund ? `<button class="button button-quiet" data-action="refund-label">${o.refund_label ? 'Remove refund mark' : 'Mark full refund'}</button>` : ''}<button class="button button-quiet" data-action="print-order">Print summary</button></div>${renderPickupReminder(o, { escapeHtml: esc, dateTime, connected: state.connected })}${trackingEditor}${state.role === 'owner' && state.connected && o.method === 'delivery' ? '<details class="delivery-accounting private-staff"><summary>Delivery accounting</summary><div class="delivery-accounting-content"></div></details>' : ''}<section class="private-staff"><h3>Private staff notes</h3>${notes.map(note => `<p class="muted">${esc(typeof note === 'string' ? note : note.note || note.text || '')}</p>`).join('')}<form data-form="staff-note">${formError}${textarea('note', 'Add a private note', '', 'Visible only to authorized team members.', 'required maxlength="4000"')}<button type="submit" class="button button-secondary">Save note</button></form></section><section class="subsection history-block"><h3>Order history</h3><ol class="history">${(o.history || []).slice().reverse().map(event => `<li><strong>${esc(label(event.action))}</strong>${event.reason ? ` — ${esc(event.reason)}` : ''}<small>${esc(dateTime(event.at || event.created_at))} · ${esc(typeof event.actor === 'object' ? event.actor.email || event.actor.id || 'Team member' : event.actor || 'System')}</small>${event.before || event.after ? `<details><summary>View recorded changes</summary><div class="change-grid"><div><strong>Before</strong>${historySnapshot(event.before)}</div><div><strong>After</strong>${historySnapshot(event.after)}</div></div></details>` : ''}</li>`).join('') || '<li>Order history is recorded as changes are made.</li>'}</ol></section></div>`, dialogView);
+  const linkSection = $('[data-private-order-link]', modal);
+  if (linkSection) mountPrivateOrderLink(linkSection, o.id);
   const photos = $('[data-order-photos]', modal);
   if (photos) mountOrderPhotos(photos, o.id, { esc, confirm: confirmDialog });
   const deliverySection = $('.delivery-accounting', modal);
@@ -799,7 +808,14 @@ function orderActionDialog(action) {
 }
 
 function trackingField(value = '') {
-  return input('delivery_tracking_url', 'Courier tracking link · optional', value, 'url', 'maxlength="2048" inputmode="url" autocomplete="off" placeholder="https://…"', 'The latest link appears on the customer’s order page. Updating an existing link on an active order emails the customer. Leave blank to remove it.');
+  return input('delivery_tracking_url', 'Courier tracking link · optional', value, 'url', 'maxlength="2048" inputmode="url" autocomplete="off" placeholder="https://…"', 'The customer can see this link on their order page. Saving after dispatch or replacing a link on an active delivery queues an email update. Leave blank to remove the link.');
+}
+function orderTrackingEditor(order) {
+  return `<section class="detail-section no-print private-staff" data-order-tracking>
+    <form data-form="delivery-tracking">${formError}${trackingField(order.delivery_tracking_url || '')}
+      <button class="button button-secondary" type="submit">Save tracking link</button>
+    </form>
+  </section>`;
 }
 function contactDialog() {
   const o = activeOrder;
@@ -910,12 +926,12 @@ function validDateList(value, title) {
 function orderMutationPayload(extra = {}) {
   return { order_id: activeOrder.id, revision: activeOrder.revision, idempotency_key: uid(), ...extra };
 }
-async function updateActive(action, payload) {
+async function updateActive(action, payload, { preserveScroll = false, message } = {}) {
   const result = await api(action, payload);
   activeOrder = result;
   await refresh();
-  renderOrderDialog();
-  toast(action === 'reopen_order' ? 'Returned to paid, pending fulfillment. You can edit the order again.' : 'Order updated.');
+  renderOrderDialog({ preserveScroll });
+  toast(message || (action === 'reopen_order' ? 'Returned to paid, pending fulfillment. You can edit the order again.' : 'Order updated.'));
 }
 async function loadTeam() {
   if (!state.connected) return;
@@ -1357,6 +1373,19 @@ async function submitForm(form) {
         }
       }
       await updateActive(operation, payload); break;
+    }
+    case 'delivery-tracking': {
+      if (!canEditDeliveryTracking(activeOrder)) throw new Error('Tracking is available for active website delivery orders.');
+      const tracking = deliveryTrackingUrlForSave(fieldValue(form, 'delivery_tracking_url'));
+      if (tracking === (activeOrder.delivery_tracking_url || '')) {
+        toast('Tracking link is up to date.');
+        break;
+      }
+      await updateActive('edit_order', orderMutationPayload({
+        changes: { delivery_tracking_url: tracking },
+        reason: tracking ? 'Update courier tracking link' : 'Remove courier tracking link',
+      }), { preserveScroll: true, message: tracking ? 'Tracking link saved.' : 'Tracking link removed.' });
+      break;
     }
     case 'order-contact': {
       const buyer = { ...activeOrder.buyer, name: fieldValue(form, 'buyer_name'), email: fieldValue(form, 'buyer_email'), phone: fieldValue(form, 'buyer_phone'), social_platform: fieldValue(form, 'social_platform'), social_username: fieldValue(form, 'social_username') };

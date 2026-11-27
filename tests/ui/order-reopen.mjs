@@ -18,7 +18,7 @@ try{for(const width of[1440,820,390]){
   const{action,payload}=route.request().postDataJSON();calls.push({action,payload});let result;
   if(action==='admin_bootstrap')result={role:'owner',products:[{id:'cookie',name:'Cookie box',price_cents:50000,active:true,min_quantity:1,lead_days:0,option_groups:[]}],categories:[],orders,inventory:[],zones:[],staff:[],promos:[],settings:{paused:false,pickup_address:'Sample kitchen'}};
   else if(action==='get_order')result=orders.find(o=>o.id===payload.order_id);
-  else if(action==='pos_order_link')result={id:payload.order_id,access_token:'fixture-link'};
+  else if(action==='staff_order_link')result={id:payload.order_id,access_token:'fixture-link'};
   else if(action==='reopen_order'){const o=orders.find(o=>o.id===payload.order_id);assert.equal(payload.revision,o.revision);assert(payload.idempotency_key);assert.equal(o.fulfillment_status,'completed');if(!payload.reason.trim())return route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'Enter a reason for returning this order to paid.'})});o.fulfillment_status='confirmed';o.revision++;o.history.push({action:'reopen_order',reason:payload.reason,actor:'owner',at:new Date().toISOString()});result=o;}
   else throw Error('Unexpected action '+action);
   return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});

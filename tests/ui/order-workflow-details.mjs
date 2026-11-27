@@ -120,7 +120,7 @@ try {
   await staff.goto(origin + '/manage.html');
   await selectDashboardSection(staff, 'orders');
   await staff.locator(`[data-action="open-order"][data-id="${first.id}"]`).click();
-  const linkSection = staff.locator('[data-direct-order-link]');
+  const linkSection = staff.locator('[data-private-order-link]');
   const copyLink = linkSection.getByRole('button', { name:'Copy link' });
   const linkInput = linkSection.getByRole('textbox', { name:'Private order link' });
   await copyLink.waitFor();

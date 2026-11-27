@@ -55,29 +55,85 @@ function methodSection(method) {
 function createRow(id) {
   const row = document.createElement('li');
   row.dataset.checklistOrder = id;
-  row.innerHTML = `<label class="live-checklist-label">
-      <input type="checkbox"><span class="live-checklist-identity"><strong data-client></strong><span data-reference></span></span>
-    </label>
+  row.innerHTML = `<div class="live-checklist-order-heading">
+      <label class="live-checklist-label">
+        <input type="checkbox" data-order-prepared><span class="live-checklist-identity"><strong data-client></strong><span data-reference></span></span>
+      </label>
+      <span class="live-checklist-progress" data-item-progress hidden></span>
+    </div>
     <div class="live-checklist-copy">
       <p class="live-checklist-payment" hidden></p>
       <div class="live-checklist-items"></div>
       <p class="live-checklist-instructions" hidden><strong>Instructions</strong><span></span></p>
+      <details class="live-checklist-notes">
+        <summary>Prep notes<span data-note-saved hidden>Saved</span></summary>
+        <form class="live-checklist-note-form">
+          <textarea aria-label="Private prep note" maxlength="2000" rows="3" placeholder="Add a note for the kitchen…"></textarea>
+          <div class="live-checklist-note-actions">
+            <button class="button button-secondary" type="submit" disabled>Save note</button>
+            <span data-note-status role="status"></span>
+          </div>
+          <div data-note-conflict hidden>
+            <p role="status">A teammate saved a newer note. Copy any edits you want to keep before loading it.</p>
+            <button class="button button-quiet" type="button" data-load-note>Load saved note</button>
+          </div>
+        </form>
+      </details>
       <p class="live-checklist-error" role="alert" hidden></p>
     </div>`;
   return {
-    row, input: row.querySelector('input'), client: row.querySelector('[data-client]'),
+    row, input: row.querySelector('[data-order-prepared]'), client: row.querySelector('[data-client]'),
     reference: row.querySelector('[data-reference]'), items: row.querySelector('.live-checklist-items'),
     payment: row.querySelector('.live-checklist-payment'), instructions: row.querySelector('.live-checklist-instructions'),
-    error: row.querySelector('[role=alert]'),
+    progress: row.querySelector('[data-item-progress]'), error: row.querySelector('[role=alert]'), itemInputs: [],
+    noteInput: row.querySelector('textarea'), noteSave: row.querySelector('button[type=submit]'),
+    noteMarker: row.querySelector('[data-note-saved]'), noteStatus: row.querySelector('[data-note-status]'),
+    noteConflict: row.querySelector('[data-note-conflict]'), noteLoad: row.querySelector('[data-load-note]'),
+    noteBase: '', noteVersion: 0, saving: false,
   };
+}
+
+const itemNumber = input => Number(input.dataset.checklistItem);
+
+function showProgress(entry, { prepared, prepared_items }) {
+  const marked = new Set(prepared_items);
+  let count = 0;
+  for (const input of entry.itemInputs) {
+    input.checked = prepared_items ? marked.has(itemNumber(input)) : prepared === true;
+    if (input.checked) count++;
+  }
+  entry.input.checked = prepared === true;
+  entry.input.indeterminate = count > 0 && !entry.input.checked;
+  entry.row.classList.toggle('is-prepared', entry.input.checked);
+  entry.progress.hidden = !entry.itemInputs.length;
+  text(entry.progress, `${count} of ${entry.itemInputs.length} items`);
+}
+
+function updateNoteControls(entry) {
+  const saved = entry.order.prep_note || '';
+  const dirty = entry.noteInput.value.trim() !== saved;
+  const conflict = dirty && entry.noteVersion !== (entry.order.prep_note_version ?? 0);
+  entry.noteMarker.hidden = !saved;
+  entry.noteConflict.hidden = !conflict;
+  entry.noteLoad.disabled = entry.saving;
+  entry.noteSave.disabled = !dirty || conflict || entry.saving;
+}
+
+function showNote(entry) {
+  const note = entry.order.prep_note || '';
+  // Keep a draft if a poll returns changes from another staff member.
+  if (entry.noteInput.value === entry.noteBase || entry.noteInput.value === note) {
+    if (entry.noteInput.value !== note) entry.noteInput.value = note;
+    entry.noteBase = note;
+    entry.noteVersion = entry.order.prep_note_version ?? 0;
+  }
+  updateNoteControls(entry);
 }
 
 function showOrder(entry, order, products) {
   entry.order = order;
   const reference = order.reference || order.id;
   entry.input.setAttribute('aria-label', 'Prepared · ' + reference);
-  entry.input.checked = order.prepared === true;
-  entry.row.classList.toggle('is-prepared', entry.input.checked);
   text(entry.client, order.buyer?.name || 'Client not recorded');
   text(entry.reference, reference);
   const payment = paymentNotes[order.payment_status] || '';
@@ -87,16 +143,30 @@ function showOrder(entry, order, products) {
   if (entry.itemsMarkup !== items) {
     entry.items.innerHTML = items;
     entry.itemsMarkup = items;
+    entry.itemInputs = [...entry.items.querySelectorAll('li')].map((line, index) => {
+      const label = document.createElement('label');
+      label.className = 'live-checklist-item-label';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.dataset.checklistItem = String(index + 1);
+      const details = document.createElement('span');
+      details.append(...line.childNodes);
+      label.append(input, details);
+      line.append(label);
+      return input;
+    });
   }
+  showProgress(entry, order);
   entry.instructions.hidden = !order.instructions;
   text(entry.instructions.lastElementChild, order.instructions || '');
+  showNote(entry);
 }
 
-export function mountLiveChecklist(root, { loadOrders, setPrepared, products = [] }) {
+export function mountLiveChecklist(root, { loadOrders, setPrepared, setPrepNote, products = [] }) {
   const today = todayInManila();
   root.classList.add('live-checklist');
   root.innerHTML = `<div class="view-heading"><div><h1>Order checklist</h1>
-      <p>New orders appear automatically. Check each order once it’s prepared.</p></div>
+      <p>Check items as you prepare them, or check the whole order when it’s ready.</p></div>
       <button type="button" class="button button-secondary" data-checklist-refresh>Refresh</button></div>
     <div class="live-checklist-filters">
       <div class="live-checklist-view" role="group" aria-label="View by fulfillment date">
@@ -129,7 +199,7 @@ export function mountLiveChecklist(root, { loadOrders, setPrepared, products = [
 
   function showCount() {
     const count = list.querySelectorAll('[data-checklist-order]').length;
-    const prepared = list.querySelectorAll('input:checked').length;
+    const prepared = list.querySelectorAll('[data-order-prepared]:checked').length;
     const empty = singleDay ? `No open orders for ${dayLabel(dayInput.value)}.` : 'No open orders.';
     text(summary, count ? `${prepared} of ${count} prepared` : empty);
   }
@@ -213,45 +283,110 @@ export function mountLiveChecklist(root, { loadOrders, setPrepared, products = [
     }
   }
 
-  async function change(event) {
-    const input = event.target;
-    if (!input.matches('input[type=checkbox]')) return;
-    const id = input.closest('[data-checklist-order]').dataset.checklistOrder;
-    const entry = rows.get(id);
-    if (!entry || saving.has(id)) return;
-    const prepared = input.checked;
+  function entryFor(node) {
+    return rows.get(node.closest('[data-checklist-order]')?.dataset.checklistOrder);
+  }
+
+  function lockEntry(entry, locked) {
+    entry.saving = locked;
+    for (const control of [entry.row, entry.input, ...entry.itemInputs]) {
+      const attr = control === entry.row ? 'aria-busy' : 'aria-disabled';
+      if (locked) control.setAttribute(attr, 'true');
+      else control.removeAttribute(attr);
+    }
+    updateNoteControls(entry);
+  }
+
+  async function save(entry, request) {
+    const id = entry.order.id;
     saving.add(id);
     writeVersion++;
     clearTimeout(timer);
-    input.setAttribute('aria-disabled', 'true');
-    entry.row.setAttribute('aria-busy', 'true');
-    entry.row.classList.toggle('is-prepared', prepared);
-    entry.error.hidden = true;
-    showCount();
+    lockEntry(entry, true);
     try {
-      await setPrepared(entry.order, prepared);
-      if (active()) entry.order = { ...entry.order, prepared };
-    } catch (error) {
-      if (active()) {
-        input.checked = entry.order.prepared === true;
-        entry.row.classList.toggle('is-prepared', input.checked);
-        text(entry.error, error?.message || 'Couldn’t save this checkmark. Please try again.');
-        entry.error.hidden = false;
-        showCount();
-      }
+      await request();
     } finally {
       saving.delete(id);
       if (active()) {
-        input.removeAttribute('aria-disabled');
-        entry.row.removeAttribute('aria-busy');
+        lockEntry(entry, false);
         refresh();
       }
     }
   }
 
+  async function change(event) {
+    const input = event.target;
+    if (!input.matches('input[type=checkbox]')) return;
+    const entry = entryFor(input);
+    if (!entry || entry.saving) return;
+    const item = input === entry.input ? null : itemNumber(input);
+    const checked = input.checked;
+    const marked = entry.itemInputs.filter(itemInput => item === null ? checked : itemInput.checked).map(itemNumber);
+    const prepared = item === null ? checked : marked.length === entry.itemInputs.length;
+    entry.error.hidden = true;
+    showProgress(entry, { prepared, prepared_items: marked });
+    showCount();
+    await save(entry, async () => {
+      try {
+        const result = await setPrepared(entry.order, checked, item);
+        if (active()) entry.order = { ...entry.order, prepared_items: marked, ...result };
+      } catch (error) {
+        if (active()) {
+          text(entry.error, error?.message || 'Couldn’t save this checkmark. Please try again.');
+          entry.error.hidden = false;
+        }
+      } finally {
+        if (active()) {
+          showProgress(entry, entry.order);
+          showCount();
+        }
+      }
+    });
+  }
+
+  async function saveNote(event) {
+    event.preventDefault();
+    const entry = entryFor(event.target);
+    if (!entry || entry.noteSave.disabled) return;
+    const draft = entry.noteInput.value;
+    const noteVersion = entry.noteVersion;
+    text(entry.noteStatus, 'Saving…');
+    await save(entry, async () => {
+      try {
+        const result = await setPrepNote(entry.order, draft.trim(), noteVersion);
+        if (!active()) return;
+        entry.order = { ...entry.order, prep_note: result.note, prep_note_version: result.note_version };
+        if (!result.conflict) {
+          if (entry.noteInput.value === draft) entry.noteInput.value = result.note;
+          entry.noteBase = result.note;
+          entry.noteVersion = result.note_version;
+        }
+        text(entry.noteStatus, result.conflict ? '' : 'Note saved.');
+        showNote(entry);
+      } catch (error) {
+        if (active()) text(entry.noteStatus, error?.message || 'Couldn’t save the note. Please try again.');
+      }
+    });
+  }
+
   list.addEventListener('change', change, options);
+  list.addEventListener('input', event => {
+    if (!event.target.matches('textarea')) return;
+    const entry = entryFor(event.target);
+    if (!entry) return;
+    if (!entry.saving) text(entry.noteStatus, '');
+    updateNoteControls(entry);
+  }, options);
+  list.addEventListener('submit', saveNote, options);
   list.addEventListener('click', event => {
     if (event.target.matches('input[aria-disabled=true]')) event.preventDefault();
+    if (!event.target.matches('[data-load-note]')) return;
+    const entry = entryFor(event.target);
+    if (!entry || entry.saving) return;
+    entry.noteInput.value = entry.order.prep_note || '';
+    text(entry.noteStatus, '');
+    showNote(entry);
+    entry.noteInput.focus();
   }, options);
   for (const button of modeButtons) button.addEventListener('click', () => {
     singleDay = button.dataset.checklistMode === 'day';
