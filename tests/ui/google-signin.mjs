@@ -17,8 +17,8 @@ const user=()=>window.testUser||null;
 export const auth={getUser:async()=>({data:{user:user()}}),getSession:async()=>({data:{session:user()?{user:user(),access_token:'fixture'}:null}}),onAuthStateChange:()=>({}),
 signInWithOAuth:async value=>{window.oauthCalls=(window.oauthCalls||[]).concat([value]);if(window.oauthFails)return {error:new Error('Fixture failure')};location.assign('/google-provider');return {data:{},error:null}},
 signInWithPassword:async value=>{window.passwordCalls=(window.passwordCalls||[]).concat([value]);return {error:null}},
-signOut:async()=>({error:null})};
-export async function api(action){if(action==='my_orders')return [{id:'existing-order',reference:'TLB-EXISTING',total_cents:10000,fulfillment_date:'2026-10-20',method:'pickup',payment_status:'paid',fulfillment_status:'confirmed',items:[]}];throw Error('No staff access')}
+signOut:async()=>{if(window.failSignOutOnce){window.failSignOutOnce=false;return {error:new Error('Fixture failure')}}window.testUser=null;return {error:null}}};
+export async function api(action){if(action==='admin_bootstrap'&&window.testStaff)return {role:'staff'};if(action==='my_orders')return [{id:'existing-order',reference:'TLB-EXISTING',total_cents:10000,fulfillment_date:'2026-10-20',method:'pickup',payment_status:'paid',fulfillment_status:'confirmed',items:[]}];throw Error('No staff access')}
 ${helpers}`;
 const iphone=process.env.BROWSER_ENGINE==='webkit';
 const browser=await (iphone?webkit:chromium).launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined});
@@ -155,6 +155,41 @@ try{
  check('Google signup does not opt into the newsletter',await f.page.locator('[name=newsletter]').isChecked()===false);
  await f.page.locator('[data-mode=signin]').click();await f.page.locator('[name=email]').fill('existing@example.test');await f.page.locator('[name=password]').fill('fixture-password');await f.page.locator('#auth-form button[type=submit]').click();await f.page.waitForURL(origin+'/shop.html');check('Password login remains available after OAuth error',true);await f.context.close();
  const user={id:'same-existing-user',email:'existing@example.test',email_confirmed_at:'2026-09-19T00:00:00Z'};
+ f=await fixture({user,recipeRole:'chef'});
+ await f.page.addInitScript(()=>{window.testStaff=true;window.failSignOutOnce=true});
+ if(!iphone)await f.page.setViewportSize({width:1440,height:900});
+ await f.page.goto(origin+'/account.html');
+ const welcome=f.page.locator('.account-welcome');
+ await welcome.getByRole('link',{name:'Staff dashboard',exact:true}).waitFor();
+ await welcome.getByRole('link',{name:'Recipe library',exact:true}).waitFor();
+ assert.equal(await welcome.getByRole('link',{name:'Explore the shop'}).getAttribute('href'),'shop.html');
+ assert.equal(await welcome.getByRole('link',{name:'Staff dashboard'}).getAttribute('href'),'manage.html');
+ assert.equal(await welcome.getByRole('link',{name:'Recipe library'}).getAttribute('href'),'recipes.html');
+ check('All six profile actions have separate touch targets and accessible labels',await welcome.locator('.account-shortcut:visible').evaluateAll(links=>
+   links.length===6 && links.every(el=>el.getBoundingClientRect().height>=44 && el.textContent.trim() && el.querySelector('svg[aria-hidden="true"]'))));
+ check('The profile toolbar fits the screen',await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await welcome.screenshot({path:join(out,iphone?'account-profile-iphone.png':'account-profile-desktop.png'),scale:'css'});
+ if(!iphone){
+   await f.page.setViewportSize({width:320,height:700});
+   check('Narrow screens keep every action inside the profile',await welcome.locator('.account-shortcut:visible').evaluateAll(links=>
+     links.every(el=>el.getBoundingClientRect().left>=0 && el.getBoundingClientRect().right<=innerWidth)));
+ }
+ for(const [name,id] of [['Your orders','account-orders'],['My vouchers','account-vouchers'],['Email preferences','newsletter-preferences']]){
+   await welcome.getByRole('link',{name,exact:true}).click();
+   assert.equal(new URL(f.page.url()).hash,'#'+id);
+   check(name+' opens its account section',await f.page.locator('#'+id).isVisible());
+ }
+ const signOut=welcome.getByRole('button',{name:'Sign out'});
+ await signOut.locator('span').click();
+ await f.page.getByText('We could not sign you out. Please try again.').waitFor();
+ check('Clicking the label can retry a failed sign-out',await signOut.isEnabled());
+ await signOut.click();await f.page.locator('#auth-form').waitFor();
+ await f.context.close();
+ f=await fixture({user});await f.page.goto(origin+'/account.html?next=shop.html%23checkout');
+ await f.page.getByRole('link',{name:'Continue to your order'}).waitFor();
+ assert.equal(await f.page.locator('.account-shop-link').getAttribute('href'),'/shop.html#checkout');
+ check('Customer profiles only show customer actions',await f.page.locator('#staff-link').isHidden()&&await f.page.locator('#recipe-link').isHidden());
+ await f.context.close();
  for(const recipeRole of ['kitchen','chef']){f=await fixture({user,recipeRole});await f.page.goto(origin+'/account.html');await f.page.getByRole('link',{name:recipeRole==='kitchen'?'Kitchen recipes':'Recipe library',exact:true}).waitFor();check('Recipe-only '+recipeRole+' account has a recipe link without shop staff access',await f.page.locator('#staff-link').isHidden());await f.context.close();}
  f=await fixture({user});await f.context.addInitScript(()=>sessionStorage.setItem('tlb-newsletter-signup-consent',String(Date.now())));await f.page.goto(origin+'/oauth-callback.html#access_token=fixture');await f.page.waitForURL(origin+'/shop.html');check('Explicit Google signup consent suppresses the newsletter popup',await f.page.evaluate(()=>localStorage.getItem('tlb-newsletter-preference'))==='subscribed');await f.context.close();
  for(const destination of ['/shop.html#checkout','/account.html','/manage.html','/manage.html#pos']){
