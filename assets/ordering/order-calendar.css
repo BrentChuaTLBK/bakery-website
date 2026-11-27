@@ -3,6 +3,8 @@
 .calendar-kind.completed,.calendar-day-counts .completed,.calendar-order .calendar-completed-badge{background:#e8e6e3;color:#504b45}.calendar-order.is-completed{background:#f4f2ef}.calendar-order.is-completed .calendar-order-link{color:#504b45}#order-calendar-manager .calendar-order.is-completed{border-left-color:#8a847c}
 
 #order-calendar-manager>.panel{margin-bottom:20px}#order-calendar-manager .calendar-order{border-left-width:4px}#order-calendar-manager .calendar-order.pickup{border-left-color:#799b6b}#order-calendar-manager .calendar-order.delivery{border-left-color:#6383b6}
+.calendar-kind.unpaid,.calendar-day-counts .unpaid,.calendar-order .calendar-unpaid-badge{background:#f9ebd6;color:#754019}
+#order-calendar-manager .calendar-order.is-unpaid{border-left-color:#b86835}
 
 #order-calendar-manager .calendar-order.is-completed{border-left-color:#8a847c}
 

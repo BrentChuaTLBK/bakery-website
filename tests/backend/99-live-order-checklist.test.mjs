@@ -8,9 +8,13 @@ export default async function ({ db, check, state }) {
   const id = randomUUID();
   const item = { name: 'Custom cake', quantity: 2, description: 'Blue icing', selection_labels: ['Chocolate'],
     flavor_contents: [], selections: {}, unit_price_cents: 12000, private_note: 'PRIVATE' };
-  const data = { buyer: { name: 'Checklist Customer', email: 'PRIVATE' }, items: [item], instructions: 'Box separately', notes: 'PRIVATE' };
+  const data = { buyer: { name: 'Checklist Customer', email: 'PRIVATE' },
+    items: [item, { name: 'Cookie tin', quantity: 1, selection_labels: ['Vanilla'] }], instructions: 'Box separately', notes: 'PRIVATE' };
   const row = async (user = ids.staff) => (await api('order_checklist', {}, user)).find(order => order.id === id);
   const mark = (content_key, prepared, user = ids.staff) => api('set_order_prepared', { order_id: id, content_key, prepared }, user);
+  const markItem = (content_key, item_number, prepared, user = ids.staff) =>
+    api('set_order_item_prepared', { order_id: id, content_key, item_number, prepared }, user);
+  const note = (note, note_version, user = ids.staff) => api('set_order_prep_note', { order_id: id, note, note_version }, user);
 
   await db.query(`insert into tlb.orders(id,reference,access_digest,access_encrypted,fulfillment_date,method,payment_status,fulfillment_status,data,idempotency_key,request_hash)
     select $1::uuid,$2,extensions.digest(($1::uuid)::text,'sha256'),extensions.pgp_sym_encrypt('fixture',s.token_key),
@@ -35,6 +39,8 @@ export default async function ({ db, check, state }) {
         for (const user of [null, ids.customer, ids.unverified]) {
           await assert.rejects(api('order_checklist', {}, user), /staff access|verify/i);
           await assert.rejects(mark(first.content_key, true, user), /staff access|verify/i);
+          await assert.rejects(markItem(first.content_key, 1, true, user), /staff access|verify/i);
+          await assert.rejects(note('Not staff', 0, user), /staff access|verify/i);
           await assert.rejects(api('order_checklist_period', {from:'2099-01-15',to:'2099-01-15'}, user), /staff access|verify/i);
         }
       } finally { await db.query('delete from tlb.staff where user_id=$1', [ids.unverified]); }
@@ -117,6 +123,44 @@ export default async function ({ db, check, state }) {
       await assert.rejects(mark(first.content_key,'false'),/valid order/i);
       assert.deepEqual(await snapshot(), before);
     })();
+    await check('Checklist: item progress is independent, preserves existing full marks, and combines across staff', async () => {
+      await db.query('delete from tlb.order_preparation_checks where order_id=$1', [id]);
+      // Rows saved by the original dashboard only had a content key.
+      await db.query('insert into tlb.order_preparation_checks(order_id,content_key) values($1,$2)', [id, first.content_key]);
+      assert.deepEqual((await row()).prepared_items, [1, 2]);
+      assert.equal((await row()).prepared, true);
+
+      assert.deepEqual(await markItem(first.content_key, 2, false), {prepared: false, prepared_items: [1]});
+      assert.deepEqual((await row(ids.owner)).prepared_items, [1]);
+      assert.deepEqual(await markItem(first.content_key, 2, true, ids.owner), {prepared: true, prepared_items: [1, 2]});
+      assert.deepEqual(await markItem(first.content_key, 2, true), {prepared: true, prepared_items: [1, 2]});
+      for (const invalid of [0, 3, 1.5, '1']) await assert.rejects(markItem(first.content_key, invalid, true), /choose an item/i);
+      await mark(first.content_key, false);
+      assert.deepEqual((await row()).prepared_items, []);
+    })();
+    await check('Checklist: shared notes keep drafts safe across edits and never change the order', async () => {
+      const snapshot = () => h.scalar("select jsonb_build_array(to_jsonb(o),(select count(*) from tlb.outbox e where e.order_id=o.id)) from tlb.orders o where id=$1",[id]);
+      const before = await snapshot();
+      const original = await note('Box the cake first.\nCheck the ribbon.', 0);
+      assert.deepEqual(original, {note: 'Box the cake first.\nCheck the ribbon.', note_version: 1});
+      assert.deepEqual(await note(original.note, 0), original);
+      const conflict = await note('A simultaneous draft', 0, ids.owner);
+      assert.deepEqual(conflict, {...original, conflict: true});
+      assert.equal((await row(ids.owner)).prep_note, original.note);
+      await markItem(first.content_key, 1, true);
+      assert.equal((await row()).prep_note, original.note);
+      await mark(first.content_key, false);
+      assert.equal((await row()).prep_note, original.note);
+      const cleared = await note('', 1);
+      assert.deepEqual(cleared, {note: '', note_version: 2});
+      assert.equal((await note('An old draft', 0)).conflict, true);
+      await assert.rejects(note('x'.repeat(2001), 2), /2,000/);
+      await note('Keep the boxes dry.', 2);
+      const printed = await api('order_checklist_period', {from:'2099-01-15',to:'2099-01-15'}, ids.staff);
+      assert.doesNotMatch(JSON.stringify(printed), /Keep the boxes dry|prep_note|prepared_items/);
+      assert.doesNotMatch(JSON.stringify(await h.order(id)), /Keep the boxes dry|prep_note|prepared_items/);
+      assert.deepEqual(await snapshot(), before);
+    })();
     await check('Checklist: a rescheduled delivery moves to its new pickup date with its preparation mark intact', async () => {
       await mark(first.content_key, true);
       await db.query("update tlb.orders set method='pickup', fulfillment_date='2099-01-16' where id=$1", [id]);
@@ -135,6 +179,9 @@ export default async function ({ db, check, state }) {
       assert.equal(changed.prepared, false);
       assert.notEqual(changed.content_key, first.content_key);
       await assert.rejects(mark(first.content_key, true), /details changed/i);
+      await assert.rejects(markItem(first.content_key, 2, true), /details changed/i);
+      assert.deepEqual(changed.prepared_items, []);
+      assert.equal(changed.prep_note, 'Keep the boxes dry.');
       await mark(changed.content_key, true);
       await db.query("update tlb.orders set data=jsonb_set(data,'{instructions}','\"New instructions\"') where id=$1",[id]);
       assert.equal((await row()).prepared, false);
@@ -143,6 +190,8 @@ export default async function ({ db, check, state }) {
       await db.query("update tlb.orders set payment_deadline=now()-interval '1 hour' where id=$1",[id]);
       assert.equal(await row(), undefined);
       await assert.rejects(mark(first.content_key,true), /no longer/i);
+      await assert.rejects(markItem(first.content_key,1,true), /no longer/i);
+      await assert.rejects(note('Closed fixture',3), /no longer/i);
       assert.equal(await h.scalar("select fulfillment_status from tlb.orders where id=$1",[id]), 'pending_confirmation');
       await db.query("update tlb.orders set payment_status='under_review' where id=$1", [id]);
       assert.equal((await row()).payment_status, 'under_review');

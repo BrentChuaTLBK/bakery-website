@@ -6,16 +6,47 @@ export default async function({db,check,state}){
  const service=(action,payload={})=>h.as(null,async()=> (await db.query('select public.shop_calendar_service($1,$2::jsonb) as result',[action,JSON.stringify(payload)])).rows[0].result,'service_role');
  let order=await h.api('create_order',h.checkout(product,date));
  const row=()=>h.scalar('select (select to_jsonb(e) from tlb.calendar_events e where order_id=$1)',[order.id]);
- await check('Calendar: only verified staff can see paid confirmed schedules',async()=>{
+ await check('Calendar: only verified staff can see unpaid, proof review and confirmed orders',async()=>{
   for(const who of [null,h.ids.customer,h.ids.unverified])await assert.rejects(h.api('calendar_list',{from:date,to:date},who));
-  assert.equal(await row(),null);
-  order=await h.action('approve_payment',await h.proof(order));
+  const waiting=await row();
+  assert.equal(waiting.desired.payment_status,'awaiting_payment');
+  assert.equal(waiting.desired.status,'pending_confirmation');
+  assert.equal((await h.api('calendar_list',{from:date,to:date},h.ids.staff)).orders.find(o=>o.id===order.id).payment_status,'awaiting_payment');
+  const proof=await h.proof(order);
+  await db.query("update tlb.orders set payment_deadline=clock_timestamp()-interval '1 hour' where id=$1",[order.id]);
+  await db.query('select tlb.expire_orders()');
+  assert.equal((await row()).desired.payment_status,'under_review');
+  assert.equal((await row()).event_id,waiting.event_id);
+  order=await h.action('approve_payment',proof);
+  assert.equal((await row()).event_id,waiting.event_id);
+  assert.equal((await row()).desired.payment_status,undefined);
   const report=await h.api('calendar_list',{from:date,to:date},h.ids.staff),entry=report.orders.find(o=>o.id===order.id);
   assert.equal(entry.reference,order.reference);assert.equal(entry.total_cents,order.total_cents);
   assert.equal(entry.buyer.phone,'09171234567');assert.equal(entry.date,date);
   for(const name of ['access_token','staff_notes','proof_path','payment_options','payment_reference'])assert.equal(entry[name],undefined);
   assert.deepEqual(entry.items[0].selection_labels,order.items[0].selection_labels||[]);
   await assert.rejects(h.api('calendar_list',{from:'2026-01-01',to:'2026-12-31'},h.ids.owner),/63 calendar days/i);
+ })();
+ await check('Calendar: expiring a website hold queues removal and keeps an unpaid direct order',async()=>{
+  const timed=await h.api('create_order',h.checkout(product,date));
+  const scheduled=await h.scalar('select to_jsonb(e) from tlb.calendar_events e where order_id=$1',[timed.id]);
+  assert.equal(scheduled.desired.payment_status,'awaiting_payment');
+  assert.equal(await h.scalar('select extract(epoch from payment_deadline-created_at)::int from tlb.orders where id=$1',[timed.id]),900);
+  const request={source:'direct_message',method:'pickup',fulfillment_date:date,override_dates:true,
+   buyer:{name:'Direct unpaid fixture'},items:[{name:'Custom order',quantity:1,unit_price_cents:10000}],discount:{kind:'none'},email_notifications:false};
+  const expected=await h.api('pos_quote',request,h.ids.owner);
+  const direct=await h.api('pos_create_order',{...request,expected_quote:expected,idempotency_key:randomUUID()},h.ids.owner);
+  assert.equal(direct.payment_deadline,null);
+  await db.query("update tlb.orders set payment_deadline=clock_timestamp()+interval '2 seconds' where id=$1",[timed.id]);
+  await db.exec('select pg_sleep(2.1)');
+  assert.equal(await h.scalar("select desired->>'payment_status' from tlb.calendar_events where order_id=$1",[timed.id]),'awaiting_payment');
+  await db.query('select tlb.expire_orders()');
+  const removed=await h.scalar('select to_jsonb(e) from tlb.calendar_events e where order_id=$1',[timed.id]);
+  assert.equal(removed.event_id,scheduled.event_id);
+  assert.ok(removed.revision>scheduled.revision);
+  assert.equal(removed.desired,null);
+  assert.equal((await h.order(timed.id)).fulfillment_status,'expired');
+  assert.equal(await h.scalar("select desired->>'payment_status' from tlb.calendar_events where order_id=$1",[direct.id]),'awaiting_payment');
  })();
  await check('Calendar: configuration is owner-only and the service RPC is private',async()=>{
   for(const user_id of [null,h.ids.customer,h.ids.staff,h.ids.unverified])await assert.rejects(service('calendar_owner_access',{user_id}));

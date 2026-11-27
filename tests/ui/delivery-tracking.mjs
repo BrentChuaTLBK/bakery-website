@@ -6,7 +6,7 @@ import {readFile,mkdir} from 'node:fs/promises';
 import {join,resolve,extname,sep} from 'node:path';
 import {safeDeliveryTrackingUrl,deliveryTrackingUrlForSave} from '../../assets/ordering/delivery-tracking.js';
 const require=createRequire(import.meta.url);
-const {chromium}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
+const {chromium,webkit,devices}=require(process.env.PLAYWRIGHT_PACKAGE_ROOT?join(process.env.PLAYWRIGHT_PACKAGE_ROOT,'playwright'):'playwright');
 const root=resolve(import.meta.dirname,'../..'),origin='https://tracking.test',output=join(root,'test-results/delivery-tracking');await mkdir(output,{recursive:true});
 const firstLink='https://track.lalamove.com/fixture-one?reference=TLB-A7K9P2&lang=en',replacementLink='https://track.lalamove.com/fixture-two';
 const unsafe=['javascript:alert(1)','http://track.example.test/order','https:track.example.test/order','https://user:password@track.example.test/order','https://track.example.test/a\\b','https://track.example.test/a\nheader','https://track.example.test/\u0001','https://track.example.test/\" onclick=\"alert(1)','data:text/html,<script>alert(1)</script>',{},'https://track.example.test/'+ 'x'.repeat(2050)];
@@ -22,10 +22,14 @@ export async function upload(){throw Error('Unexpected upload')} export async fu
 export async function academyApi(){throw Error('Unexpected Academy request')} export async function academyUpload(){throw Error('Unexpected Academy upload')} export async function academySignedUrls(){throw Error('Unexpected Academy photos')};
 ${helpers}`;
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp','.woff2':'font/woff2'};
-const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined,headless:true});
+const iphone=process.env.BROWSER_ENGINE==='webkit';
+const browser=await (iphone?webkit:chromium).launch({executablePath:process.env.BROWSER_EXECUTABLE_PATH||undefined,headless:true});
 async function setup(width,role){
  const orders={delivery:structuredClone(baseOrder),pickup:{...structuredClone(baseOrder),id:'pickup',reference:'TLB-P1C2K3',method:'pickup',fulfillment_status:'confirmed',delivery_cents:0,total_cents:50000,paid_amount_cents:50000,delivery_tracking_url:firstLink},completed:{...structuredClone(baseOrder),id:'completed',reference:'TLB-C1D2E3',fulfillment_status:'completed'}};
- const calls=[],errors=[],unexpected=[],context=await browser.newContext({viewport:{width,height:1000},hasTouch:width<500,serviceWorkers:'block'});
+ const calls=[],errors=[],unexpected=[],context=await browser.newContext({...(iphone&&width<500?devices['iPhone 15 Pro Max']:{}),viewport:{width,height:1000},hasTouch:width<500,serviceWorkers:'block'});
+ await context.addInitScript(()=>{
+  Object.defineProperty(navigator,'clipboard',{value:{writeText:async link=>{window.copiedOrderLink=link;}}});
+ });
  await context.route('**/*',async route=>{
   const url=new URL(route.request().url());
   if(url.origin!==origin){if(!/fonts\.(googleapis|gstatic)\.com/.test(url.hostname))unexpected.push(url.href);return route.abort();}
@@ -35,7 +39,9 @@ async function setup(width,role){
    const {action,payload,access}=route.request().postDataJSON();calls.push({action,payload,access});let result;
    if(action==='admin_bootstrap')result={role,products:[product],categories:[],orders:Object.values(orders),inventory:[],zones:[{id:'zone',active:true,localities:['Quezon City'],fee_cents:10000}],staff:[],promos:[],settings};
    else if(action==='catalog')result=catalog;
+   else if(action==='site_status')result={active:false,uploads_paused:false};
    else if(action==='get_order')result=orders[payload.order_id];
+   else if(action==='staff_order_link')result={id:payload.order_id,access_token:'private-test-token'};
    else if(action==='preview_edit_order')result={...orders[payload.order_id],...payload.changes};
    else if(action==='edit_order')result=orders[payload.order_id]={...orders[payload.order_id],...payload.changes,revision:orders[payload.order_id].revision+1};
    else if(action==='accounting_get_delivery')result={cost:null,order_revision:orders[payload.order_id].revision};
@@ -51,7 +57,40 @@ try{
  for(const [width,role] of [[1440,'owner'],[390,'staff']]){
   const {page,context,orders,calls,errors,unexpected}=await setup(width,role);
   await page.goto(origin+'/manage.html');await selectDashboardSection(page, 'orders');await page.locator('[data-action=open-order][data-id=delivery]').waitFor();
-  await page.locator('[data-action=open-order][data-id=delivery]').click();await page.locator('[data-action=edit-order]').click();
+  await page.locator('[data-action=open-order][data-id=delivery]').click();
+  const inline=page.locator('[data-form=delivery-tracking]'),inlineField=inline.locator('[name=delivery_tracking_url]');
+  await inlineField.waitFor();
+  if(role==='owner')assert.ok(await inline.evaluate(form=>form.parentElement.nextElementSibling.matches('.delivery-accounting')));
+  assert.equal(await inlineField.inputValue(),'');
+  const privateSection=page.locator('[data-private-order-link]');
+  await privateSection.getByRole('button',{name:'Copy link'}).click();
+  const privateUrl=await privateSection.getByRole('textbox',{name:'Private order link'}).inputValue();
+  assert.ok(await privateSection.evaluate(section=>section.previousElementSibling.matches('.order-total')));
+  assert.equal(new URL(privateUrl).hash,'#order=delivery&token=private-test-token');
+  assert.equal(await page.evaluate(()=>window.copiedOrderLink),privateUrl);
+
+  await inlineField.fill('http://track.example.test/order');
+  await inline.getByRole('button',{name:'Save tracking link'}).click();
+  await inline.getByRole('alert').filter({hasText:'HTTPS'}).waitFor();
+  assert.equal(calls.filter(c=>c.action==='edit_order').length,0);
+  await inlineField.fill(firstLink);
+  await inline.getByRole('button',{name:'Save tracking link'}).click();
+  await page.locator('#admin-dialog [data-delivery-tracking]').waitFor();
+  assert.deepEqual(calls.find(c=>c.action==='edit_order').payload.changes,{delivery_tracking_url:firstLink});
+  assert.equal(calls.filter(c=>c.action==='preview_edit_order').length,0);
+  assert.equal(orders.delivery.fulfillment_status,'out_for_delivery');
+  assert.equal(orders.delivery.total_cents,baseOrder.total_cents);
+  await page.locator('#dialog-close').click();
+  await page.locator('[data-action=select-order][data-id=delivery]').click();
+  await page.getByRole('button',{name:'Edit tracking link',exact:true}).click();
+  await inlineField.waitFor();
+  assert.equal(await inlineField.inputValue(),firstLink);
+  await inlineField.fill('');
+  await inline.getByRole('button',{name:'Save tracking link'}).click();
+  await page.locator('#admin-dialog [data-delivery-tracking]').waitFor({state:'detached'});
+  assert.equal(orders.delivery.delivery_tracking_url,'');
+  calls.length=0;
+  await page.locator('[data-action=edit-order]').click();
   const form=page.locator('[data-form=order-edit]'),tracking=form.locator('[name=delivery_tracking_url]');
   assert.equal(await tracking.isVisible(),true);assert.equal(await tracking.isEnabled(),true);assert.equal(await tracking.inputValue(),'');
   assert.equal(await tracking.evaluate(el=>Boolean(el.closest('.delivery-accounting'))),false);
@@ -62,8 +101,8 @@ try{
   assert.equal(await page.locator('#admin-dialog [data-delivery-tracking]').getAttribute('href'),firstLink);
   await page.locator('[data-action=edit-order]').click();assert.equal(await tracking.inputValue(),firstLink);await tracking.fill(replacementLink);await form.locator('[type=submit]').click();await page.locator('[data-action=edit-order]').waitFor();assert.equal(orders.delivery.delivery_tracking_url,replacementLink);
   await page.locator('[data-action=edit-order]').click();await tracking.fill('');await form.locator('[type=submit]').click();await page.locator('[data-action=edit-order]').waitFor();assert.equal(calls.filter(c=>c.action==='edit_order').at(-1).payload.changes.delivery_tracking_url,'');assert.equal(await page.locator('#admin-dialog [data-delivery-tracking]').count(),0);
-  await page.locator('#dialog-close').click();await page.locator('[data-action=open-order][data-id=pickup]').click();assert.equal(await page.locator('#admin-dialog [data-delivery-tracking]').count(),0);await page.locator('[data-action=edit-order]').click();assert.equal(await page.locator('[name=delivery_tracking_url]').count(),0);
-  await page.locator('#dialog-close').click();await page.locator('[data-action=open-order][data-id=completed]').click();await page.locator('[data-action=edit-contact]').click();await page.locator('[name=delivery_tracking_url]').fill(replacementLink);
+  await page.locator('#dialog-close').click();await page.locator('[data-action=open-order][data-id=pickup]').click();assert.equal(await page.locator('#admin-dialog [data-delivery-tracking], [data-form=delivery-tracking]').count(),0);await page.locator('[data-action=edit-order]').click();assert.equal(await page.locator('[name=delivery_tracking_url]').count(),0);
+  await page.locator('#dialog-close').click();await page.locator('[data-action=open-order][data-id=completed]').click();await page.locator('[data-action=edit-contact]').waitFor();assert.equal(await inline.count(),0);await page.locator('[data-action=edit-contact]').click();await page.locator('[name=delivery_tracking_url]').fill(replacementLink);
   const completedSave=page.waitForResponse(response=>{if(!response.url().endsWith('/fixture-api'))return false;const payload=response.request().postDataJSON();return payload.action==='edit_order'&&payload.payload.order_id==='completed';});
   await page.locator('[data-form=order-contact] [type=submit]').click();await completedSave;await page.locator('[data-action=edit-contact]').waitFor();assert.equal(orders.completed.delivery_tracking_url,replacementLink,JSON.stringify(calls.filter(c=>c.action==='edit_order')));
   assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);await context.close();console.log(`PASS tracking admin ${role} ${width}px: optional field, valid save/replacement/clear, invalid blocked, pickup hidden, completed contact correction.`);

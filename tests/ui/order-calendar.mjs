@@ -81,11 +81,25 @@ try{for(const width of [1440,390,320]){
  assert.equal(await page.locator('.calendar-completed-badge').count(),2);
  assert.equal(await page.locator('[data-calendar-order=a] .calendar-completed-badge').textContent(),'✓ Completed');
  const day=page.locator(`[data-calendar-day="${today}"]`);
- assert.match(await day.getAttribute('aria-label'),/0 pending pickups; 1 pending deliveries; 2 completed orders/);
+ assert.match(await day.getAttribute('aria-label'),/0 paid pickups; 1 paid deliveries; 0 unpaid orders; 2 completed orders/);
  assert.equal(await day.locator('.completed').textContent(),'✓ 2');
  assert.equal(await day.locator('.pickup').count(),0,'Completed pickups do not count as pending');
  assert.equal(await page.locator('[data-calendar-order=a]').evaluate(el=>getComputedStyle(el).borderLeftColor),'rgb(138, 132, 124)');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Completed calendar has no page overflow');
+ orders.push({...base,id:'unpaid',reference:'TLB-UNPAID',method:'pickup',status:'pending_confirmation',payment_status:'awaiting_payment'});
+ await page.locator('[data-calendar-action=refresh]').click();
+ const unpaid=page.locator('[data-calendar-order=unpaid].is-unpaid');
+ await unpaid.waitFor();
+ assert.equal(await unpaid.locator('.calendar-unpaid-badge').textContent(),'Unpaid');
+ assert.equal(await day.locator('.unpaid').textContent(),'U 1');
+ assert.equal(await unpaid.evaluate(el=>getComputedStyle(el).borderLeftColor),'rgb(184, 104, 53)');
+ orders.at(-1).payment_status='under_review';
+ await page.locator('[data-calendar-action=refresh]').click();
+ await unpaid.getByText('Payment under review',{exact:true}).waitFor();
+ orders.pop(); // A dropped reservation is omitted from the next server snapshot.
+ await page.locator('[data-calendar-action=refresh]').click();
+ await unpaid.waitFor({state:'detached'});
+ assert.equal(await day.locator('.unpaid').count(),0);
  await page.locator('#order-calendar-manager').screenshot({path:join(output,`calendar-completed-${width}.png`)});
  await page.locator('[data-calendar-order=a] [data-calendar-copy=address]').click();assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'12 Test Street, Makati');
  await page.locator('[data-calendar-filter=method]').selectOption('delivery');assert.equal(await page.locator('.calendar-order.pickup').count(),0);

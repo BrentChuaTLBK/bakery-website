@@ -45,12 +45,14 @@ export function eventBody(order:any,eventId:string) {
   if(!Number.isFinite(start.getTime())||start.toISOString().slice(0,10)!==order.date)throw new CalendarError('configuration');
   const end=new Date(start.getTime()+86400000).toISOString().slice(0,10);
   const completed=order.status==='completed',delivery=order.method==='delivery',area=clean(order.address?.locality,100)||'Area not recorded';
+  const paymentLabel=order.payment_status==='under_review'?'Payment under review':order.payment_status==='awaiting_payment'?'Unpaid':'';
+  const label=completed?'✓ Completed · ':paymentLabel?paymentLabel+' · ':'';
   const address=delivery?[order.address?.line1,order.address?.line2,order.address?.locality,order.address?.postal_code].filter(Boolean).map(v=>clean(v)).join(', '):'';
   const url=`https://thelittlebakerkitchen.com/manage.html#calendar?date=${order.date}&order=${encodeURIComponent(order.id)}`;
   const photoLink = /^[0-9a-f]{64}$/.test(order.photo_share || '')
     ? `\n\n<a href="https://thelittlebakerkitchen.com/order-photos.html#photos=${order.photo_share}">View order photos</a>` : '';
-  return {id:eventId,summary:`${completed?'✓ Completed · ':''}${delivery?`Delivery · ${area}`:'Pickup'} · ${clean(order.reference,80)} · ${name(order)}`.slice(0,500),
-    description:calendarDescription(order).split('\n').map(html).join('\n')+photoLink,location:address,colorId:completed?'8':delivery?'9':'2',
+  return {id:eventId,summary:`${label}${delivery?`Delivery · ${area}`:'Pickup'} · ${clean(order.reference,80)} · ${name(order)}`.slice(0,500),
+    description:calendarDescription(order).split('\n').map(html).join('\n')+photoLink,location:address,colorId:completed?'8':paymentLabel?'6':delivery?'9':'2',
     start:{date:order.date},end:{date:end},visibility:'private',transparency:'transparent',status:'confirmed',
     reminders:{useDefault:false},attendees:[],source:{title:'Open in TLB',url},
     extendedProperties:{private:{tlb_source:'tlb-orders',tlb_order_id:order.id}}};
